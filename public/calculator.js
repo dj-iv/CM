@@ -41,17 +41,23 @@ function uploadInitialPrices() {
 }
     
     // NEW FUNCTION to load settings from Firestore
-  async function loadPricesFromFirestore() {
+ async function loadPricesFromFirestore() {
     try {
+        console.log("Checkpoint 1: Starting to load prices from Firestore..."); // <-- ADD THIS LINE
+
         console.log("Fetching prices from Firestore...");
         const docRef = firebase.firestore().collection("settings").doc("pricing");
         const doc = await docRef.get();
 
         if (doc.exists) {
+            console.log("Checkpoint 2: Found the pricing document in Firestore."); // <-- ADD THIS LINE
             priceData = doc.data();
             console.log("Prices loaded successfully!");
+            
+            console.log("Checkpoint 3: About to run the main calculation."); // <-- ADD THIS LINE
             runFullCalculation();
         } else {
+            // This will happen if the pricing document doesn't exist yet
             console.error("No pricing document found in Firestore!");
             alert("Error: Could not load calculator settings from the server.");
         }
