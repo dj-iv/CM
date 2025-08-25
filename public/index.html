@@ -14,6 +14,36 @@
         margin: 0;
         padding: 20px;
     }
+       #login-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    text-align: center;
+}
+#login-button {
+    padding: 12px 24px;
+    font-size: 16px;
+    cursor: pointer;
+    background-color: #002D56;
+    color: white;
+    border: none;
+    border-radius: 5px;
+}
+#logout-button {
+    margin-left: 20px;
+    cursor: pointer;
+    background: none;
+    border: none;
+    color: #002D56;
+    font-weight: 600;
+    font-size: 13px;
+    text-decoration: underline;
+}
+.hidden {
+    display: none !important;
+}
     #view-toggle-btn {
         display: block;
         margin: 0 auto 15px auto;
@@ -195,11 +225,19 @@
     .tab-content { display: none; }
     .tab-content.active { display: block; }
 </style>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
 </head>
 <body>
+    <div id="login-container">
+    <h1>UCtel System Calculator</h1>
+    <p>Please sign in with your UCtel Google account to continue.</p>
+    <button id="login-button">Sign in with Google</button>
+    <p id="error-message" style="color: red;"></p>
+</div>
     <button id="view-toggle-btn">Switch to Simple View</button>
 
-    <div class="calculator-container" id="main-container">
+    <div class="calculator-container hidden" id="main-container">
         <div class="results-header">
             <div class="header-buttons">
                 <button id="generate-pdf-btn">Proposal PDF 📄</button>
@@ -211,6 +249,7 @@
                 <button id="settings-btn">Settings ⚙️</button>
                 <button id="reset-overrides">Reset Overrides</button>
             </div>
+            <button id="logout-button">Sign Out</button>
         </div>
 
         <h1>Universal System Calculator</h1>
@@ -435,5 +474,66 @@
    <script src="https://cdn.jsdelivr.net/npm/pizzip@3.1.5/dist/pizzip.min.js"></script>
    <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.47.1/docxtemplater.js"></script>
    <script src="./calculator.js"></script>
+        <script>
+    // ============== START: PASTE YOUR FIREBASE CONFIG HERE ==============
+
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyAofGv60WL0j0vfqcnrSw-N3tBdHO33TeI",
+  authDomain: "cost-model-8c2fc.firebaseapp.com",
+  projectId: "cost-model-8c2fc",
+  storageBucket: "cost-model-8c2fc.firebasestorage.app",
+  messagingSenderId: "659110644015",
+  appId: "1:659110644015:web:4a9f3a3ae61ad102c6b9da"
+};
+
+    // ============== END: PASTE YOUR FIREBASE CONFIG HERE ==============
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const provider = new firebase.auth.GoogleAuthProvider();
+
+    // DOM Elements
+    const loginContainer = document.getElementById('login-container');
+    const appContainer = document.getElementById('main-container'); // Changed to main-container
+    const loginButton = document.getElementById('login-button');
+    const logoutButton = document.getElementById('logout-button');
+    const errorMessage = document.getElementById('error-message');
+
+    const ALLOWED_DOMAIN = "uctel.co.uk";
+
+    // Sign in function
+    loginButton.onclick = () => {
+        auth.signInWithPopup(provider).catch(error => {
+            console.error("Login failed:", error);
+            errorMessage.textContent = "Login failed. Please try again.";
+        });
+    };
+
+    // Sign out function
+    logoutButton.onclick = () => auth.signOut();
+
+    // Authentication state listener
+    auth.onAuthStateChanged(user => {
+        if (user) {
+            const userDomain = user.email.split('@')[1];
+            if (userDomain === ALLOWED_DOMAIN) {
+                // User is from the correct domain, show the app
+                loginContainer.classList.add('hidden');
+                appContainer.classList.remove('hidden');
+                errorMessage.textContent = "";
+            } else {
+                // User is from the wrong domain, sign them out
+                errorMessage.textContent = `Access denied. Please use an @${ALLOWED_DOMAIN} account.`;
+                auth.signOut();
+            }
+        } else {
+            // No user is signed in, show the login page
+            loginContainer.classList.remove('hidden');
+            appContainer.classList.add('hidden');
+        }
+    });
+</script>
 </body>
 </html>
