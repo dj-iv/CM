@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Proposal for {Account}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Montserrat:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>
+  /* --- CSS Variables for Your Brand Colors --- */
+    :root {
+        --color-primary-blue: #385A7C;
+        --color-secondary-teal: #1A8387;
+        --color-accent-orange: #D98236;
+        --color-neutral-beige: #EAE1D9;
+        --color-light-background: #fbf9f7;
+        --color-text-dark: #444; /* Softer text color */
+        --color-text-light: #ffffff;
+    }
+
+   /* --- General Body and Page Setup --- */
+body {
+    font-family: 'Lato', Arial, sans-serif;
+    font-size: 11pt;
+    line-height: 1.6;
+    background-color: var(--color-light-background);
+    margin: 0;
+    padding: 0;
+    color: var(--color-text-dark);
+}
+        p a {
+    color: var(--color-secondary-teal);
+    font-weight: bold;
+    text-decoration: none;
+}
+p a:hover {
+    text-decoration: underline;
+}
+
+    .page {
+        position: relative;
+        width: 210mm;
+        min-height: 297mm;
+         padding: 10mm 20mm 20mm 20mm; /* Top is now 10mm, sides/bottom are 20mm */
+        margin: 20mm auto;
+        border: 1px solid #e0e0e0;
+        background: var(--color-text-light);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        box-sizing: border-box;
+    }
+
+/* --- Header & Footer --- */
+
+/* Shared Styles */
+.header, .footer {
+    position: absolute;
+    width: calc(100% - 40mm);
+    font-size: 9pt;
+    color: #888;
+}
+
+/* Header-Specific Position */
+.header {
+    top: 5mm;
+    right: 20mm;
+    text-align: right;
+}
+
+.header img {
+    width: 100px;
+    margin-bottom: 0;
+}
+
+/* Footer-Specific Position */
+.footer {
+    bottom: 10mm; /* This locks it to the bottom */
+    left: 20mm;
+    display: flex;
+    justify-content: space-between;
+}
+
+    /* --- Typography & Headings --- */
+    h1, h2, h3, h4 {
+        font-family: 'Montserrat', Arial, sans-serif;
+        color: var(--color-primary-blue);
+        line-height: 1.3;
+        font-weight: 700;
+    }
+    h1 { font-size: 26pt; text-align: center; margin-top: 50px; }
+    h2 {
+        font-size: 20pt;
+        text-align: left;
+        border-bottom: 3px solid var(--color-secondary-teal);
+        padding-bottom: 10px;
+        margin-top: 60px; /* Increased spacing */
+        margin-bottom: 25px;
+        font-weight: 700;
+    }
+    h2 i { font-size: 0.9em; margin-right: 15px; color: var(--color-secondary-teal); } /* Icon styling */
+    h3 { font-size: 16pt; margin-top: 35px; margin-bottom: 15px; font-weight: 600; color: var(--color-primary-blue); }
+    h4 { font-size: 12pt; margin-top: 25px; margin-bottom: 10px; font-weight: 600; text-transform: uppercase; color: #555; }
+
+ p, li {
+    margin-bottom: 1.2em;
+    text-align: justify; /* Aligns text to both sides */
+    hyphens: auto;      /* Enables automatic hyphenation */
+    widows: 2;          /* Prevents single lines at the top of a page */
+    orphans: 2;         /* Prevents single lines at the bottom of a page */
+}
+
+ul {
+    padding-left: 25px;
+}
+
+ul li::marker {
+    color: var(--color-secondary-teal);
+    font-weight: bold;
+}
+
+    /* --- Modern Table Styling --- */
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 25px;
+        font-size: 10pt;
+        border-radius: 5px;
+        overflow: hidden;
+    }
+    th, td {
+        padding: 12px 15px;
+        text-align: left;
+        vertical-align: top;
+        border: none;
+        border-bottom: 1px solid #e0e0e0;
+    }
+    td i { margin-right: 8px; color: var(--color-secondary-teal); } /* Contact icon styling */
+    th {
+        background-color: var(--color-primary-blue);
+        color: var(--color-text-light);
+        font-weight: bold;
+        font-family: 'Montserrat', sans-serif;
+        text-transform: uppercase;
+        font-size: 9pt;
+        letter-spacing: 0.5px;
+    }
+    tbody tr:nth-of-type(even) {
+        background-color: var(--color-light-background);
+    }
+    .pricing-table td:nth-child(2),
+    .pricing-table td:nth-child(3),
+    .pricing-table td:nth-child(4) { text-align: right; }
+    .total-row { background-color: var(--color-neutral-beige); font-size: 11pt; }
+    .total-row td { font-weight: bold; color: var(--color-primary-blue); }
+
+    /* --- Images & Components --- */
+    img { max-width: 100%; height: auto; display: block; margin: 20px auto; }
+    .component-layout {
+        display: flex;
+        gap: 30px;
+        align-items: center;
+        margin-bottom: 40px;
+        padding: 20px;
+        border-radius: 8px;
+        transition: background-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    .component-layout:hover {
+        background-color: var(--color-light-background);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    }
+    .component-layout.reverse { flex-direction: row-reverse; }
+    .image-container { flex: 1; }
+    .text-container { flex: 2; }
+    .text-container h3 { margin-top: 0; }
+
+    /* --- Cover Page Styling --- */
+    .cover-page {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        border: none;
+    }
+    .cover-logo { width: 450px; margin: 0 auto 20px; }
+    .cover-title {
+        text-align: center;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 36pt; /* Refined size */
+        font-weight: 700;
+        color: var(--color-primary-blue);
+        line-height: 1.5; /* Refined line height */
+        margin-top: 40px;
+    }
+    .cover-title-intro {
+        display: block;
+        font-size: 20pt;
+        font-weight: 600;
+        color: #888;
+        margin-bottom: 10px;
+    }
+        /* --- NEW: Benefits List Styling --- */
+.benefits-list {
+    list-style: none;
+    padding-left: 0;
+    margin-top: 30px;
+}
+.benefits-list li {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 1.5em;
+    text-align: left; /* Overrides justify for better list readability */
+    hyphens: none;
+}
+.benefits-list i {
+    font-size: 1.5em;
+    margin-right: 15px;
+    color: var(--color-secondary-teal);
+    width: 30px; /* Ensures consistent alignment */
+    text-align: center;
+    margin-top: 4px;
+}
+
+    /* --- Table of Contents (TOC) Styling --- */
+    .toc { list-style-type: none; padding-left: 0; border-left: 3px solid var(--color-neutral-beige); padding-left: 20px; }
+    .toc li { margin-bottom: 12px; }
+    .toc li a {
+        text-decoration: none;
+        color: var(--color-text-dark);
+        display: flex;
+        justify-content: space-between;
+        transition: color 0.2s ease, transform 0.2s ease;
+        padding: 5px 0;
+    }
+    .toc li a:hover { color: var(--color-accent-orange); transform: translateX(5px); }
+    .toc-h2 { font-weight: bold; }
+    .toc-h3 { padding-left: 20px; font-size: 0.95em; }
+    .heading-number { margin-right: 8px; color: #888; }
+
+    /* --- Interactive Support Tiers --- */
+    .support-tier-option {
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border-left: 4px solid transparent;
+    }
+    .support-tier-option:hover {
+        background-color: #fffaf5;
+        border-left: 4px solid var(--color-accent-orange);
+    }
+    .support-tier-option.selected {
+        background-color: #f0f7f7;
+        font-weight: bold;
+        color: var(--color-primary-blue);
+        border-left: 4px solid var(--color-secondary-teal);
+    }
+    .support-details-table td {
+      text-align: center;
+    }
+    .support-details-table td:first-child,
+    .support-details-table td:nth-child(2) {
+      text-align: left;
+    }
+    
+    /* --- NEW: Survey Call-to-Action Block --- */
+    .survey-cta {
+        background-color: var(--color-light-background);
+        border: 2px dashed var(--color-secondary-teal);
+        border-radius: 8px;
+        padding: 25px;
+        margin-top: 40px;
+        text-align: center;
+    }
+    .survey-cta p {
+        margin-bottom: 0.5em;
+        font-size: 1.1em;
+    }
+    .survey-price {
+        font-size: 1.5em;
+        font-weight: 700;
+        color: var(--color-primary-blue);
+    }
+      /* --- NEW: Page Container Centering --- */
+    #proposal-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }   
+/* --- FINAL PRINT STYLES --- */
+
+    @media print {
+        body {
+            background-color: #fff;
+            margin: 0; 
+        }
+
+        #proposal-container {
+            display: block;
+        }
+
+        .page {
+            box-shadow: none;
+            border: none;
+            margin: 0;  /* Ensure no outer margin */
+            padding: 0; /* Ensure no inner padding */
+            width: 100%;
+            min-height: 1%; /* Allow content to dictate height */
+            
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            position: static;
+            flex-shrink: 0;
+            padding: 0 10mm; /* Add side padding for header content */
+        }
+
+        /* All main content needs some side padding now */
+        h2, h3, h4, p, ul, table, .survey-cta, .component-layout {
+            padding: 0 10mm;
+        }
+
+        h2 {
+            margin-top: 0.5em !important;
+        }
+
+        .footer {
+            display: none !important;
+        }
+        
+        /* Standard Page Break Rules */
+        .page:not(:first-child) {
+            page-break-before: always;
+        }
+        
+        .survey-cta, .component-layout, table {
+            page-break-inside: avoid;
+        }
+        
+        h2, h3, h4 {
+            page-break-after: avoid;
+        }
+
+        iframe {
+            display: none;
+        }
+        
+        a {
+            color: var(--color-secondary-teal) !important;
+            text-decoration: none;
+        }
+    }
+</style>
+</head>
+<body>
+
+<div id="proposal-container">
+    <div class="page cover-page">
+        <img class="cover-logo" src="images/uctel_logo.png" alt="UCtel Logo">
+       <div class="cover-title">
+    Budgetary CEL-FI {Solution}
+    <span class="cover-title-intro">proposal for</span>
+    {Account}
+</div>
+
+    </div> <div class="page toc-page">
+        <div class="header"><img src="images/uctel_logo.png" alt="UCtel Logo"></div>
+        <h2 class="no-number">CONTENTS</h2>
+        <ul class="toc" id="toc-list"></ul>
+        <div class="footer"><span>CEL-FI {Solution} solution proposal for {Account}</span><span class="page-number"></span></div>
+    </div>
+
+    <div class="page">
+        <div class="header"><img src="images/uctel_logo.png" alt="UCtel Logo"></div>
+        <h2><i class="fa-solid fa-circle-info"></i> Introduction</h2>
+      <p>UCtel is pleased to present this proposal to provide a comprehensive mobile signal solution for <strong>{Account}</strong>, designed to deliver reliable, high-quality indoor coverage for your staff and visitors. Coverage is required over {NumberOfNetworks} of the UK Mobile Network Operators (MNOs) – EE, O2, Vodafone and Three (3). Based on the information provided, UCtel proposes the use of the CEL-FI {Solution} solution. This document sets out the details of the proposed solution, UCtel’s approach and budgetary pricing.</p>
+        <h3>About UCtel</h3>
+        <p>UCtel specialises in the design, installation and management of in-building mobile signal systems.</p>
+        <h4 class="no-number">Why UCtel:</h4>
+        <ul>
+            <li>We have been installing in building mobile signal systems since 2019 and have deployed over 300 systems in a wide range of buildings including private houses, offices, factories and hospitals</li>
+            <li>We only work with equipment that complies with Ofcom's UK Interface Requirement 2102</li>
+            <li>We have developed our own survey tools which are tailored to the specific requirements of in-building signal boosters. This allows us to see the important information about the signals that matter to ensure the best result from the installation.</li>
+            <li>We deploy 5G Stand Alone (Up to 4.0GHz) ready DAS solutions so that when 5G SA can be boosted, the DAS elements of the solution do not need to be upgraded.</li>
+            <li>We provide a range of tailored support packages from break/fix maintenance to fully managed systems with onsite engineering support.</li>
+        </ul>
+        <h3>Key Contacts</h3>
+        <p>The following team members are your <strong>primary points of contact</strong> for this proposal. We are here to answer any questions you may have.</p>
+        <table>
+            <tr><th>Name</th><th>Title</th><th>Contact Details</th></tr>
+            <tr><td>Ivor Nicholls</td><td>Sales Director</td><td>ivor.nicholls@uctel.co.uk</td></tr>
+            <tr><td>Ivan Romanov</td><td>Technical Director</td><td>ivan.romanov@uctel.co.uk</td></tr>
+        </table>
+        <h3>Confidentiality</h3>
+       <p>This document contains proprietary information and solution designs developed by UCtel. We present it to you <strong>in confidence</strong> and appreciate your discretion in handling the details of our proposal.</p>
+        <div class="footer"><span>CEL-FI {Solution} solution proposal for {Account}</span><span class="page-number"></span></div>
+    </div>
+
+    <div class="page">
+        <div class="header"><img src="images/uctel_logo.png" alt="UCtel Logo"></div>
+        <h2><i class="fa-solid fa-sitemap"></i> Proposed Solution</h2>
+        <div id="solution-architecture-section">
+            </div>
+        <div class="footer"><span>CEL-FI {Solution} solution proposal for {Account}</span><span class="page-number"></span></div>
+    </div>
+
+<div class="page" id="components-page">
+        <div class="header"><img src="images/uctel_logo.png" alt="UCtel Logo"></div>
+        <h2>Solution Components</h2>
+        <div id="solution-components-section">
+             </div>
+        <div class="footer"><span>CEL-FI {Solution} solution proposal for {Account}</span><span class="page-number"></span></div>
+    </div> 
+   
+       <div class="page">
+        <div class="header"><img src="images/uctel_logo.png" alt="UCtel Logo"></div>
+        <h2>5G Ready Infrastructure</h2>
+
+        <img src="images/5g_ready_graphic_wide.png" alt="5G Ready Future-Proof Infrastructure">
+
+        <div class="feature-box">
+            <h3><i class="fa-solid fa-gem"></i> Future-Proof Your Investment</h3>
+            <p>All passive components in our Distributed Antenna System (DAS)—including donor antennas, server antennas, cabling, and splitters—are specified to support frequencies up to 4.0GHz. This ensures they are fully compatible with the 3.5GHz to 3.7GHz range (Band n78) allocated for 5G services in the UK.</p>
+            <p>While current Ofcom regulations do not yet permit the boosting of these 5G frequencies, your infrastructure will be ready from day one. When the regulations are updated, the core DAS network we install will not need to be replaced, saving you significant future expense and disruption.</p>
+        </div>
+
+        <h3>Key Benefits at a Glance</h3>
+        <ul class="benefits-list">
+            <li><i class="fa-solid fa-shield-halved"></i> <strong>Investment Protection:</strong> Your in-building mobile infrastructure is future-proofed, ready for the next generation of mobile technology.</li>
+            <li><i class="fa-solid fa-piggy-bank"></i> <strong>Significant Cost Savings:</strong> Avoid the high cost and disruption of a "rip-and-replace" upgrade when 5G boosting is enabled.</li>
+            <li><i class="fa-solid fa-puzzle-piece"></i> <strong>Seamless Transition:</strong> Be ready to take immediate advantage of 5G's speed and capacity as soon as it's available for boosting, with no additional hardware installation required.</li>
+        </ul>
+
+        <div class="footer"><span>CEL-FI {Solution} solution proposal for {Account}</span><span class="page-number"></span></div>
+    </div>
+   
+
+    <div class="page">
+        <div class="header"><img src="images/uctel_logo.png" alt="UCtel Logo"></div>
+        <h2><i class="fa-solid fa-gears"></i> Design and Installation Process</h2>
+        <h3>Site Survey</h3>
+        <p>In order to validate the assumptions in this proposal, a site survey is required. The survey will determine:</p>
+        <ul>
+            <li>Signal strength and quality inside the building to identify where coverage is needed.</li>
+            <li>Potential locations to install the donor antennas. In these locations, measurements will be taken of the signal strength, quality and available frequency bands.</li>
+            <li>The type and quantity of donor antennas required</li>
+            <li>Cable routes from the donor antenna to the Network Unit(s)</li>
+            <li>Cable routes from the boosters to the server antennas and/or coverage units</li>
+            <li>Power locations and quantities</li>
+            <li>Other factors associated with the installation such as access equipment required, risks and working hours.</li>
+            <li>Final solution and price</li>
+        </ul>
+        <h3>Report and Quotation</h3>
+        <p>Following the survey, a report will be provided which will include the results of the signal survey as well as details of the solution and proposed equipment locations. A formal quotation will be provided for the installation of the solution.</p>
+        <h3>Project Coordination</h3>
+        <p>Once the order for the solution has been received, UCtel will introduce a project coordinator to manage the installation process. The project coordinator will be responsible for communicating dates, arranging any required risk assessments, method statements and permits and ensuring the smooth delivery of the project.</p>
+        <h3>Documentation</h3>
+        <p>Once the installation is complete, the project coordinator will produce the final as-built documentation and post installation survey document. A project completion sign off will be requested to confirm acceptance of the installation and that all deliverables have been completed.</p>
+        <div class="footer"><span>CEL-FI {Solution} solution proposal for {Account}</span><span class="page-number"></span></div>
+    </div>
+    
+    <div class="page">
+        <div class="header"><img src="images/uctel_logo.png" alt="UCtel Logo"></div>
+        <h2><i class="fa-solid fa-sterling-sign"></i> Proposed Pricing</h2>
+        <p>The following table provides indicative figures for the proposed solution.</p>
+        <table class="pricing-table">
+          <thead><tr><th>Description</th><th>Qty</th><th>Unit Price</th><th>Total Price</th></tr></thead>
+          <tbody>
+            <tr><td>{Description1}</td><td>{Qty1}</td><td>{UnitPrice1}</td><td>{TotalPrice1}</td></tr>
+            <tr><td>{Description2}</td><td>{Qty2}</td><td>{UnitPrice2}</td><td>{TotalPrice2}</td></tr>
+            <tr><td>{Description3}</td><td>{Qty3}</td><td>{UnitPrice3}</td><td>{TotalPrice3}</td></tr>
+            <tr id="support-row-initial"><td>{Description4}</td><td>{Qty4}</td><td>{UnitPrice4}</td><td>{TotalPrice4}</td></tr>
+            <tr class="total-row"><td colspan="3" style="text-align:right;">Total Price:</td><td id="grand-total-price">{TotalPrice}</td></tr>
+        </tbody>
+        </table>
+        <p>The following support options are available. Please see the <a href="#section-cel-fi-support-services">CEL-FI Support Services</a> section for more details.</p>
+        <table class="pricing-table">
+           <thead><tr><th>Support Option</th><th>Qty</th><th>Unit Price</th><th>Total Price</th></tr></thead>
+           <tbody id="support-options-body">
+            <tr class="support-tier-option" data-tier="bronze"><td>{Support1}</td><td>{SupportQty1}</td><td>{SupportUnitPrice1}</td><td>{SupportTotalPrice1}</td></tr>
+            <tr class="support-tier-option" data-tier="silver"><td>{Support2}</td><td>{SupportQty2}</td><td>{SupportUnitPrice2}</td><td>{SupportTotalPrice2}</td></tr>
+            <tr class="support-tier-option" data-tier="gold"><td>{Support3}</td><td>{SupportQty3}</td><td>{SupportUnitPrice3}</td><td>{SupportTotalPrice3}</td></tr>
+        </tbody>
+        </table>
+        <p>All figures shown are exclusive of VAT.</p>
+        <p><b>Terms:</b> Cel-Fi equipment to be paid on order. Other elements to be invoiced on completion and paid within 30 days.</p>
+        <h3>Survey</h3>
+      <div class="survey-cta">
+    <p>The next step is a comprehensive site survey, which will allow us to <strong>finalise the system design</strong> and provide you with a fixed, formal quotation. This ensures the proposed solution is perfectly tailored to your building's specific needs.</p>
+    <p>The price for the survey and report is <span class="survey-price">{SurveyPrice} + VAT</span></p>
+</div>
+        <div class="footer"><span>CEL-FI {Solution} solution proposal for {Account}</span><span class="page-number"></span></div>
+    </div>
+
+    <div class="page">
+        <div class="header"><img src="images/uctel_logo.png" alt="UCtel Logo"></div>
+        <h2>CEL-FI Support Services</h2>
+        <p>The table below describes the available services that UCtel provides for the ongoing support of CEL-FI installations.</p>
+        <table class="support-details-table">
+             <thead><tr><th>Included Services</th><th>Description</th><th>Bronze</th><th>Silver</th><th>Gold</th></tr></thead>
+            <tbody>
+                <tr><td>Health check</td><td>Scheduled on-site health check</td><td>O</td><td>O</td><td>O</td></tr>
+                <tr><td>Remote Monitoring</td><td>Alerts and events captured on the management portal</td><td>☐</td><td>✅</td><td>✅</td></tr>
+                <tr><td>Reactive Support</td><td>Customer identifies issue and reports to UCtel</td><td>✅</td><td>✅</td><td>✅</td></tr>
+                <tr><td>Proactive Alerting</td><td>Events and alerts received from management portal proactively investigated by UCtel</td><td>☐</td><td>✅</td><td>✅</td></tr>
+                <tr><td>Incident Management</td><td>Incident managed by UCtel via Email</td><td>✅</td><td>✅</td><td>✅</td></tr>
+                <tr><td>Change Management *</td><td>Remote changes (eg change in network operator where antenna does not need to be adjusted)</td><td>☐</td><td>✅</td><td>✅</td></tr>
+                <tr><td>On-site support</td><td>Engineer to site for equipment relocation or antenna repositioning</td><td>☐</td><td>☐</td><td>✅</td></tr>
+                <tr><td>Service Reports</td><td>Quarterly service reporting</td><td>☐</td><td>☐</td><td>O</td></tr>
+                <tr><td>Service Review Meetings</td><td>Quarterly service review meetings</td><td>☐</td><td>☐</td><td>O</td></tr>
+                <tr><td>Maintenance (Parts only)</td><td>Break/Fix maintenance - parts to site</td><td>✅</td><td>✅</td><td>☐</td></tr>
+                <tr><td>Maintenance (with engineer)</td><td>Break / fix maintenance with engineer to site</td><td>☐</td><td>☐</td><td>✅</td></tr>
+            </tbody>
+        </table>
+        <p>✅ - included in service O – optional ☐ - not included * Up to 4 changes per year per system</p>
+        <p><b>Notes:</b><br>
+        The services apply to remotely manageable CEL-FI products<br>
+        Management connectivity is included via cellular connections and does not need to run over customer infrastructure<br>
+        Proactive Alerting, Incident Management and Change Management operate in normal working hours unless agreed otherwise.<br>
+        Services are subject to UCtel’s standard Terms and Conditions.
+        </p>
+        <div class="footer"><span>CEL-FI {Solution} solution proposal for {Account}</span><span class="page-number"></span></div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<script>
+const solutionSpecificData = {
+    'G41': {
+        architecture: `
+            <h3 class="no-number">CEL-FI</h3>
+            <p>UCtel proposes to deploy solutions from Nextivity. Nextivity manufactures the CEL-FI suite of cellular coverage solutions which are designed to optimise mobile signal coverage within buildings and vehicles. CEL-FI is unconditionally network safe, as it prevents interference with mobile operator networks and in the UK CEL-FI products are licence-exempt and fully comply with Ofcom’s UK Interface requirement 2102 (IR2102).</p>
+            <div style="padding:20px 0;"><iframe width="100%" height="315" src="https://www.youtube.com/embed/x_kXPIDpMcE" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>
+            <h3>CEL-FI G41 System Architecture</h3>
+            <p>The CEL-FI solution needs to receive the best available donor signal from outside and transport the signal through low loss cable to the network repeaters that then distribute the signal through indoor antennas. A system comprises:</p>
+            <ul><li>Donor antenna installed where the best donor signal can be obtained</li><li>Low loss cables</li><li>Repeaters to receive donor signal and boost it</li><li>Internal antennas to broadcast the boosted signal</li></ul>
+            <img src="images/g41_diagrams.png" alt="G41 Installation Diagrams">`,
+        components: `
+            <div class="component-layout"><div class="image-container"><img src="images/donor_antenna.png" alt="Donor Antenna"></div><div class="text-container"><h3>Donor Antenna</h3><p>One or more donor antennas will be installed on the roof (or other suitable location) to obtain the best signal for boosting. The type of donor antenna will be selected during the site survey. The image shows an example of a roof installation. Low loss coaxial cables will be run from the donor antennas to the boosters.</p></div></div>
+            <div class="component-layout reverse"><div class="image-container"><img src="images/g41_boosters.png" alt="G41 Boosters"></div><div class="text-container"><h3>G41 Booster</h3><p>CEL-FI Go G41 booster(s) will be installed in a suitable location and either wall or rack-mounted. Typical locations are comms rooms or riser cupboards. Power will be required for the booster(s) and management router if remote management is required.</p></div></div>
+            <div class="component-layout"><div class="image-container"><img src="images/server_antennas.png" alt="Server Antennas"></div><div class="text-container"><h3>Server Antennas</h3><p>Depending on the environment the appropriate type of antenna will be installed. There are a range of ceiling and panel omni antennas available and the most appropriate antenna will be recommended following the survey.</p></div></div>
+            <div class="component-layout reverse"><div class="image-container"><img src="images/cabling.png" alt="Cabling"></div><div class="text-container"><h3>Cabling</h3><p>Coaxial cable carries the analogue signal and is low-loss to ensure the maximum signal is delivered to antennas.</p></div></div>`
+    },
+    'G43': {
+        architecture: `
+            <h3 class="no-number">CEL-FI</h3>
+            <p>UCtel proposes to deploy solutions from Nextivity. Nextivity manufactures the CEL-FI suite of cellular coverage solutions which are designed to optimise mobile signal coverage within buildings and vehicles. CEL-FI is unconditionally network safe, as it prevents interference with mobile operator networks and in the UK CEL-FI products are licence-exempt and fully comply with Ofcom’s UK Interface requirement 2102 (IR2102).</p>
+            <div style="padding:20px 0;"><iframe width="100%" height="315" src="https://www.youtube.com/embed/x_kXPIDpMcE" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>
+            <h3>CEL-FI G43 System Architecture</h3>
+            <p>The CEL-FI solution needs to receive the best available donor signal from outside and transport the signal through low loss cable to the network repeaters that then distribute the signal through indoor antennas. A system comprises:</p>
+            <ul><li>Donor antenna installed where the best donor signal can be obtained</li><li>Low loss cables</li><li>Repeaters to receive donor signal and boost it</li><li>Internal antennas to broadcast the boosted signal</li></ul>
+            <img src="images/g43_diagram.png" alt="G43 Installation Diagram">`,
+        components: `
+            <div class="component-layout"><div class="image-container"><img src="images/donor_antenna.png" alt="Donor Antenna"></div><div class="text-container"><h3>Donor Antenna</h3><p>One or more donor antennas will be installed on the roof (or other suitable location) to obtain the best signal for boosting. The type of donor antenna will be selected during the site survey. The image shows an example of a roof installation. Low loss coaxial cables will be run from the donor antennas to the boosters.</p></div></div>
+            <div class="component-layout reverse"><div class="image-container"><img src="images/g43_booster.png" alt="G43 Booster"></div><div class="text-container"><h3>G43 Booster</h3><p>CEL-FI GO G43 booster(s) will be installed in a suitable location and either wall or rack-mounted. Typical locations are comms rooms or riser cupboards. Power will be required for the booster(s) and management router if remote management is required.</p></div></div>
+            <div class="component-layout"><div class="image-container"><img src="images/server_antennas.png" alt="Server Antennas"></div><div class="text-container"><h3>Server Antennas</h3><p>Depending on the environment the appropriate type of antenna will be installed. There are a range of ceiling and panel omni antennas available and the most appropriate antenna will be recommended following the survey.</p></div></div>
+            <div class="component-layout reverse"><div class="image-container"><img src="images/cabling.png" alt="Cabling"></div><div class="text-container"><h3>Cabling</h3><p>Coaxial cable carries the analogue signal and is low-loss to ensure the maximum signal is delivered to antennas.</p></div></div>`
+    },
+    'QUATRA': {
+        architecture: `
+            <h3 class="no-number">CEL-FI</h3>
+            <p>UCtel proposes to deploy solutions from Nextivity. Nextivity manufactures the CEL-FI suite of cellular coverage solutions which are designed to optimise mobile signal coverage within buildings and vehicles. CEL-FI is unconditionally network safe, as it prevents interference with mobile operator networks and in the UK, CEL-FI products are licence-exempt and fully comply with Ofcom’s UK Interface requirement 2102 (IR2102).</p>
+            <div style="padding:20px 0;"><iframe width="100%" height="315" src="https://www.youtube.com/embed/x_kXPIDpMcE" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>
+            <h3>CEL-FI QUATRA 4000e</h3>
+            <p>CEL-FI QUATRA is a distributed antenna system (DAS) hybrid solution that combines the strength of passive and active DAS technologies to deliver high-quality mobile signal in buildings. The QUATRA 4000e boosts up to 4 network operators in a single system and complies with recent changes to Ofcom’s regulations in this regard.</p>
+            <img src="images/quatra_diagram.png" alt="QUATRA 4000e Architecture Diagram">`,
+        components: `
+            <div class="component-layout"><div class="image-container"><img src="images/donor_antenna.png" alt="Donor Antenna"></div><div class="text-container"><h3>Donor Antenna</h3><p>Donor antennas will be installed on the roof (or other suitable location) to obtain the best signal for boosting. The type of donor antenna will be selected during the site survey. The image shows an example of a roof installation. Low loss coaxial cables will be run from the donor antennas to the QUATRA Network Unit.</p></div></div>
+            <div class="component-layout reverse"><div class="image-container"><img src="images/network_unit.png" alt="Network Unit"></div><div class="text-container"><h3>Network Unit</h3><p>CEL-FI QUATRA 4000e Network Units (NUs) will be installed in a suitable location and either wall or rack mounted. Typical locations are comms rooms or riser cupboard. Power will be required for the NU. An NU can support up to 6 CUs. A fibre hub can be added to expand the capacity to 12 CUs.</p></div></div>
+            <div class="component-layout"><div class="image-container"><img src="images/coverage_unit.png" alt="Coverage Unit"></div><div class="text-container"><h3>Coverage Unit</h3><p>Coverage Units are installed on the wall or ceiling in each of the areas that require coverage. Two CAT6 cables connect each CU to the NU providing power over PoE. A server antenna or segments of passive DAS will be connected to each CU to distribute the signal across the required area.</p></div></div>
+            <div class="component-layout reverse"><div class="image-container"><img src="images/server_antennas.png" alt="Server Antennas"></div><div class="text-container"><h3>Server Antennas</h3><p>Depending on the environment the appropriate type of antenna will be installed. There are a range of ceiling and panel omni antennas available and the most appropriate antenna will be recommended following the survey.</p></div></div>
+            <div class="component-layout"><div class="image-container"><img src="images/cabling_quatra.png" alt="Quatra Cabling"></div><div class="text-container"><h3>Cabling</h3><p>Structured cabling will be used to connect active components together and coaxial cabling to connect antennas. Some installations involve fibre optic cable to maximise the distance between NU and CU, but will require a dedicated power at the other end.</p></div></div>`
+    },
+    'QUATRA_EVO': {
+        architecture: `
+            <h3 class="no-number">CEL-FI</h3>
+            <p>UCtel proposes to deploy solutions from Nextivity. Nextivity manufactures the CEL-FI suite of cellular coverage solutions which are designed to optimise mobile signal coverage within buildings and vehicles. CEL-FI is unconditionally network safe, as it prevents interference with mobile operator networks and in the UK, CEL-FI products are licence-exempt and fully comply with Ofcom’s UK Interface requirement 2102 (IR2102).</p>
+            <div style="padding:20px 0;"><iframe width="100%" height="315" src="https://www.youtube.com/embed/x_kXPIDpMcE" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>
+            <h3>CEL-FI QUATRA EVO</h3>
+            <p>CEL-FI QUATRA is a distributed antenna system (DAS) hybrid solution that combines the strength of passive and active DAS technologies to deliver high-quality mobile signal in buildings. The QUATRA EVO can boost two network operators in a single system and complies with recent changes to Ofcom’s regulations in this regard.</p>
+            <img src="images/evo_diagram.png" alt="QUATRA EVO Architecture Diagram">`,
+        components: `
+            <div class="component-layout"><div class="image-container"><img src="images/donor_antenna.png" alt="Donor Antenna"></div><div class="text-container"><h3>Donor Antenna</h3><p>Donor antennas will be installed on the roof (or other suitable location) to obtain the best signal for boosting. The type of donor antenna will be selected during the site survey. The image shows an example of a roof installation. Low loss coaxial cables will be run from the donor antennas to the QUATRA Network Unit.</p></div></div>
+            <div class="component-layout reverse"><div class="image-container"><img src="images/network_unit_evo.png" alt="EVO Network Unit"></div><div class="text-container"><h3>Network Unit</h3><p>CEL-FI QUATRA EVO Network Units (NUs) will be installed in a suitable location and either wall or rack mounted. Typical locations are comms rooms or riser cupboard. Power will be required for the NU. An NU can support up to 6 CUs. A fibre hub can be added to expand the capacity to 12 CUs.</p></div></div>
+            <div class="component-layout"><div class="image-container"><img src="images/coverage_unit.png" alt="Coverage Unit"></div><div class="text-container"><h3>Coverage Unit</h3><p>Coverage Units are installed on the wall or ceiling in each of the areas that require coverage. Two CAT6 cables connect each CU to the NU providing power over PoE. A server antenna or segments of passive DAS will be connected to each CU to distribute the signal across the required area.</p></div></div>
+            <div class="component-layout reverse"><div class="image-container"><img src="images/server_antennas.png" alt="Server Antennas"></div><div class="text-container"><h3>Server Antennas</h3><p>Depending on the environment the appropriate type of antenna will be installed. There are a range of ceiling and panel omni antennas available and the most appropriate antenna will be recommended following the survey.</p></div></div>
+            <div class="component-layout"><div class="image-container"><img src="images/cabling_quatra.png" alt="Quatra Cabling"></div><div class="text-container"><h3>Cabling</h3><p>Structured cabling will be used to connect active components together and coaxial cabling to connect antennas. Some installations involve fibre optic cable to maximise the distance between NU and CU, but will require a dedicated power at the other end.</p></div></div>`
+    }
+};
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- 1. LOAD AND DECODE DATA ---
+        const proposalData = (function loadProposalData() {
+            if (!window.location.hash) return null;
+            try {
+                const encodedState = window.location.hash.substring(1);
+                const compressedString = atob(encodedState);
+                const compressed = new Uint8Array(compressedString.length);
+                for (let i = 0; i < compressedString.length; i++) { compressed[i] = compressedString.charCodeAt(i); }
+                const jsonString = pako.inflate(compressed, { to: 'string' });
+                return JSON.parse(jsonString);
+            } catch (error) {
+                console.error("Failed to load proposal data:", error);
+                document.body.innerHTML = '<h1>Error: Could not load proposal data.</h1>';
+                return null;
+            }
+        })();
+
+        if (!proposalData) {
+            document.body.innerHTML = '<h1>No proposal data found. Please generate a link from the calculator.</h1>';
+            return;
+        };
+        // Function to format the date as DDMonYYYY
+function getFormattedDate() {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const date = new Date();
+    const day = date.getDate();
+    const month = months[date.getMonth()];
+    const year = date.getFullYear();
+    return `${day}${month}${year}`;
+}
+
+// 1. Get the necessary data from the proposalData object
+const solution = proposalData.Solution.replace(/ /g, '_'); // Replace spaces with underscores
+const networks = proposalData.NumberOfNetworks;
+const account = proposalData.Account.replace(/ /g, '_'); // Replace spaces with underscores
+const dateStr = getFormattedDate();
+
+// 2. Build the new filename string
+const newFilename = `UCtel_Proposal_${solution}_${networks}_Networks_for_${account}_${dateStr}`;
+
+// 3. Set the document title
+document.title = newFilename;
+        
+        // --- 2. POPULATE GENERAL PLACEHOLDERS (SAFE METHOD) ---
+        (function populatePlaceholders(data) {
+            const container = document.getElementById('proposal-container');
+            const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+            let node;
+            while (node = walker.nextNode()) {
+                let text = node.nodeValue;
+                for (const key in data) {
+                    text = text.replace(new RegExp(`{${key}}`, 'g'), data[key]);
+                }
+                node.nodeValue = text;
+            }
+        })(proposalData);
+
+        // --- 3. INJECT DYNAMIC SOLUTION-SPECIFIC HTML ---
+        (function populateDynamicContent(data) {
+            if (!data || !data.systemType) return;
+            const systemKey = data.systemType.replace('_DAS', '');
+            const content = solutionSpecificData[systemKey];
+            if (content) {
+                document.getElementById('solution-architecture-section').innerHTML = content.architecture;
+                document.getElementById('solution-components-section').innerHTML = content.components;
+            }
+        })(proposalData);
+
+        // --- 4. ADD INTERACTIVITY FOR PRICING TABLE ---
+        (function addInteractivity(data) {
+            const supportOptions = document.querySelectorAll('.support-tier-option');
+            const grandTotalElem = document.getElementById('grand-total-price');
+            const supportRow = document.getElementById('support-row-initial');
+            if(!grandTotalElem || !supportRow) return;
+
+            const initialData = {
+                desc: supportRow.cells[0].textContent,
+                qty: supportRow.cells[1].textContent,
+                unit: supportRow.cells[2].textContent,
+                total: supportRow.cells[3].textContent
+            };
+
+            const parsePrice = (priceString) => parseFloat(String(priceString).replace(/[£,]/g, ''));
+            const baseTotal = parsePrice(data.TotalPrice) - parsePrice(initialData.total || '£0.00');
+            const tierPrices = { bronze: parsePrice(data.SupportTotalPrice1), silver: parsePrice(data.SupportTotalPrice2), gold: parsePrice(data.SupportTotalPrice3) };
+            
+            supportOptions.forEach(option => {
+                option.addEventListener('click', () => {
+                    const isAlreadySelected = option.classList.contains('selected');
+                    if (isAlreadySelected) {
+                        option.classList.remove('selected');
+                        supportRow.cells[0].textContent = initialData.desc;
+                        supportRow.cells[1].textContent = initialData.qty;
+                        supportRow.cells[2].textContent = initialData.unit;
+                        supportRow.cells[3].textContent = initialData.total;
+                        grandTotalElem.textContent = `£${(baseTotal + parsePrice(initialData.total || '£0.00')).toLocaleString('en-GB', {minimumFractionDigits: 2})}`;
+                    } else {
+                        supportOptions.forEach(opt => opt.classList.remove('selected'));
+                        option.classList.add('selected');
+                        const tier = option.dataset.tier;
+                        const tierPrice = tierPrices[tier];
+                        const newGrandTotal = baseTotal + tierPrice;
+                        supportRow.cells[0].textContent = `Annual ${tier.charAt(0).toUpperCase() + tier.slice(1)} Support Package`;
+                        supportRow.cells[1].textContent = '1';
+                        supportRow.cells[2].textContent = `£${tierPrice.toLocaleString('en-GB', {minimumFractionDigits: 2})}`;
+                        supportRow.cells[3].textContent = `£${tierPrice.toLocaleString('en-GB', {minimumFractionDigits: 2})}`;
+                        grandTotalElem.textContent = `£${newGrandTotal.toLocaleString('en-GB', {minimumFractionDigits: 2})}`;
+                    }
+                });
+            });
+        })(proposalData);
+
+        // --- 5. ADD PAGE NUMBERS, HEADINGS, AND TOC (ROBUST VERSION) ---
+        (function finalizeDocument() {
+            // Add page numbers
+            const pages = document.querySelectorAll('.page:not(.cover-page)');
+            pages.forEach((page, index) => {
+                const pageNumElem = page.querySelector('.footer .page-number');
+                if(pageNumElem) pageNumElem.textContent = index + 2;
+            });
+
+            // Add heading numbers and generate ToC
+            const tocList = document.getElementById('toc-list');
+            tocList.innerHTML = '';
+            const headings = document.querySelectorAll('.page:not(.cover-page, .toc-page) h2:not(.no-number), .page:not(.cover-page, .toc-page) h3:not(.no-number)');
+            
+            let sectionCounter = 0;
+            let subsectionCounter = 0;
+
+            headings.forEach((heading) => {
+                const slug = 'section-' + heading.textContent.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                heading.id = slug;
+                
+                let displayNumber;
+                let numberSpan = document.createElement('span');
+                numberSpan.className = 'heading-number';
+
+                if (heading.tagName === 'H2') {
+                    sectionCounter++;
+                    subsectionCounter = 0;
+                    displayNumber = `${sectionCounter}`;
+                    numberSpan.textContent = `${displayNumber} `;
+                } else { // H3
+                    subsectionCounter++;
+                    displayNumber = `${sectionCounter}.${subsectionCounter}`;
+                    numberSpan.textContent = `${displayNumber} `;
+                }
+                
+                // Prepend the number span to the heading
+                heading.prepend(numberSpan);
+
+                // Create ToC entry
+                const li = document.createElement('li');
+                const a = document.createElement('a');
+                a.href = '#' + slug;
+                const pageNumber = heading.closest('.page')?.querySelector('.footer .page-number')?.textContent || '';
+                a.innerHTML = `<span>${displayNumber} ${heading.textContent.replace(numberSpan.textContent, '').trim()}</span><span>${pageNumber}</span>`;
+                li.className = heading.tagName === 'H2' ? 'toc-h2' : 'toc-h3';
+                li.appendChild(a);
+                tocList.appendChild(li);
+            });
+        })();
+    });
+</script>
+</body>
+</html>
