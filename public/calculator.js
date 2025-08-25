@@ -41,12 +41,34 @@ const supportData = {
     'maintenance_parts': { label: 'Maintenance (Parts only)', description: 'Break/Fix maintenance - parts to site', dpm: 0.0025, tiers: ['bronze', 'silver'], type: 'fixed_annual' },
     'maintenance_engineer': { label: 'Maintenance (with engineer)', description: 'Break / fix maintenance with engineer to site', dpm: 0.1, tiers: ['gold'], type: 'fixed_annual' }
 };
+// NEW FUNCTION to load settings from Firestore
+async function loadPricesFromFirestore() {
+    try {
+        console.log("Fetching prices from Firestore...");
+        const docRef = firebase.firestore().collection("settings").doc("pricing");
+        const doc = await docRef.get();
+
+        if (doc.exists) {
+            priceData = doc.data();
+            console.log("Prices loaded successfully!");
+            runFullCalculation(); // Run calculation now that prices are loaded
+        } else {
+            console.error("No pricing document found in Firestore! Please run uploadInitialPrices() from the console.");
+            alert("Error: Could not load calculator settings. Please run the one-time price upload.");
+        }
+    } catch (error) {
+        console.error("Error getting pricing document:", error);
+        alert("Error: Could not connect to the settings server. Check Firestore security rules.");
+    }
+}
+
+// NEW TEMPORARY FUNCTION to upload prices one time
 function uploadInitialPrices() {
-    console.log("Preparing to upload prices...");
+    console.log("Preparing to upload initial prices...");
     const initialPriceData = {
         'G41':{label:"GO G41",cost:800.19,margin:0.25},'G43':{label:"GO G43",cost:3149.37,margin:0.25},'QUATRA_NU':{label:"QUATRA 4000e NU",cost:5668.74,margin:0.25},'QUATRA_CU':{label:"QUATRA 4000e CU",cost:3400.74,margin:0.25},'QUATRA_HUB':{label:"QUATRA 4000e HUB",cost:4219.74,margin:0.25},'QUATRA_EVO_NU':{label:"QUATRA EVO NU",cost:2707.74,margin:0.25},'QUATRA_EVO_CU':{label:"QUATRA EVO CU",cost:1731.39,margin:0.25},'QUATRA_EVO_HUB':{label:"QUATRA EVO HUB",cost:2243.8,margin:0.25},'extender_cat6':{label:"Q4000 CAT6 Range Extender",cost:426.43,margin:0.25},'extender_fibre_cu':{label:"Q4000 Fibre Extender CU",cost:755.99,margin:0.25},'extender_fibre_nu':{label:"Q4000 Fibre Extender NU",cost:986.61,margin:0.25},'service_antennas':{label:"Omni Ceiling Antenna",cost:11.22,margin:7},'donor_wideband':{label:"Log-periodic Antenna",cost:20.08,margin:5},'donor_lpda':{label:"LPDA-R Antenna",cost:57.87,margin:3.5},'antenna_bracket':{label:"Antenna Bracket",cost:40,margin:0.5},'hybrids_4x4':{label:"4x4 Hybrid Combiner",cost:183.05,margin:1.0},'hybrids_2x2':{label:"2x2 Hybrid Combiner",cost:30.12,margin:3.0},'splitters_4way':{label:"4-Way Splitter",cost:18.36,margin:3},'splitters_3way':{label:"3-Way Splitter",cost:15.36,margin:3},'splitters_2way':{label:"2-Way Splitter",cost:14.18,margin:3},'pigtails':{label:"N-Male to SMA-Male Pigtail",cost:5.02,margin:5},'coax_lmr400':{label:"LMR400/HDF400 Coax Cable",cost:1.25,margin:3},'coax_half':{label:"1/2in Coax Cable",cost:1.78,margin:3},'cable_cat':{label:"CAT6 Cable",cost:0.7,margin:0.5},'cable_fibre':{label:"Fibre Cable/Patch",cost:100,margin:0.3},'connectors':{label:"N-Type Connectors",cost:1.42,margin:3},'connectors_rg45':{label:"RJ45 Connectors",cost:0.4,margin:2.5},'adapters_sfp':{label:"SFP Adapter",cost:25,margin:3},'adapters_n':{label:"4.3/10 to N Adapter",cost:4.61,margin:5.0},'install_internal':{label:"Installation (Internal)",cost:150,margin:3},'install_external':{label:"Installation (External)",cost:600,margin:0.5},'cherry_picker':{label:"Cherry Picker",cost:480,margin:0.3},'travel_expenses':{label:"Travel Expenses",cost:150,margin:0},'support_package': {label: "Annual Support Package", cost: 0, margin: 0}, 'survey_price_item': {label: "Site Survey", cost: 0, margin: 0}
     };
-
+    
     firebase.firestore().collection("settings").doc("pricing").set(initialPriceData)
         .then(() => {
             console.log("Prices successfully uploaded to Firestore!");
@@ -56,33 +78,6 @@ function uploadInitialPrices() {
             console.error("Error uploading prices: ", error);
             alert("An error occurred while uploading prices.");
         });
-}
-    
-    // NEW FUNCTION to load settings from Firestore
- async function loadPricesFromFirestore() {
-    try {
-        console.log("Checkpoint 1: Starting to load prices from Firestore..."); // <-- ADD THIS LINE
-
-        console.log("Fetching prices from Firestore...");
-        const docRef = firebase.firestore().collection("settings").doc("pricing");
-        const doc = await docRef.get();
-
-        if (doc.exists) {
-            console.log("Checkpoint 2: Found the pricing document in Firestore."); // <-- ADD THIS LINE
-            priceData = doc.data();
-            console.log("Prices loaded successfully!");
-            
-            console.log("Checkpoint 3: About to run the main calculation."); // <-- ADD THIS LINE
-            runFullCalculation();
-        } else {
-            // This will happen if the pricing document doesn't exist yet
-            console.error("No pricing document found in Firestore!");
-            alert("Error: Could not load calculator settings from the server.");
-        }
-    } catch (error) {
-        console.error("Error getting pricing document:", error);
-        alert("Error: Could not connect to the settings server.");
-    }
 }
 
 const systemCalculators = {
