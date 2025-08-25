@@ -78,7 +78,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const closeModal = () => modal.style.display = "none"; 
         closeBtn.onclick = closeModal; cancelBtn.onclick = closeModal; 
         window.onclick = (event) => { if (event.target == modal) closeModal(); }; 
-        saveBtn.onclick = () => { const newPriceData = JSON.parse(JSON.stringify(priceData)); let allValid = true; for(const key in newPriceData) { const newCost = parseFloat(document.getElementById(`cost-${key}`).value), newMargin = parseFloat(document.getElementById(`margin-${key}`).value) / 100; if (!isNaN(newCost) && !isNaN(newMargin)) { newPriceData[key].cost = newCost; newPriceData[key].margin = newMargin; } else { allValid = false; } } if(allValid) { savePrices(newPriceData); closeModal(); } else { alert("Please ensure all values are valid numbers."); } };
+      saveBtn.onclick = async () => { 
+    const newPriceData = JSON.parse(JSON.stringify(priceData)); 
+    let allValid = true; 
+    for(const key in newPriceData) { 
+        const newCost = parseFloat(document.getElementById(`cost-${key}`).value), newMargin = parseFloat(document.getElementById(`margin-${key}`).value) / 100; 
+        if (!isNaN(newCost) && !isNaN(newMargin)) { 
+            newPriceData[key].cost = newCost; 
+            newPriceData[key].margin = newMargin; 
+        } else { 
+            allValid = false; 
+        } 
+    } 
+    if(allValid) { 
+        await savePrices(newPriceData); // Use await here
+        closeModal(); 
+    } else { 
+        alert("Please ensure all values are valid numbers."); 
+    } 
+};
         const tabLinks = modal.querySelectorAll('.tab-link');
         const tabContents = modal.querySelectorAll('.tab-content');
         tabLinks.forEach(link => {
@@ -126,8 +144,39 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function loadPrices() { try { const savedPrices = localStorage.getItem('universalCalculatorPrices'); if (savedPrices) { priceData = JSON.parse(savedPrices); for(const key in defaultPriceData) if(!priceData[key]) priceData[key] = defaultPriceData[key]; } else { priceData = JSON.parse(JSON.stringify(defaultPriceData)); } } catch (e) { console.error("Could not load prices", e); priceData = JSON.parse(JSON.stringify(defaultPriceData)); } }
-    function savePrices(newPriceData) { try { localStorage.setItem('universalCalculatorPrices', JSON.stringify(newPriceData)); priceData = newPriceData; runFullCalculation(); alert('Prices saved successfully!'); } catch (e) { console.error("Could not save prices.", e); alert('Error: Could not save prices.'); } }
+  // calculator.js
+
+// REPLACE the old loadPrices function with this new async version
+async function loadPrices() {
+    const pricesDocRef = firebase.firestore().collection('settings').doc('prices');
+    try {
+        const doc = await pricesDocRef.get();
+        if (doc.exists) {
+            console.log("Prices loaded from Firestore.");
+            const firestorePrices = doc.data();
+            // Merge with defaults to ensure any new items from code are included
+            priceData = { ...defaultPriceData, ...firestorePrices };
+        } else {
+            console.log("No prices document in Firestore, using default data. Save settings to create it.");
+            priceData = JSON.parse(JSON.stringify(defaultPriceData));
+        }
+    } catch (e) {
+        console.error("Could not load prices from Firestore, using default data.", e);
+        priceData = JSON.parse(JSON.stringify(defaultPriceData));
+    }
+}
+   async function savePrices(newPriceData) {
+    const pricesDocRef = firebase.firestore().collection('settings').doc('prices');
+    try {
+        await pricesDocRef.set(newPriceData); // .set() will create or overwrite the document
+        priceData = newPriceData;
+        runFullCalculation();
+        alert('Prices saved successfully to the database!');
+    } catch (e) {
+        console.error("Could not save prices to Firestore.", e);
+        alert('Error: Could not save prices to the database.');
+    }
+}
     function getSplitterCascade(k) { if (k <= 1) return { d4: 0, d3: 0, d2: 0 }; const d4_dist = (k === 6) ? 0 : ((k % 4 === 1) ? Math.max(0, Math.floor(k / 4) - 1) : Math.floor(k / 4)); const d3_dist = Math.floor((k - 4 * d4_dist) / 3); const d2_dist = Math.ceil((k - 4 * d4_dist - 3 * d3_dist) / 2); const num_dist = d4_dist + d3_dist + d2_dist; return { d4: d4_dist + ((num_dist === 4) ? 1 : 0), d3: d3_dist + ((num_dist === 3) ? 1 : 0), d2: d2_dist + ((num_dist === 2) ? 1 : 0) }; }
     function getBaseCalculations(params, systemType) { const { B_SA, D_DA } = params; let service_coax = (B_SA * 30); if (systemType === 'QUATRA' || systemType === 'QUATRA_EVO') { service_coax = 0; } const coax_total = service_coax + (D_DA * 50); return { donor_lpda: 0, donor_wideband: D_DA, antenna_bracket: D_DA, coax_half: 0, coax_lmr400: coax_total, cherry_picker: 0, install_external: 0, travel_expenses: 0, }; }
     function activateEditMode(cell, key) { const displaySpan = cell.querySelector('.value-display'), inputField = cell.querySelector('.value-input'); displaySpan.classList.add('hidden'); inputField.classList.remove('hidden'); const currentValue = currentResults[key].override !== null ? currentResults[key].override : currentResults[key].calculated; inputField.value = currentValue; inputField.focus(); inputField.select(); }
@@ -625,7 +674,7 @@ async function generateDocument() {
     }
 }
     // --- NEW FEATURES (Make.com, Links, Validation) ---
-  function initialize() {
+ async function initialize() {
     // --- Load state from URL first ---
     const stateLoaded = loadStateFromURL();
 
@@ -658,7 +707,7 @@ async function generateDocument() {
         input.addEventListener('input', calculateCoverageRequirements);
         input.addEventListener('change', calculateCoverageRequirements);
     });
-    
+
     document.getElementById('system-type').addEventListener('change', () => {
         toggleMultiFloorUI();
         calculateCoverageRequirements();
@@ -671,7 +720,7 @@ async function generateDocument() {
 
     document.getElementById('reset-overrides').addEventListener('click', () => { for (const key in currentResults) { if (currentResults[key].hasOwnProperty('override')) currentResults[key].override = null; } setSupportPreset('none'); runFullCalculation(); });
     document.getElementById('toggle-zero-qty-btn').addEventListener('click', (e) => { showZeroQuantityItems = !showZeroQuantityItems; e.target.textContent = showZeroQuantityItems ? 'Hide Zero Qty Items' : 'Show All Items'; runFullCalculation(); });
-    
+
     // --- New listeners for editable support prices ---
     document.querySelectorAll('.editable-price').forEach(cell => {
         const tier = cell.dataset.tier;
@@ -712,16 +761,16 @@ async function generateDocument() {
     });
 
     // --- Initial Setup ---
-    loadPrices();
+    await loadPrices(); // Use await here
     setupSettingsModal();
     populateSupportTable();
     toggleMultiFloorUI();
-    
+
     // --- Final Calculation Logic ---
     if (!stateLoaded) {
         setSupportPreset('none');
     }
-    
+
     calculateCoverageRequirements(); 
 
     // Default to dashboard view
