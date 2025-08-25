@@ -589,7 +589,7 @@ async function generateDocument() {
             throw new Error(`No template found for system type: ${systemType}`);
         }
 
-        const response = await fetch(`templates/${templateFilename}`);
+        const response = await fetch(`./public/templates/${templateFilename}`);
         if (!response.ok) {
             throw new Error(`Could not fetch template: ${response.statusText}`);
         }
