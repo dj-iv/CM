@@ -4,318 +4,196 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Universal System Calculator</title>
-    <style>
-        /* CSS for Styling */
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
-            background-color: #f4f7f9;
-            color: #333;
-            line-height: 1.5;
-            margin: 0;
-            padding: 20px;
-        }
-        #view-toggle-btn {
-            display: block;
-            margin: 0 auto 15px auto;
-            padding: 10px 20px;
-            border: 1px solid #004696;
-            background-color: #e0eefc;
-            color: #004696;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 14px;
-        }
-        .calculator-container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background-color: #ffffff;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 8px 30px rgba(0, 70, 150, 0.1);
-            border: 1px solid #e0e6ec;
-            transition: max-width 0.3s ease-in-out;
-        }
-        h1, h2 {
-            color: #004696;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .results-header {
-            display: flex;
-            justify-content: flex-end;
-            align-items: center;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #004696;
-        }
-        .header-buttons {
-            display: flex;
-            gap: 10px;
-        }
-        #reset-overrides, #settings-btn, #toggle-zero-qty-btn, #generate-link-btn, #generate-proposal-btn, #quote-to-monday-btn, #generate-document-btn, #generate-pdf-btn {
-            padding: 8px 12px;
-            border: 1px solid #004696;
-            background-color: #f0f8ff;
-            color: #004696;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 13px;
-        }
-        #reset-overrides:hover, #settings-btn:hover, #toggle-zero-qty-btn:hover, #generate-link-btn:hover, #generate-proposal-btn:hover, #quote-to-monday-btn:hover, #generate-document-btn:hover, #generate-pdf-btn:hover {
-            background-color: #e0eefc;
-        }
-        #generate-link-btn { background-color: #d1ecf1; border-color: #bee5eb;}
-        #generate-proposal-btn { background-color: #d4edda; border-color: #28a745;}
-        #quote-to-monday-btn { background-color: #d6d8db; border-color: #6c757d;}
-        #generate-document-btn { background-color: #cce5ff; border-color: #b8daff;}
-        #generate-pdf-btn { background-color: #f5c6cb; border-color: #f5c6cb;}
-        #generate-interactive-link-btn { background-color: #e0eefc; border-color: #004696; }
-        
-        /* Financial Summary Box */
-        .financial-summary {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-around;
-            align-items: center;
-            background-color: #eaf2fa;
-            border: 1px solid #004696;
-            border-radius: 8px;
-            padding: 15px;
-            margin-top: 20px;
-            margin-bottom: 25px;
-            gap: 15px;
-        }
-        .summary-item { text-align: center; }
-        .summary-item .label { font-size: 13px; color: #555; margin-bottom: 4px; }
-        .summary-item .value { font-size: 22px; font-weight: 600; color: #004696; }
-        .summary-item .margin-percent { font-size: 15px; color: #28a745; font-weight: 500; }
-      .referral-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-        .referral-item label {
-    font-size: 13px;
-    color: #555;
-    margin-bottom: 4px;
-}
-        .referral-item input { width: 60px; text-align: center; padding: 4px; border-radius: 4px; border: 1px solid #004696;}
-        .referral-item .fee-amount { font-size: 22px; font-weight: 600; color: #d9534f; }
+   <style>
+    /* UCtel Branded CSS - FULL VERSION */
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+        background-color: #F0F4F7; /* Background Gray */
+        color: #333333; /* Text */
+        line-height: 1.5;
+        margin: 0;
+        padding: 20px;
+    }
+    #view-toggle-btn {
+        display: block;
+        margin: 0 auto 15px auto;
+        padding: 10px 20px;
+        border: 1px solid #002D56; /* Primary Blue */
+        background-color: #ffffff;
+        color: #002D56; /* Primary Blue */
+        border-radius: 5px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 14px;
+        transition: all 0.2s ease-in-out;
+    }
+    #view-toggle-btn:hover {
+        background-color: #002D56; /* Primary Blue */
+        color: #ffffff;
+    }
+    .calculator-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        background-color: #ffffff;
+        padding: 25px;
+        border-radius: 12px;
+        box-shadow: 0 8px 30px rgba(0, 45, 86, 0.1);
+        border: 1px solid #dfe6ec;
+        transition: max-width 0.3s ease-in-out;
+    }
+    h1, h2 {
+        color: #002D56; /* Primary Blue */
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    .results-header {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #002D56; /* Primary Blue */
+    }
+    .header-buttons {
+        display: flex;
+        gap: 10px;
+    }
+    #reset-overrides, #settings-btn, #toggle-zero-qty-btn, #generate-link-btn, #generate-proposal-btn, #quote-to-monday-btn, #generate-document-btn, #generate-pdf-btn, #generate-interactive-link-btn {
+        padding: 8px 12px;
+        border: 1px solid #002D56; /* Primary Blue */
+        background-color: #ffffff;
+        color: #002D56; /* Primary Blue */
+        border-radius: 5px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 13px;
+        transition: all 0.2s ease-in-out;
+    }
+    #reset-overrides:hover, #settings-btn:hover, #toggle-zero-qty-btn:hover, #generate-link-btn:hover, #generate-proposal-btn:hover, #quote-to-monday-btn:hover, #generate-document-btn:hover, #generate-pdf-btn:hover, #generate-interactive-link-btn:hover {
+        background-color: #002D56; /* Primary Blue */
+        color: #ffffff;
+    }
 
-        .section {
-            margin-bottom: 25px;
-            border-bottom: 1px solid #e0e6ec;
-            padding-bottom: 15px;
-        }
-        .section:last-child { border-bottom: none; padding-bottom: 0; }
-        .input-section { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-end; }
-        .input-group { display: flex; flex-direction: column; flex: 1; min-width: 180px; }
-        .input-group label { font-weight: 600; margin-bottom: 6px; color: #555; font-size: 14px;}
-        .input-group input, .input-group select {
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            font-size: 15px;
-        }
-        .input-error {
-            border-color: #dc3545 !important;
-            box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.25);
-        }
-        
-        /* Table Styles */
-        .results-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-            table-layout: fixed;
-            font-size: 14px;
-        }
-        .results-table th, .results-table td {
-            text-align: left;
-            padding: 10px 15px;
-            border-bottom: 1px solid #e0e6ec;
-            word-wrap: break-word;
-        }
-        .results-table th { font-weight: 600; background-color: #f8fafd; }
-        .results-table tr:last-child td { border-bottom: none; }
-        .results-table .item-name { color: #004696; font-weight: 500; }
-        .item-qty .value-display.overridden { font-style: italic; color: #d9534f; font-weight: bold; }
-        .item-qty .value-input { width: 70px; text-align: right; padding: 4px; font-size: 14px; border: 1px solid #004696; border-radius: 4px; }
-        .hidden { display: none; }
-        .group-header td {
-            background-color: #004696;
-            color: white;
-            font-weight: bold;
-            font-size: 15px;
-            padding: 8px 15px;
-        }
-        .summary-row td {
-            font-weight: bold;
-            background-color: #f8fafd;
-        }
+    /* Financial Summary Box */
+    .financial-summary {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-around;
+        align-items: center;
+        background-color: #ffffff;
+        border: 1px solid #002D56; /* Primary Blue */
+        border-radius: 8px;
+        padding: 15px;
+        margin-top: 20px;
+        margin-bottom: 25px;
+        gap: 15px;
+    }
+    .summary-item { text-align: center; }
+    .summary-item .label { font-size: 13px; color: #555; margin-bottom: 4px; }
+    .summary-item .value { font-size: 22px; font-weight: 600; color: #002D56; /* Primary Blue */ }
+    .summary-item .margin-percent { font-size: 15px; color: #28a745; font-weight: 500; }
+    .referral-item { display: flex; align-items: center; gap: 8px; }
+    .referral-item label { font-size: 13px; color: #555; margin-bottom: 4px; }
+    .referral-item input { width: 60px; text-align: center; padding: 4px; border-radius: 4px; border: 1px solid #002D56; /* Primary Blue */ }
+    .referral-item .fee-amount { font-size: 22px; font-weight: 600; color: #d9534f; }
 
-        .results-table .col-item { width: 40%; }
-        .results-table .col-qty { width: 10%; }
-        .results-table .col-sell,
-        .results-table .col-total,
-        .results-table .col-margin { width: 16.66%; }
-        .results-table .col-qty, .results-table .col-sell,
-        .results-table .col-total, .results-table .col-margin { text-align: right; }
-        .item-qty { cursor: pointer; position: relative; }
-        
-        /* Support Section Styles */
-        .support-table { width: 100%; margin-top: 15px; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
-        .support-table th, .support-table td { text-align: center; padding: 8px; border: 1px solid #ddd; vertical-align: middle; }
-        .support-table th:nth-child(1), .support-table td:nth-child(1) { text-align: left; width: 18%; }
-        .support-table th:nth-child(2), .support-table td:nth-child(2) { text-align: left; width: 32%; font-size: 12px; }
-        .support-table th:nth-child(3), .support-table th:nth-child(4), .support-table th:nth-child(5) { width: 7%; }
-        .support-table tfoot td { font-weight: bold; background-color: #eaf2fa; }
-        .support-maintenance-input label { font-weight: 600; margin-right: 10px;}
-        .support-maintenance-input input { width: 50px; padding: 4px; text-align: right; }
-        .support-table input[type="number"] { width: 60px; padding: 4px; text-align: center; border: 1px solid #ccc; border-radius: 4px; }
+    /* Input Sections */
+    .section { margin-bottom: 25px; border-bottom: 1px solid #e0e6ec; padding-bottom: 15px; }
+    .section:last-child { border-bottom: none; padding-bottom: 0; }
+    .input-section { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-end; }
+    .input-group { display: flex; flex-direction: column; flex: 1; min-width: 180px; }
+    .input-group label { font-weight: 600; margin-bottom: 6px; color: #555; font-size: 14px;}
+    .input-group input, .input-group select { padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 15px; }
+    .input-error { border-color: #dc3545 !important; box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.25); }
+    
+    /* Table Styles */
+    .results-table { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: fixed; font-size: 14px; }
+    .results-table th, .results-table td { text-align: left; padding: 10px 15px; border-bottom: 1px solid #e0e6ec; word-wrap: break-word; }
+    .results-table th { font-weight: 600; background-color: #F0F4F7; /* Background Gray */ }
+    .results-table tr:last-child td { border-bottom: none; }
+    .results-table .item-name { color: #002D56; /* Primary Blue */ font-weight: 500; }
+    .item-qty .value-display.overridden { font-style: italic; color: #d9534f; font-weight: bold; }
+    .item-qty .value-input { width: 70px; text-align: right; padding: 4px; font-size: 14px; border: 1px solid #002D56; /* Primary Blue */ border-radius: 4px; }
+    .hidden { display: none; }
+    .group-header td { background-color: #002D56; /* Primary Blue */ color: white; font-weight: bold; font-size: 15px; padding: 8px 15px; }
+    .summary-row td { font-weight: bold; background-color: #f8fafd; }
+    .results-table .col-item { width: 40%; }
+    .results-table .col-qty { width: 10%; }
+    .results-table .col-sell, .results-table .col-total, .results-table .col-margin { width: 16.66%; }
+    .results-table .col-qty, .results-table .col-sell, .results-table .col-total, .results-table .col-margin { text-align: right; }
+    .item-qty { cursor: pointer; position: relative; }
+    
+    /* Support Section Styles */
+    .support-table { width: 100%; margin-top: 15px; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+    .support-table th, .support-table td { text-align: center; padding: 8px; border: 1px solid #ddd; vertical-align: middle; }
+    .support-table th:nth-child(1), .support-table td:nth-child(1) { text-align: left; width: 18%; }
+    .support-table th:nth-child(2), .support-table td:nth-child(2) { text-align: left; width: 32%; font-size: 12px; }
+    .support-table th:nth-child(3), .support-table th:nth-child(4), .support-table th:nth-child(5) { width: 7%; }
+    .support-table tfoot td { font-weight: bold; background-color: #eef9ff; } /* Lighter version of accent */
+    .support-maintenance-input label { font-weight: 600; margin-right: 10px;}
+    .support-maintenance-input input { width: 50px; padding: 4px; text-align: right; }
+    .support-table input[type="number"] { width: 60px; padding: 4px; text-align: center; border: 1px solid #ccc; border-radius: 4px; }
 
-        /* Other UI Elements */
-        .switch-field { display: flex; overflow: hidden; border: 1px solid #004696; border-radius: 6px; }
-        .switch-field input { position: absolute !important; clip: rect(0, 0, 0, 0); }
-        .switch-field label { background-color: white; color: #004696; font-size: 14px; text-align: center; padding: 8px 16px; margin-bottom: 0; border-right: 1px solid #004696; flex-grow: 1; }
-        .switch-field label:last-of-type { border-right: none; }
-        .switch-field input:checked + label { background-color: #004696; color: white; }
-        .percentage-group { display: flex; gap: 15px; flex-wrap: wrap; }
-        .percentage-group .input-group { min-width: 120px; }
-        .checkbox-group { padding-top: 8px; }
-        .checkbox-group label { font-weight: normal; font-size: 14px; color: #555; margin-left: 6px; }
-        #percentage-total-display { width: 100%; text-align: right; margin-top: 10px; font-weight: bold; }
+    /* Other UI Elements */
+    .switch-field { display: flex; overflow: hidden; border: 1px solid #002D56; /* Primary Blue */ border-radius: 6px; }
+    .switch-field input { position: absolute !important; clip: rect(0, 0, 0, 0); }
+    .switch-field label { background-color: white; color: #002D56; /* Primary Blue */ font-size: 14px; text-align: center; padding: 8px 16px; margin-bottom: 0; border-right: 1px solid #002D56; /* Primary Blue */ flex-grow: 1; }
+    .switch-field label:last-of-type { border-right: none; }
+    .switch-field input:checked + label { background-color: #002D56; /* Primary Blue */ color: white; }
+    .percentage-group { display: flex; gap: 15px; flex-wrap: wrap; }
+    .percentage-group .input-group { min-width: 120px; }
+    .checkbox-group { padding-top: 8px; }
+    .checkbox-group label { font-weight: normal; font-size: 14px; color: #555; margin-left: 6px; }
+    #percentage-total-display { width: 100%; text-align: right; margin-top: 10px; font-weight: bold; }
 
-        /* Modal Styles */
-        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
-        .modal-content { background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 900px; border-radius: 8px; }
-        .modal-header, .modal-footer { padding: 10px 16px; color: white; background-color: #004696; }
-        .modal-header { display: flex; justify-content: space-between; align-items: center; border-top-left-radius: 7px; border-top-right-radius: 7px; }
-        .modal-footer { display: flex; justify-content: flex-end; gap: 10px; border-bottom-left-radius: 7px; border-bottom-right-radius: 7px; }
-        .modal-body { padding: 15px; max-height: 60vh; overflow-y: auto; }
-        .close-btn { color: white; font-size: 28px; font-weight: bold; cursor: pointer; }
-        .modal-footer button { padding: 10px 20px; border-radius: 5px; border: none; cursor: pointer; font-weight: 600; }
-        #modal-save { background-color: #28a745; color: white; }
-        #modal-cancel { background-color: #dc3545; color: white; }
-        #settings-form-container .setting-item { display: grid; grid-template-columns: 2.5fr 1fr 1fr 1fr; gap: 15px; padding: 8px 0; border-bottom: 1px solid #eee; align-items: center; }
-        #settings-form-container .setting-header { font-weight: bold; color: #004696; }
-        #settings-form-container .setting-item input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
-        #settings-form-container .setting-item .sell-price-display { font-weight: bold; text-align: right; padding-right: 10px; }
-        
-        /* --- DASHBOARD VIEW STYLES --- */
-        /* --- DASHBOARD VIEW STYLES --- */
-.screenshot-mode {
-    display: grid;
-    grid-template-columns: 400px 1fr;
-    grid-template-rows: auto auto auto auto 1fr; /* Added a row for the new section */
-    gap: 15px; /* <-- This line controls the spacing */
-    max-width: 1800px;
-}
-.screenshot-mode > h1 { display: none; }
-.screenshot-mode #proposal-details-section,
-.screenshot-mode #antenna-section,
-.screenshot-mode #config-section,
-.screenshot-mode #support-section,
-.screenshot-mode #results-section {
-    margin-bottom: 0;
-    padding-bottom: 0;
-    border-bottom: none;
-}
-.screenshot-mode .results-header {
-    grid-column: 1 / -1;
-    grid-row: 1 / 2;
-}
-.screenshot-mode #proposal-details-section h2,
-.screenshot-mode #antenna-section h2,
-.screenshot-mode #config-section h2,
-.screenshot-mode #support-section h2 {
-    display: none;
-}
+    /* Modal Styles */
+    .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
+    .modal-content { background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 900px; border-radius: 8px; }
+    .modal-header, .modal-footer { padding: 10px 16px; color: white; background-color: #002D56; /* Primary Blue */ }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; border-top-left-radius: 7px; border-top-right-radius: 7px; }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 10px; border-bottom-left-radius: 7px; border-bottom-right-radius: 7px; }
+    .modal-body { padding: 15px; max-height: 60vh; overflow-y: auto; }
+    .close-btn { color: white; font-size: 28px; font-weight: bold; cursor: pointer; }
+    .modal-footer button { padding: 10px 20px; border-radius: 5px; border: none; cursor: pointer; font-weight: 600; }
+    #modal-save { background-color: #28a745; color: white; }
+    #modal-cancel { background-color: #dc3545; color: white; }
+    #settings-form-container .setting-item { display: grid; grid-template-columns: 2.5fr 1fr 1fr 1fr; gap: 15px; padding: 8px 0; border-bottom: 1px solid #eee; align-items: center; }
+    #settings-form-container .setting-header { font-weight: bold; color: #002D56; /* Primary Blue */ }
+    #settings-form-container .setting-item input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+    #settings-form-container .setting-item .sell-price-display { font-weight: bold; text-align: right; padding-right: 10px; }
+    
+    /* --- DASHBOARD VIEW STYLES --- */
+    .screenshot-mode { display: grid; grid-template-columns: 400px 1fr; grid-template-rows: auto auto auto auto 1fr; gap: 15px; max-width: 1800px; }
+    .screenshot-mode > h1 { display: none; }
+    .screenshot-mode #proposal-details-section, .screenshot-mode #antenna-section, .screenshot-mode #config-section, .screenshot-mode #support-section, .screenshot-mode #results-section { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+    .screenshot-mode .results-header { grid-column: 1 / -1; grid-row: 1 / 2; }
+    .screenshot-mode #proposal-details-section h2, .screenshot-mode #antenna-section h2, .screenshot-mode #config-section h2, .screenshot-mode #support-section h2 { display: none; }
+    .screenshot-mode #antenna-section { grid-area: 2 / 1 / 3 / 2; }
+    .screenshot-mode #config-section { grid-area: 3 / 1 / 4 / 2; }
+    .screenshot-mode #support-section { grid-area: 4 / 1 / 5 / 2; }
+    .screenshot-mode #proposal-details-section { grid-area: 5 / 1 / 6 / 2; }
+    .screenshot-mode #results-section { grid-area: 2 / 2 / 6 / 2; }
+    .screenshot-mode .percentage-group { flex-wrap: nowrap; gap: 10px; }
+    .screenshot-mode .percentage-group .input-group { min-width: 0; flex: 1; }
+    .screenshot-mode .percentage-group label { white-space: nowrap; }
+    .screenshot-mode .percentage-group input { width: 100%; box-sizing: border-box; padding: 8px 4px; }
 
-/* Re-index grid for dashboard view */
-.screenshot-mode #antenna-section { grid-area: 2 / 1 / 3 / 2; }
-.screenshot-mode #config-section { grid-area: 3 / 1 / 4 / 2; }
-.screenshot-mode #support-section { grid-area: 4 / 1 / 5 / 2; }
-.screenshot-mode #proposal-details-section { grid-area: 5 / 1 / 6 / 2; } /* Added back to the grid */
-.screenshot-mode #results-section { grid-area: 2 / 2 / 6 / 2; } /* Adjusted to span all rows */
+    /* Main page support buttons */
+    .support-presets-main { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 10px; }
+    .support-presets-main button { padding: 10px 0; border: 1px solid #002D56; /* Primary Blue */ background-color: white; color: #002D56; /* Primary Blue */ border-radius: 5px; cursor: pointer; font-weight: 600; font-size: 15px; }
+    .support-presets-main button:hover { background-color: #eef9ff; }
+    .support-presets-main button.active-preset { background-color: #00A9E0; /* Accent Cyan */ color: white; border-color: #00A9E0; /* Accent Cyan */ }
+    
+    .support-prices-display { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 10px; text-align: center; }
+    .support-price-item { font-size: 14px; color: #555; background-color: #f8fafd; border-radius: 4px; padding: 8px 0; }
 
-/* Force wall-type percentages onto a single line in dashboard view */
-.screenshot-mode .percentage-group {
-    flex-wrap: nowrap;
-    gap: 10px;
-}
-.screenshot-mode .percentage-group .input-group {
-    min-width: 0;
-    flex: 1;
-}
-.screenshot-mode .percentage-group label {
-    white-space: nowrap;
-}
-.screenshot-mode .percentage-group input {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 8px 4px;
-}
-
-        /* Main page support buttons */
-        .support-presets-main {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 15px;
-            margin-top: 10px;
-        }
-        .support-presets-main button {
-            padding: 10px 0;
-            border: 1px solid #004696;
-            background-color: white;
-            color: #004696;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 15px;
-        }
-        .support-presets-main button:hover { background-color: #e0eefc; }
-        .support-presets-main button.active-preset { background-color: #004696; color: white; }
-        
-        .support-prices-display {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 15px;
-            margin-top: 10px;
-            text-align: center;
-        }
-        .support-price-item {
-            font-size: 14px;
-            color: #555;
-            background-color: #f8fafd;
-            border-radius: 4px;
-            padding: 8px 0;
-        }
-
-        /* Modal Tabs */
-        .modal-tabs {
-            display: flex;
-            border-bottom: 1px solid #ccc;
-            margin-bottom: 15px;
-        }
-        .tab-link {
-            padding: 10px 20px;
-            cursor: pointer;
-            border: none;
-            background-color: transparent;
-            border-bottom: 3px solid transparent;
-            font-size: 16px;
-            font-weight: 500;
-        }
-        .tab-link.active {
-            color: #004696;
-            border-bottom: 3px solid #004696;
-        }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-    </style>
+    /* Modal Tabs */
+    .modal-tabs { display: flex; border-bottom: 1px solid #ccc; margin-bottom: 15px; }
+    .tab-link { padding: 10px 20px; cursor: pointer; border: none; background-color: transparent; border-bottom: 3px solid transparent; font-size: 16px; font-weight: 500; }
+    .tab-link.active { color: #002D56; /* Primary Blue */ border-bottom: 3px solid #002D56; /* Primary Blue */ }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+</style>
 </head>
 <body>
     <button id="view-toggle-btn">Switch to Simple View</button>
