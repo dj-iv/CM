@@ -1051,7 +1051,7 @@ async function generateInteractiveLink() {
         const encodedState = btoa(compressedString);
         // --- END OF CORRECTION ---
 
-        const shareUrl = `${window.location.origin}${window.location.pathname.replace('index.html', '')}interactive-proposal.html#${encodedState}`;
+        const shareUrl = `${window.location.origin}/interactive-proposal.html#${encodedState}`;
 
         await navigator.clipboard.writeText(shareUrl);
         button.innerHTML = 'Link Copied! ✅';
