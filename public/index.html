@@ -315,12 +315,50 @@
         }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
+        #login-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    text-align: center;
+}
+#login-button {
+    padding: 12px 24px;
+    font-size: 16px;
+    cursor: pointer;
+    background-color: #002D56;
+    color: white;
+    border: none;
+    border-radius: 5px;
+}
+#logout-button {
+    margin-left: 20px;
+    cursor: pointer;
+    background: none;
+    border: none;
+    color: #002D56;
+    font-weight: 600;
+    font-size: 13px;
+    text-decoration: underline;
+}
+.hidden {
+    display: none !important;
+}
     </style>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
 </head>
 <body>
+    <div id="login-container">
+    <h1>UCtel System Calculator</h1>
+    <p>Please sign in with your UCtel Google account to continue.</p>
+    <button id="login-button">Sign in with Google</button>
+    <p id="error-message" style="color: red;"></p>
+</div>
     <button id="view-toggle-btn">Switch to Simple View</button>
 
-    <div class="calculator-container" id="main-container">
+    <div class="calculator-container hidden" id="main-container">
         <div class="results-header">
             <div class="header-buttons">
                 <button id="generate-pdf-btn">Proposal PDF 📄</button>
@@ -332,6 +370,7 @@
                 <button id="settings-btn">Settings ⚙️</button>
                 <button id="reset-overrides">Reset Overrides</button>
             </div>
+            <button id="logout-button">Sign Out</button>
         </div>
 
         <h1>Universal System Calculator</h1>
