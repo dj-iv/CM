@@ -643,6 +643,7 @@ const firebaseConfig = {
                 loginContainer.classList.add('hidden');
                 appContainer.classList.remove('hidden');
                 errorMessage.textContent = "";
+                loadPricesFromFirestore();
             } else {
                 // User is from the wrong domain, sign them out
                 errorMessage.textContent = `Access denied. Please use an @${ALLOWED_DOMAIN} account.`;
