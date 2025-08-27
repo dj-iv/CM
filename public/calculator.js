@@ -673,6 +673,75 @@ async function generateDocument() {
         }, 3000);
     }
 }
+// In calculator.js, paste this entire function
+
+// In calculator.js, replace the old function with this one
+
+// In calculator.js, replace the entire function with this one
+
+// In calculator.js, replace the entire function with this final version
+
+function setupScreenshotButton() {
+    const screenshotBtn = document.getElementById('screenshot-btn');
+    const calculatorContainer = document.getElementById('main-container');
+
+    if (!screenshotBtn || !calculatorContainer) {
+        console.error("Screenshot button or container not found.");
+        return;
+    }
+
+    screenshotBtn.addEventListener('click', () => {
+        screenshotBtn.textContent = 'Capturing...';
+        screenshotBtn.disabled = true;
+
+        const options = {
+            // We no longer need to set width/height here.
+            // The library will calculate it from the modified clone.
+            
+            onclone: (documentClone) => {
+                // Find the elements within the cloned document
+                const headerToHide = documentClone.querySelector('.results-header');
+                const containerClone = documentClone.getElementById('main-container');
+
+                // 1. Hide the header section as before
+                if (headerToHide) {
+                    headerToHide.style.display = 'none';
+                }
+
+                // 2. Shrink-wrap the main container to fit its content
+                if (containerClone) {
+                    containerClone.style.width = 'fit-content';
+                    containerClone.style.maxWidth = 'none'; // Remove any max-width constraints
+                }
+            }
+        };
+
+        html2canvas(calculatorContainer, options).then(canvas => {
+            canvas.toBlob(blob => {
+                navigator.clipboard.write([
+                    new ClipboardItem({ 'image/png': blob })
+                ]).then(() => {
+                    screenshotBtn.textContent = 'Copied! ✅';
+                }).catch(err => {
+                    console.error('Failed to copy to clipboard:', err);
+                    alert('Could not copy to clipboard. The image will be downloaded instead.');
+                    
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = 'calculator-screenshot.png';
+                    link.click();
+                    link.remove();
+                    screenshotBtn.textContent = 'Downloaded!';
+                });
+            }, 'image/png', 0.95);
+        }).finally(() => {
+            setTimeout(() => {
+                screenshotBtn.textContent = 'Screenshot 📸';
+                screenshotBtn.disabled = false;
+            }, 3000);
+        });
+    });
+}
     // --- NEW FEATURES (Make.com, Links, Validation) ---
  async function initialize() {
     // --- Load state from URL first ---
@@ -683,6 +752,7 @@ async function generateDocument() {
     const viewToggleButton = document.getElementById('view-toggle-btn');
 
     // --- Attach all event listeners ---
+    setupScreenshotButton();
     viewToggleButton.addEventListener('click', () => {
         const isDashboard = mainContainer.classList.toggle('screenshot-mode');
         viewToggleButton.textContent = isDashboard ? 'Switch to Simple View' : 'Switch to Dashboard View';
