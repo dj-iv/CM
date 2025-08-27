@@ -1,0 +1,26 @@
+{
+  "name": "cm",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+  "test": "echo \"Error: no test specified\" && exit 1",
+  "build": "echo \"No build required\""
+},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dj-iv/CM.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/dj-iv/CM/issues"
+  },
+  "homepage": "https://github.com/dj-iv/CM#readme",
+  "dependencies": {
+    "firebase": "^12.1.0",
+    "html2canvas": "^1.4.1",
+    "pako": "^2.1.0"
+  }
+}
