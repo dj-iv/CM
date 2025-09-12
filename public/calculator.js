@@ -416,16 +416,20 @@ function updateDOM() {
             if (isRelevant && (quantity > 0 || showZeroQuantityItems)) {
                 itemsInGroupDisplayed++;
 
-                const finalCost = priceInfo.cost;
-               const baseTotalSell = (isSupport ? finalCost : (finalCost * (1 + priceInfo.margin))) * quantity;
-const finalTotalSell = baseTotalSell * uplift;
-const trueLineMargin = baseTotalSell - (finalCost * quantity);
-const finalUnitSell = finalTotalSell / quantity;
+                const finalCost = parseFloat(priceInfo.cost) || 0;
+                const margin = parseFloat(priceInfo.margin) || 0;
+                const qty = parseFloat(quantity) || 0;
+                const upliftVal = parseFloat(uplift) || 1;
+                
+                const baseTotalSell = (isSupport ? finalCost : (finalCost * (1 + margin))) * qty;
+                const finalTotalSell = baseTotalSell * upliftVal;
+                const trueLineMargin = baseTotalSell - (finalCost * qty);
+                const finalUnitSell = qty > 0 ? finalTotalSell / qty : 0;
                 
                 // Add to sub-totals, ensuring they are numbers
-                subTotals[groupName].sell += parseFloat(finalTotalSell) || 0;
-                subTotals[groupName].cost += parseFloat(finalCost * quantity) || 0;
-                subTotals[groupName].margin += parseFloat(trueLineMargin) || 0;
+                subTotals[groupName].sell += isNaN(finalTotalSell) ? 0 : finalTotalSell;
+                subTotals[groupName].cost += isNaN(finalCost * qty) ? 0 : (finalCost * qty);
+                subTotals[groupName].margin += isNaN(trueLineMargin) ? 0 : trueLineMargin;
 
                 const qtyDisplay = isSupport ? '1' : `<span class="value-display"></span><input type="number" step="any" class="value-input hidden" />`;
                 const qtyClass = isSupport ? '' : 'item-qty';
@@ -532,22 +536,23 @@ const finalUnitSell = finalTotalSell / quantity;
     }
    function getSpecificSupportCost(tier, totalHardwareUnits, totalHardwareSellPrice) {
     if (supportPriceOverrides[tier] !== null) {
-        return supportPriceOverrides[tier];
+        return parseFloat(supportPriceOverrides[tier]) || 0;
     }
     let totalPerSystemDPY = 0, totalFixedAnnualDPY = 0;
     const maintenancePercent = (tier === 'none') ? 0 : 5;
     for (const key in supportData) {
         if (supportData[key].tiers.includes(tier)) {
-            const dpyValue = (supportData[key].dpm || 0) * 12;
+            const dpyValue = (parseFloat(supportData[key].dpm) || 0) * 12;
             if (supportData[key].type === 'per_system') totalPerSystemDPY += dpyValue;
             else totalFixedAnnualDPY += dpyValue;
         }
     }
-    const dailyInstallRate = (priceData.install_internal?.cost * (1 + priceData.install_internal?.margin)) || 0;
-    const perSystemCost = totalPerSystemDPY * dailyInstallRate * totalHardwareUnits;
-    const fixedAnnualCost = totalFixedAnnualDPY * dailyInstallRate;
-    const maintenanceCost = totalHardwareSellPrice * (maintenancePercent / 100);
-    return perSystemCost + fixedAnnualCost + maintenanceCost;
+    const dailyInstallRate = (parseFloat(priceData.install_internal?.cost) * (1 + parseFloat(priceData.install_internal?.margin))) || 0;
+    const perSystemCost = (parseFloat(totalPerSystemDPY) || 0) * (parseFloat(dailyInstallRate) || 0) * (parseFloat(totalHardwareUnits) || 0);
+    const fixedAnnualCost = (parseFloat(totalFixedAnnualDPY) || 0) * (parseFloat(dailyInstallRate) || 0);
+    const maintenanceCost = (parseFloat(totalHardwareSellPrice) || 0) * (parseFloat(maintenancePercent) || 0) / 100;
+    const result = (parseFloat(perSystemCost) || 0) + (parseFloat(fixedAnnualCost) || 0) + (parseFloat(maintenanceCost) || 0);
+    return isNaN(result) ? 0 : result;
 }
    function updateAllSupportTierPrices() {
     let totalHardwareSellPrice = 0, totalHardwareUnits = 0;
@@ -884,11 +889,36 @@ function setupScreenshotButton() {
             selectedSupportName = selectedSupportTier.charAt(0).toUpperCase() + selectedSupportTier.slice(1);
         }
         const selectedSupportCost = getSpecificSupportCost(selectedSupportTier, totalHardwareUnits, totalHardwareSellPrice);
-        const professionalServicesCost = (subTotalsForProposal.services?.sell || 0) - selectedSupportCost;
+        const servicesTotal = parseFloat(subTotalsForProposal.services?.sell || 0);
+        const supportCost = parseFloat(selectedSupportCost || 0);
+        
+        // Debug the professional services calculation
+        console.log('=== PROFESSIONAL SERVICES DEBUG ===');
+        console.log('selectedSupportTier:', selectedSupportTier);
+        console.log('subTotalsForProposal.services:', subTotalsForProposal.services);
+        console.log('servicesTotal (parsed):', servicesTotal);
+        console.log('selectedSupportCost (raw):', selectedSupportCost);
+        console.log('supportCost (parsed):', supportCost);
+        console.log('servicesTotal isNaN:', isNaN(servicesTotal));
+        console.log('supportCost isNaN:', isNaN(supportCost));
+        
+        const professionalServicesCost = (isNaN(servicesTotal) ? 0 : servicesTotal) - (isNaN(supportCost) ? 0 : supportCost);
+        console.log('professionalServicesCost result:', professionalServicesCost);
+        console.log('professionalServicesCost isNaN:', isNaN(professionalServicesCost));
+        
+        // Ensure professionalServicesCost is never NaN
+        const safeProfessionalServicesCost = isNaN(professionalServicesCost) ? 0 : professionalServicesCost;
         const bronzeCost = getSpecificSupportCost('bronze', totalHardwareUnits, totalHardwareSellPrice);
         const silverCost = getSpecificSupportCost('silver', totalHardwareUnits, totalHardwareSellPrice);
         const goldCost = getSpecificSupportCost('gold', totalHardwareUnits, totalHardwareSellPrice);
         const totalMargin = (subTotalsForProposal.hardware?.margin || 0) + (subTotalsForProposal.consumables?.margin || 0) + (subTotalsForProposal.services?.margin || 0);
+        
+        // Helper function to safely format numbers
+        const safeFixed = (value, decimals = 2) => {
+            const num = parseFloat(value);
+            return isNaN(num) ? '0.00' : num.toFixed(decimals);
+        };
+        
         const systemTypeSelect = document.getElementById('system-type');
         const selectedValue = systemTypeSelect.value;
         const selectedText = systemTypeSelect.options[systemTypeSelect.selectedIndex].text;
@@ -902,21 +932,39 @@ function setupScreenshotButton() {
             CustomerName: document.getElementById('customer-name').value,
             Solution: solutionNameToSend,
             NumberOfNetworks: document.getElementById('number-of-networks').value,
-            SurveyPrice: (parseFloat(document.getElementById('survey-price').value) || 0).toFixed(2),
-            Description1: "CEL-FI Hardware", Qty1: "1", UnitPrice1: (subTotalsForProposal.hardware?.sell || 0).toFixed(2), TotalPrice1: (subTotalsForProposal.hardware?.sell || 0).toFixed(2),
-            Description2: "Antennas, cables and connectors", Qty2: "1", UnitPrice2: (subTotalsForProposal.consumables?.sell || 0).toFixed(2), TotalPrice2: (subTotalsForProposal.consumables?.sell || 0).toFixed(2),
-            Description3: "Professional Services", Qty3: "1", UnitPrice3: professionalServicesCost.toFixed(2), TotalPrice3: professionalServicesCost.toFixed(2),
+            SurveyPrice: safeFixed(parseFloat(document.getElementById('survey-price').value) || 0),
+            Description1: "CEL-FI Hardware", Qty1: "1", UnitPrice1: safeFixed(subTotalsForProposal.hardware?.sell || 0), TotalPrice1: safeFixed(subTotalsForProposal.hardware?.sell || 0),
+            Description2: "Antennas, cables and connectors", Qty2: "1", UnitPrice2: safeFixed(subTotalsForProposal.consumables?.sell || 0), TotalPrice2: safeFixed(subTotalsForProposal.consumables?.sell || 0),
+            Description3: "Professional Services", Qty3: "1", UnitPrice3: safeFixed(safeProfessionalServicesCost), TotalPrice3: safeFixed(safeProfessionalServicesCost),
             Description4: selectedSupportTier !== 'none' ? selectedSupportName : "Please see the support options below",
             Qty4: selectedSupportTier !== 'none' ? "1" : "",
-            UnitPrice4: selectedSupportTier !== 'none' ? selectedSupportCost.toFixed(2) : "",
-            TotalPrice4: selectedSupportTier !== 'none' ? selectedSupportCost.toFixed(2) : "",
-            Support1: "Bronze", SupportQty1: "1", SupportUnitPrice1: bronzeCost.toFixed(2), SupportTotalPrice1: bronzeCost.toFixed(2),
-            Support2: "Silver", SupportQty2: "1", SupportUnitPrice2: silverCost.toFixed(2), SupportTotalPrice2: silverCost.toFixed(2),
-            Support3: "Gold", SupportQty3: "1", SupportUnitPrice3: goldCost.toFixed(2), SupportTotalPrice3: goldCost.toFixed(2),
-            MarginTotal: totalMargin.toFixed(2),
-            TotalMargin: totalMargin.toFixed(2),
+            UnitPrice4: selectedSupportTier !== 'none' ? safeFixed(selectedSupportCost) : "",
+            TotalPrice4: selectedSupportTier !== 'none' ? safeFixed(selectedSupportCost) : "",
+            Support1: "Bronze", SupportQty1: "1", SupportUnitPrice1: safeFixed(bronzeCost), SupportTotalPrice1: safeFixed(bronzeCost),
+            Support2: "Silver", SupportQty2: "1", SupportUnitPrice2: safeFixed(silverCost), SupportTotalPrice2: safeFixed(silverCost),
+            Support3: "Gold", SupportQty3: "1", SupportUnitPrice3: safeFixed(goldCost), SupportTotalPrice3: safeFixed(goldCost),
+            MarginTotal: safeFixed(totalMargin),
+            TotalMargin: safeFixed(totalMargin),
             QuoteNumber: dataType === 'quote' ? document.getElementById('quote-number').value : "",
         };
+
+        // Debug logging - check for NaN values before sending
+        console.log('=== WEBHOOK DEBUG DATA ===');
+        console.log('professionalServicesCost (original):', professionalServicesCost);
+        console.log('safeProfessionalServicesCost (safe):', safeProfessionalServicesCost);
+        console.log('subTotalsForProposal.services:', subTotalsForProposal.services);
+        console.log('selectedSupportCost:', selectedSupportCost);
+        console.log('bronzeCost:', bronzeCost);
+        console.log('silverCost:', silverCost);
+        console.log('goldCost:', goldCost);
+        console.log('Full dataToSend object:', JSON.stringify(dataToSend, null, 2));
+        
+        // Check for any NaN values in the data
+        for (const [key, value] of Object.entries(dataToSend)) {
+            if (typeof value === 'string' && (value === 'NaN' || value.includes('NaN'))) {
+                console.error(`❌ Found NaN in ${key}:`, value);
+            }
+        }
 
         const response = await fetch(MAKE_WEBHOOK_URL, {
             method: 'POST',
@@ -924,10 +972,22 @@ function setupScreenshotButton() {
             body: JSON.stringify([dataToSend])
         });
 
-        if (response.ok) { button.innerHTML = 'Sent! ✅'; } else { throw new Error(`Webhook failed: ${response.statusText}`); }
+        // Log the response for debugging
+        console.log('Make.com Response Status:', response.status);
+        console.log('Make.com Response Headers:', response.headers);
+        
+        const responseText = await response.text();
+        console.log('Make.com Response Body:', responseText);
+
+        if (response.ok) { 
+            button.innerHTML = 'Sent! ✅'; 
+        } else { 
+            console.error('Make.com Error Response:', responseText);
+            throw new Error(`Webhook failed: ${response.status} ${response.statusText} - ${responseText}`); 
+        }
     } catch (error) {
         console.error(`Failed to send ${dataType}:`, error);
-        alert(`Error: Could not send ${dataType} to Make.com.`);
+        alert(`Error: Could not send ${dataType} to Make.com. Check console for details.`);
         button.innerHTML = 'Failed! ❌';
     } finally {
         setTimeout(() => {
@@ -959,7 +1019,9 @@ function getTemplateData() {
     const selectedSupportName = selectedSupportCost > 0 ? (priceData['support_package']?.label || "Annual Support Package") : "Please see the support options below";
 
     // 2. "Professional Services" is the total of all other services.
-    const professionalServicesCost = (subTotalsForProposal.services?.sell || 0) - selectedSupportCost;
+    const servicesTotal = parseFloat(subTotalsForProposal.services?.sell || 0);
+    const supportCost = parseFloat(selectedSupportCost || 0);
+    const professionalServicesCost = (isNaN(servicesTotal) ? 0 : servicesTotal) - (isNaN(supportCost) ? 0 : supportCost);
     
     // Get other details
     const systemTypeSelect = document.getElementById('system-type');
