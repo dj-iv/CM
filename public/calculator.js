@@ -48,29 +48,86 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     let priceData = {};
+    let altPriceData = {};
+    let useAltPricing = false;
     let currentResults = {};
     let showZeroQuantityItems = false;
     let subTotalsForProposal = {};
     let supportPriceOverrides = { bronze: null, silver: null, gold: null };
     function populateSettingsModal() {
         const container = document.getElementById('settings-form-container');
-        let html = `<div class="setting-item setting-header"><span>Component</span><span>Cost (£)</span><span>Margin (%)</span><span>Sell (£)</span></div>`;
+        let html = `
+            <div class="pricing-controls">
+                <label class="alt-pricing-toggle">
+                    <input type="checkbox" id="use-alt-pricing" ${useAltPricing ? 'checked' : ''}>
+                    Use Alternative Pricing
+                </label>
+            </div>
+            <div class="setting-item setting-header">
+                <span>Component</span>
+                <span>Cost (£)</span>
+                <span>Margin (%)</span>
+                <span>Sell (£)</span>
+                <span>Alt Cost (£)</span>
+                <span>Alt Margin (%)</span>
+                <span>Alt Sell (£)</span>
+            </div>`;
         const sortedKeys = Object.keys(priceData).sort((a, b) => priceData[a].label.localeCompare(priceData[b].label));
         for(const key of sortedKeys) {
             const item = priceData[key];
+            const altItem = altPriceData[key] || { cost: item.cost, margin: item.margin };
             const sellPrice = item.cost * (1 + item.margin);
-            html += `<div class="setting-item"><label for="cost-${key}">${item.label}</label><input type="number" step="0.01" id="cost-${key}" value="${item.cost.toFixed(2)}"><input type="number" step="0.01" id="margin-${key}" value="${(item.margin * 100).toFixed(2)}"><span id="sell-${key}" class="sell-price-display">£${sellPrice.toFixed(2)}</span></div>`;
+            const altSellPrice = altItem.cost * (1 + altItem.margin);
+            html += `<div class="setting-item">
+                <label for="cost-${key}">${item.label}</label>
+                <input type="number" step="0.01" id="cost-${key}" value="${item.cost.toFixed(2)}">
+                <input type="number" step="0.01" id="margin-${key}" value="${(item.margin * 100).toFixed(2)}">
+                <span id="sell-${key}" class="sell-price-display">£${sellPrice.toFixed(2)}</span>
+                <input type="number" step="0.01" id="alt-cost-${key}" value="${altItem.cost.toFixed(2)}">
+                <input type="number" step="0.01" id="alt-margin-${key}" value="${(altItem.margin * 100).toFixed(2)}">
+                <span id="alt-sell-${key}" class="sell-price-display">£${altSellPrice.toFixed(2)}</span>
+            </div>`;
         }
         container.innerHTML = html;
     
         for(const key of sortedKeys) {
             const costInput = document.getElementById(`cost-${key}`);
             const marginInput = document.getElementById(`margin-${key}`);
+            const altCostInput = document.getElementById(`alt-cost-${key}`);
+            const altMarginInput = document.getElementById(`alt-margin-${key}`);
+            
             const handler = () => window.updateSellPriceDisplay(key);
+            const altHandler = () => window.updateAltSellPriceDisplay(key);
+            
             if(costInput) costInput.addEventListener('input', handler);
             if(marginInput) marginInput.addEventListener('input', handler);
+            if(altCostInput) altCostInput.addEventListener('input', altHandler);
+            if(altMarginInput) altMarginInput.addEventListener('input', altHandler);
+        }
+
+        // Add event listener for the alternative pricing toggle
+        const altPricingToggle = document.getElementById('use-alt-pricing');
+        if(altPricingToggle) {
+            altPricingToggle.addEventListener('change', (e) => {
+                useAltPricing = e.target.checked;
+                runFullCalculation();
+            });
         }
     }
+
+    // Helper function for updating alternative sell price displays
+    window.updateAltSellPriceDisplay = function(key) {
+        const altCostInput = document.getElementById(`alt-cost-${key}`);
+        const altMarginInput = document.getElementById(`alt-margin-${key}`);
+        const altSellDisplay = document.getElementById(`alt-sell-${key}`);
+        
+        if (altCostInput && altMarginInput && altSellDisplay) {
+            const altCost = parseFloat(altCostInput.value) || 0;
+            const altMargin = parseFloat(altMarginInput.value) / 100 || 0;
+            const altSellPrice = altCost * (1 + altMargin);
+            altSellDisplay.textContent = `£${altSellPrice.toFixed(2)}`;
+        }
+    };
 
     function setupSettingsModal() { 
         const modal = document.getElementById('settings-modal'), btn = document.getElementById('settings-btn'), closeBtn = modal.querySelector('.close-btn'), cancelBtn = document.getElementById('modal-cancel'), saveBtn = document.getElementById('modal-save'); 
@@ -80,18 +137,33 @@ document.addEventListener('DOMContentLoaded', () => {
         window.onclick = (event) => { if (event.target == modal) closeModal(); }; 
       saveBtn.onclick = async () => { 
     const newPriceData = JSON.parse(JSON.stringify(priceData)); 
+    const newAltPriceData = {};
     let allValid = true; 
+    
     for(const key in newPriceData) { 
-        const newCost = parseFloat(document.getElementById(`cost-${key}`).value), newMargin = parseFloat(document.getElementById(`margin-${key}`).value) / 100; 
-        if (!isNaN(newCost) && !isNaN(newMargin)) { 
+        const newCost = parseFloat(document.getElementById(`cost-${key}`).value);
+        const newMargin = parseFloat(document.getElementById(`margin-${key}`).value) / 100;
+        const newAltCost = parseFloat(document.getElementById(`alt-cost-${key}`).value);
+        const newAltMargin = parseFloat(document.getElementById(`alt-margin-${key}`).value) / 100;
+        
+        if (!isNaN(newCost) && !isNaN(newMargin) && !isNaN(newAltCost) && !isNaN(newAltMargin)) { 
             newPriceData[key].cost = newCost; 
-            newPriceData[key].margin = newMargin; 
+            newPriceData[key].margin = newMargin;
+            newAltPriceData[key] = {
+                label: newPriceData[key].label,
+                cost: newAltCost,
+                margin: newAltMargin
+            };
         } else { 
             allValid = false; 
         } 
     } 
+    
+    const altPricingCheckbox = document.getElementById('use-alt-pricing');
+    const newUseAltPricing = altPricingCheckbox ? altPricingCheckbox.checked : false;
+    
     if(allValid) { 
-        await savePrices(newPriceData); // Use await here
+        await savePrices(newPriceData, newAltPriceData, newUseAltPricing); // Use await here
         closeModal(); 
     } else { 
         alert("Please ensure all values are valid numbers."); 
@@ -149,34 +221,77 @@ document.addEventListener('DOMContentLoaded', () => {
 // REPLACE the old loadPrices function with this new async version
 async function loadPrices() {
     const pricesDocRef = firebase.firestore().collection('settings').doc('prices');
+    const altPricesDocRef = firebase.firestore().collection('settings').doc('altPrices');
+    const settingsDocRef = firebase.firestore().collection('settings').doc('general');
+    
     try {
+        // Load standard prices
         const doc = await pricesDocRef.get();
         if (doc.exists) {
             console.log("Prices loaded from Firestore.");
             const firestorePrices = doc.data();
-            // Merge with defaults to ensure any new items from code are included
             priceData = { ...defaultPriceData, ...firestorePrices };
         } else {
-            console.log("No prices document in Firestore, using default data. Save settings to create it.");
+            console.log("No prices document in Firestore, using default data.");
             priceData = JSON.parse(JSON.stringify(defaultPriceData));
         }
+
+        // Load alternative prices
+        const altDoc = await altPricesDocRef.get();
+        if (altDoc.exists) {
+            console.log("Alternative prices loaded from Firestore.");
+            altPriceData = altDoc.data();
+        } else {
+            console.log("No alternative prices document, initializing with default data.");
+            altPriceData = JSON.parse(JSON.stringify(defaultPriceData));
+        }
+
+        // Load settings (including useAltPricing flag)
+        const settingsDoc = await settingsDocRef.get();
+        if (settingsDoc.exists) {
+            const settings = settingsDoc.data();
+            useAltPricing = settings.useAltPricing || false;
+            console.log("Settings loaded from Firestore. Use Alt Pricing:", useAltPricing);
+        }
+        
     } catch (e) {
-        console.error("Could not load prices from Firestore, using default data.", e);
+        console.error("Could not load pricing data from Firestore, using default data.", e);
         priceData = JSON.parse(JSON.stringify(defaultPriceData));
+        altPriceData = JSON.parse(JSON.stringify(defaultPriceData));
+        useAltPricing = false;
     }
 }
-   async function savePrices(newPriceData) {
+   async function savePrices(newPriceData, newAltPriceData, newUseAltPricing) {
     const pricesDocRef = firebase.firestore().collection('settings').doc('prices');
+    const altPricesDocRef = firebase.firestore().collection('settings').doc('altPrices');
+    const settingsDocRef = firebase.firestore().collection('settings').doc('general');
+    
     try {
-        await pricesDocRef.set(newPriceData); // .set() will create or overwrite the document
+        // Save all the data in parallel
+        await Promise.all([
+            pricesDocRef.set(newPriceData),
+            altPricesDocRef.set(newAltPriceData),
+            settingsDocRef.set({ useAltPricing: newUseAltPricing }, { merge: true })
+        ]);
+        
+        // Update local variables
         priceData = newPriceData;
+        altPriceData = newAltPriceData;
+        useAltPricing = newUseAltPricing;
+        
         runFullCalculation();
-        alert('Prices saved successfully to the database!');
+        alert('Pricing settings saved successfully to the database!');
     } catch (e) {
-        console.error("Could not save prices to Firestore.", e);
-        alert('Error: Could not save prices to the database.');
+        console.error("Could not save pricing data to Firestore.", e);
+        alert('Error: Could not save pricing data to the database.');
     }
 }
+
+    // Helper function to get the active pricing data
+    function getActivePriceData() {
+        return useAltPricing ? altPriceData : priceData;
+    }
+
     function getSplitterCascade(k) { if (k <= 1) return { d4: 0, d3: 0, d2: 0 }; const d4_dist = (k === 6) ? 0 : ((k % 4 === 1) ? Math.max(0, Math.floor(k / 4) - 1) : Math.floor(k / 4)); const d3_dist = Math.floor((k - 4 * d4_dist) / 3); const d2_dist = Math.ceil((k - 4 * d4_dist - 3 * d3_dist) / 2); const num_dist = d4_dist + d3_dist + d2_dist; return { d4: d4_dist + ((num_dist === 4) ? 1 : 0), d3: d3_dist + ((num_dist === 3) ? 1 : 0), d2: d2_dist + ((num_dist === 2) ? 1 : 0) }; }
     function getBaseCalculations(params, systemType) { const { B_SA, D_DA } = params; let service_coax = (B_SA * 30); if (systemType === 'QUATRA' || systemType === 'QUATRA_EVO') { service_coax = 0; } const coax_total = service_coax + (D_DA * 50); return { donor_lpda: 0, donor_wideband: D_DA, antenna_bracket: D_DA, coax_half: 0, coax_lmr400: coax_total, cherry_picker: 0, install_external: 0, travel_expenses: 0, }; }
     function activateEditMode(cell, key) { const displaySpan = cell.querySelector('.value-display'), inputField = cell.querySelector('.value-input'); displaySpan.classList.add('hidden'); inputField.classList.remove('hidden'); const currentValue = currentResults[key].override !== null ? currentResults[key].override : currentResults[key].calculated; inputField.value = currentValue; inputField.focus(); inputField.select(); }
@@ -184,6 +299,8 @@ async function loadPrices() {
     function updateCellDisplay(cell, key) { const item = currentResults[key], displaySpan = cell.querySelector('.value-display'), isOverridden = item.override !== null, value = isOverridden ? item.override : item.calculated; displaySpan.textContent = `${value.toFixed(item.decimals || 0)}`; displaySpan.classList.toggle('overridden', isOverridden); }
     
    function calculateCoverageRequirements() {
+    console.log('calculateCoverageRequirements called');
+    
     // --- This new block clears previous overrides ---
     if (currentResults['service_antennas']) {
         currentResults['service_antennas'].override = null;
@@ -209,6 +326,8 @@ async function loadPrices() {
     const floorArea = parseFloat(document.getElementById('floor-area').value) || 0;
     const unit = document.querySelector('input[name="unit-switch"]:checked').value;
     const band = document.querySelector('input[name="band-switch"]:checked').value;
+    const isQuatra = systemType.includes('QUATRA');
+    const isHighCeiling = document.getElementById('high-ceiling-warehouse').checked;
     
     const usesPassiveAntennas = systemType.includes('DAS') || systemType.includes('G4');
     const dataSource = usesPassiveAntennas ? coverageData.go : coverageData.quatra;
@@ -216,8 +335,48 @@ async function loadPrices() {
     const coverage = dataSource[band]?.[unit];
     let unitsForArea = 0;
     
-    const isQuatra = systemType.includes('QUATRA');
-    const isHighCeiling = document.getElementById('high-ceiling-warehouse').checked;
+    // Calculate and display weighted average antenna radius
+    const radiusElement = document.getElementById('average-radius');
+    if (!radiusElement) {
+        console.log('average-radius element not found');
+        return;
+    }
+    
+    if (coverage) {
+        const calculateRadius = (area) => Math.sqrt(area / Math.PI);
+        const unitSuffix = unit === 'sqm' ? 'm' : 'ft';
+        
+        const totalPercent = pOpen + pCubical + pHollow + pSolid;
+        let averageRadius = 0;
+        
+        console.log('Coverage data:', coverage);
+        console.log('Percentages:', { pOpen, pCubical, pHollow, pSolid, totalPercent });
+        
+        if (totalPercent > 0) {
+            if (isQuatra && isHighCeiling && coverage.open_high_ceiling) {
+                // Use high ceiling radius for open plan when selected
+                const highCeilingRadius = calculateRadius(coverage.open_high_ceiling);
+                averageRadius = ((pOpen / totalPercent) * highCeilingRadius) +
+                               ((pCubical / totalPercent) * calculateRadius(coverage.cubical)) +
+                               ((pHollow / totalPercent) * calculateRadius(coverage.hollow)) +
+                               ((pSolid / totalPercent) * calculateRadius(coverage.solid));
+            } else {
+                averageRadius = ((pOpen / totalPercent) * calculateRadius(coverage.open)) +
+                               ((pCubical / totalPercent) * calculateRadius(coverage.cubical)) +
+                               ((pHollow / totalPercent) * calculateRadius(coverage.hollow)) +
+                               ((pSolid / totalPercent) * calculateRadius(coverage.solid));
+            }
+            
+            console.log('Calculated average radius:', averageRadius, unitSuffix);
+            radiusElement.textContent = `${averageRadius.toFixed(1)}${unitSuffix}`;
+            console.log('Updated radius display');
+        } else {
+            radiusElement.textContent = '-';
+        }
+    } else {
+        console.log('No coverage data available');
+        radiusElement.textContent = 'No data';
+    }
 
     if (floorArea > 0 && coverage) {
         if (isQuatra && isHighCeiling && !usesPassiveAntennas) {
@@ -252,13 +411,14 @@ function runFullCalculation() {
         if (!currentResults['survey_price_item']) {
             currentResults['survey_price_item'] = { calculated: 0, override: null, decimals: 2 };
         }
-        if (priceData['survey_price_item']) {
+        const activePricingData = getActivePriceData();
+        if (activePricingData['survey_price_item']) {
             if (includeSurvey) {
                 const surveyPrice = parseFloat(document.getElementById('survey-price').value) || 0;
-                priceData['survey_price_item'].cost = surveyPrice;
+                activePricingData['survey_price_item'].cost = surveyPrice;
                 currentResults['survey_price_item'].calculated = 1; // Set quantity to 1 to show the row
             } else {
-                priceData['survey_price_item'].cost = 0;
+                activePricingData['survey_price_item'].cost = 0;
                 currentResults['survey_price_item'].calculated = 0; // Set quantity to 0 to hide the row
             }
         }
@@ -340,18 +500,19 @@ function runFullCalculation() {
         }
         
         currentResults['support_package'].calculated = supportCost;
-        priceData['support_package'].cost = supportCost;
+        const activePricing = getActivePriceData();
+        activePricing['support_package'].cost = supportCost;
         
         if (supportCost > 0) {
             if (activeButton && activeButton.id !== 'support-preset-none') {
                 const tier = activeButton.id.replace('support-preset-', '');
                 const tierName = tier.charAt(0).toUpperCase() + tier.slice(1);
-                priceData['support_package'].label = `Annual ${tierName} Support Package`;
+                activePricing['support_package'].label = `Annual ${tierName} Support Package`;
             } else {
-                 priceData['support_package'].label = `Annual Custom Support Package`;
+                 activePricing['support_package'].label = `Annual Custom Support Package`;
             }
         } else {
-            priceData['support_package'].label = "Annual Support Package";
+            activePricing['support_package'].label = "Annual Support Package";
         }
 
         updateDOM();
@@ -404,7 +565,8 @@ function updateDOM() {
         itemGroups[groupName].forEach(key => {
             if (!currentResults[key]) currentResults[key] = { calculated: 0, override: null, decimals: 0, unit: '' };
             const itemResult = currentResults[key];
-            const priceInfo = priceData[key] || { cost: 0, margin: 0, label: 'N/A' };
+            const activePricing = getActivePriceData();
+            const priceInfo = activePricing[key] || { cost: 0, margin: 0, label: 'N/A' };
             
             const isSupport = key === 'support_package';
             const quantity = isSupport ? 1 : (itemResult.override !== null ? itemResult.override : itemResult.calculated);
@@ -416,16 +578,20 @@ function updateDOM() {
             if (isRelevant && (quantity > 0 || showZeroQuantityItems)) {
                 itemsInGroupDisplayed++;
 
-                const finalCost = priceInfo.cost;
-               const baseTotalSell = (isSupport ? finalCost : (finalCost * (1 + priceInfo.margin))) * quantity;
-const finalTotalSell = baseTotalSell * uplift;
-const trueLineMargin = baseTotalSell - (finalCost * quantity);
-const finalUnitSell = finalTotalSell / quantity;
+                const finalCost = parseFloat(priceInfo.cost) || 0;
+                const margin = parseFloat(priceInfo.margin) || 0;
+                const qty = parseFloat(quantity) || 0;
+                const upliftVal = parseFloat(uplift) || 1;
+                
+                const baseTotalSell = (isSupport ? finalCost : (finalCost * (1 + margin))) * qty;
+                const finalTotalSell = baseTotalSell * upliftVal;
+                const trueLineMargin = baseTotalSell - (finalCost * qty);
+                const finalUnitSell = qty > 0 ? finalTotalSell / qty : 0;
                 
                 // Add to sub-totals, ensuring they are numbers
-                subTotals[groupName].sell += parseFloat(finalTotalSell) || 0;
-                subTotals[groupName].cost += parseFloat(finalCost * quantity) || 0;
-                subTotals[groupName].margin += parseFloat(trueLineMargin) || 0;
+                subTotals[groupName].sell += isNaN(finalTotalSell) ? 0 : finalTotalSell;
+                subTotals[groupName].cost += isNaN(finalCost * qty) ? 0 : (finalCost * qty);
+                subTotals[groupName].margin += isNaN(trueLineMargin) ? 0 : trueLineMargin;
 
                 const qtyDisplay = isSupport ? '1' : `<span class="value-display"></span><input type="number" step="any" class="value-input hidden" />`;
                 const qtyClass = isSupport ? '' : 'item-qty';
@@ -508,8 +674,9 @@ const finalUnitSell = finalTotalSell / quantity;
         runFullCalculation();
     }
     function updateSupportTableSummaries(totalHardwareUnits) {
-        if (!priceData.install_internal) return; 
-        const dailyInstallRate = priceData.install_internal.cost * (1 + priceData.install_internal.margin);
+        const activePricing = getActivePriceData();
+        if (!activePricing.install_internal) return; 
+        const dailyInstallRate = activePricing.install_internal.cost * (1 + activePricing.install_internal.margin);
         const tierPerSystemDPY = { bronze: 0, silver: 0, gold: 0 };
         const tierFixedAnnualDPY = { bronze: 0, silver: 0, gold: 0 };
         for (const tier of ['bronze', 'silver', 'gold']) {
@@ -532,22 +699,24 @@ const finalUnitSell = finalTotalSell / quantity;
     }
    function getSpecificSupportCost(tier, totalHardwareUnits, totalHardwareSellPrice) {
     if (supportPriceOverrides[tier] !== null) {
-        return supportPriceOverrides[tier];
+        return parseFloat(supportPriceOverrides[tier]) || 0;
     }
     let totalPerSystemDPY = 0, totalFixedAnnualDPY = 0;
     const maintenancePercent = (tier === 'none') ? 0 : 5;
     for (const key in supportData) {
         if (supportData[key].tiers.includes(tier)) {
-            const dpyValue = (supportData[key].dpm || 0) * 12;
+            const dpyValue = (parseFloat(supportData[key].dpm) || 0) * 12;
             if (supportData[key].type === 'per_system') totalPerSystemDPY += dpyValue;
             else totalFixedAnnualDPY += dpyValue;
         }
     }
-    const dailyInstallRate = (priceData.install_internal?.cost * (1 + priceData.install_internal?.margin)) || 0;
-    const perSystemCost = totalPerSystemDPY * dailyInstallRate * totalHardwareUnits;
-    const fixedAnnualCost = totalFixedAnnualDPY * dailyInstallRate;
-    const maintenanceCost = totalHardwareSellPrice * (maintenancePercent / 100);
-    return perSystemCost + fixedAnnualCost + maintenanceCost;
+    const activePricing = getActivePriceData();
+    const dailyInstallRate = (parseFloat(activePricing.install_internal?.cost) * (1 + parseFloat(activePricing.install_internal?.margin))) || 0;
+    const perSystemCost = (parseFloat(totalPerSystemDPY) || 0) * (parseFloat(dailyInstallRate) || 0) * (parseFloat(totalHardwareUnits) || 0);
+    const fixedAnnualCost = (parseFloat(totalFixedAnnualDPY) || 0) * (parseFloat(dailyInstallRate) || 0);
+    const maintenanceCost = (parseFloat(totalHardwareSellPrice) || 0) * (parseFloat(maintenancePercent) || 0) / 100;
+    const result = (parseFloat(perSystemCost) || 0) + (parseFloat(fixedAnnualCost) || 0) + (parseFloat(maintenanceCost) || 0);
+    return isNaN(result) ? 0 : result;
 }
    function updateAllSupportTierPrices() {
     let totalHardwareSellPrice = 0, totalHardwareUnits = 0;
@@ -557,7 +726,8 @@ const finalUnitSell = finalTotalSell / quantity;
             const quantity = currentResults[key].override ?? currentResults[key].calculated;
             if (quantity > 0) {
                 totalHardwareUnits += quantity;
-                const priceInfo = priceData[key];
+                const activePricing = getActivePriceData();
+                const priceInfo = activePricing[key];
                 totalHardwareSellPrice += quantity * priceInfo.cost * (1 + priceInfo.margin);
             }
         }
@@ -843,6 +1013,22 @@ function setupScreenshotButton() {
 
     calculateCoverageRequirements(); 
 
+    // Test the radius display after a short delay
+    setTimeout(() => {
+        const testElement = document.getElementById('average-radius');
+        if (testElement) {
+            console.log('Test: Found average-radius element');
+            // Force a test calculation
+            testElement.textContent = '7.0m (test)';
+            // Then try the real calculation
+            setTimeout(() => {
+                calculateCoverageRequirements();
+            }, 500);
+        } else {
+            console.log('Test: average-radius element not found');
+        }
+    }, 100);
+
     // Default to dashboard view
     mainContainer.classList.add('screenshot-mode');
     viewToggleButton.textContent = 'Switch to Simple View';
@@ -884,11 +1070,36 @@ function setupScreenshotButton() {
             selectedSupportName = selectedSupportTier.charAt(0).toUpperCase() + selectedSupportTier.slice(1);
         }
         const selectedSupportCost = getSpecificSupportCost(selectedSupportTier, totalHardwareUnits, totalHardwareSellPrice);
-        const professionalServicesCost = (subTotalsForProposal.services?.sell || 0) - selectedSupportCost;
+        const servicesTotal = parseFloat(subTotalsForProposal.services?.sell || 0);
+        const supportCost = parseFloat(selectedSupportCost || 0);
+        
+        // Debug the professional services calculation
+        console.log('=== PROFESSIONAL SERVICES DEBUG ===');
+        console.log('selectedSupportTier:', selectedSupportTier);
+        console.log('subTotalsForProposal.services:', subTotalsForProposal.services);
+        console.log('servicesTotal (parsed):', servicesTotal);
+        console.log('selectedSupportCost (raw):', selectedSupportCost);
+        console.log('supportCost (parsed):', supportCost);
+        console.log('servicesTotal isNaN:', isNaN(servicesTotal));
+        console.log('supportCost isNaN:', isNaN(supportCost));
+        
+        const professionalServicesCost = (isNaN(servicesTotal) ? 0 : servicesTotal) - (isNaN(supportCost) ? 0 : supportCost);
+        console.log('professionalServicesCost result:', professionalServicesCost);
+        console.log('professionalServicesCost isNaN:', isNaN(professionalServicesCost));
+        
+        // Ensure professionalServicesCost is never NaN
+        const safeProfessionalServicesCost = isNaN(professionalServicesCost) ? 0 : professionalServicesCost;
         const bronzeCost = getSpecificSupportCost('bronze', totalHardwareUnits, totalHardwareSellPrice);
         const silverCost = getSpecificSupportCost('silver', totalHardwareUnits, totalHardwareSellPrice);
         const goldCost = getSpecificSupportCost('gold', totalHardwareUnits, totalHardwareSellPrice);
         const totalMargin = (subTotalsForProposal.hardware?.margin || 0) + (subTotalsForProposal.consumables?.margin || 0) + (subTotalsForProposal.services?.margin || 0);
+        
+        // Helper function to safely format numbers
+        const safeFixed = (value, decimals = 2) => {
+            const num = parseFloat(value);
+            return isNaN(num) ? '0.00' : num.toFixed(decimals);
+        };
+        
         const systemTypeSelect = document.getElementById('system-type');
         const selectedValue = systemTypeSelect.value;
         const selectedText = systemTypeSelect.options[systemTypeSelect.selectedIndex].text;
@@ -902,21 +1113,39 @@ function setupScreenshotButton() {
             CustomerName: document.getElementById('customer-name').value,
             Solution: solutionNameToSend,
             NumberOfNetworks: document.getElementById('number-of-networks').value,
-            SurveyPrice: (parseFloat(document.getElementById('survey-price').value) || 0).toFixed(2),
-            Description1: "CEL-FI Hardware", Qty1: "1", UnitPrice1: (subTotalsForProposal.hardware?.sell || 0).toFixed(2), TotalPrice1: (subTotalsForProposal.hardware?.sell || 0).toFixed(2),
-            Description2: "Antennas, cables and connectors", Qty2: "1", UnitPrice2: (subTotalsForProposal.consumables?.sell || 0).toFixed(2), TotalPrice2: (subTotalsForProposal.consumables?.sell || 0).toFixed(2),
-            Description3: "Professional Services", Qty3: "1", UnitPrice3: professionalServicesCost.toFixed(2), TotalPrice3: professionalServicesCost.toFixed(2),
+            SurveyPrice: safeFixed(parseFloat(document.getElementById('survey-price').value) || 0),
+            Description1: "CEL-FI Hardware", Qty1: "1", UnitPrice1: safeFixed(subTotalsForProposal.hardware?.sell || 0), TotalPrice1: safeFixed(subTotalsForProposal.hardware?.sell || 0),
+            Description2: "Antennas, cables and connectors", Qty2: "1", UnitPrice2: safeFixed(subTotalsForProposal.consumables?.sell || 0), TotalPrice2: safeFixed(subTotalsForProposal.consumables?.sell || 0),
+            Description3: "Professional Services", Qty3: "1", UnitPrice3: safeFixed(safeProfessionalServicesCost), TotalPrice3: safeFixed(safeProfessionalServicesCost),
             Description4: selectedSupportTier !== 'none' ? selectedSupportName : "Please see the support options below",
             Qty4: selectedSupportTier !== 'none' ? "1" : "",
-            UnitPrice4: selectedSupportTier !== 'none' ? selectedSupportCost.toFixed(2) : "",
-            TotalPrice4: selectedSupportTier !== 'none' ? selectedSupportCost.toFixed(2) : "",
-            Support1: "Bronze", SupportQty1: "1", SupportUnitPrice1: bronzeCost.toFixed(2), SupportTotalPrice1: bronzeCost.toFixed(2),
-            Support2: "Silver", SupportQty2: "1", SupportUnitPrice2: silverCost.toFixed(2), SupportTotalPrice2: silverCost.toFixed(2),
-            Support3: "Gold", SupportQty3: "1", SupportUnitPrice3: goldCost.toFixed(2), SupportTotalPrice3: goldCost.toFixed(2),
-            MarginTotal: totalMargin.toFixed(2),
-            TotalMargin: totalMargin.toFixed(2),
+            UnitPrice4: selectedSupportTier !== 'none' ? safeFixed(selectedSupportCost) : "",
+            TotalPrice4: selectedSupportTier !== 'none' ? safeFixed(selectedSupportCost) : "",
+            Support1: "Bronze", SupportQty1: "1", SupportUnitPrice1: safeFixed(bronzeCost), SupportTotalPrice1: safeFixed(bronzeCost),
+            Support2: "Silver", SupportQty2: "1", SupportUnitPrice2: safeFixed(silverCost), SupportTotalPrice2: safeFixed(silverCost),
+            Support3: "Gold", SupportQty3: "1", SupportUnitPrice3: safeFixed(goldCost), SupportTotalPrice3: safeFixed(goldCost),
+            MarginTotal: safeFixed(totalMargin),
+            TotalMargin: safeFixed(totalMargin),
             QuoteNumber: dataType === 'quote' ? document.getElementById('quote-number').value : "",
         };
+
+        // Debug logging - check for NaN values before sending
+        console.log('=== WEBHOOK DEBUG DATA ===');
+        console.log('professionalServicesCost (original):', professionalServicesCost);
+        console.log('safeProfessionalServicesCost (safe):', safeProfessionalServicesCost);
+        console.log('subTotalsForProposal.services:', subTotalsForProposal.services);
+        console.log('selectedSupportCost:', selectedSupportCost);
+        console.log('bronzeCost:', bronzeCost);
+        console.log('silverCost:', silverCost);
+        console.log('goldCost:', goldCost);
+        console.log('Full dataToSend object:', JSON.stringify(dataToSend, null, 2));
+        
+        // Check for any NaN values in the data
+        for (const [key, value] of Object.entries(dataToSend)) {
+            if (typeof value === 'string' && (value === 'NaN' || value.includes('NaN'))) {
+                console.error(`❌ Found NaN in ${key}:`, value);
+            }
+        }
 
         const response = await fetch(MAKE_WEBHOOK_URL, {
             method: 'POST',
@@ -924,10 +1153,22 @@ function setupScreenshotButton() {
             body: JSON.stringify([dataToSend])
         });
 
-        if (response.ok) { button.innerHTML = 'Sent! ✅'; } else { throw new Error(`Webhook failed: ${response.statusText}`); }
+        // Log the response for debugging
+        console.log('Make.com Response Status:', response.status);
+        console.log('Make.com Response Headers:', response.headers);
+        
+        const responseText = await response.text();
+        console.log('Make.com Response Body:', responseText);
+
+        if (response.ok) { 
+            button.innerHTML = 'Sent! ✅'; 
+        } else { 
+            console.error('Make.com Error Response:', responseText);
+            throw new Error(`Webhook failed: ${response.status} ${response.statusText} - ${responseText}`); 
+        }
     } catch (error) {
         console.error(`Failed to send ${dataType}:`, error);
-        alert(`Error: Could not send ${dataType} to Make.com.`);
+        alert(`Error: Could not send ${dataType} to Make.com. Check console for details.`);
         button.innerHTML = 'Failed! ❌';
     } finally {
         setTimeout(() => {
@@ -959,7 +1200,9 @@ function getTemplateData() {
     const selectedSupportName = selectedSupportCost > 0 ? (priceData['support_package']?.label || "Annual Support Package") : "Please see the support options below";
 
     // 2. "Professional Services" is the total of all other services.
-    const professionalServicesCost = (subTotalsForProposal.services?.sell || 0) - selectedSupportCost;
+    const servicesTotal = parseFloat(subTotalsForProposal.services?.sell || 0);
+    const supportCost = parseFloat(selectedSupportCost || 0);
+    const professionalServicesCost = (isNaN(servicesTotal) ? 0 : servicesTotal) - (isNaN(supportCost) ? 0 : supportCost);
     
     // Get other details
     const systemTypeSelect = document.getElementById('system-type');
