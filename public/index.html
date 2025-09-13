@@ -199,10 +199,33 @@
         .modal-footer button { padding: 10px 20px; border-radius: 5px; border: none; cursor: pointer; font-weight: 600; }
         #modal-save { background-color: #28a745; color: white; }
         #modal-cancel { background-color: #dc3545; color: white; }
-        #settings-form-container .setting-item { display: grid; grid-template-columns: 2.5fr 1fr 1fr 1fr; gap: 15px; padding: 8px 0; border-bottom: 1px solid #eee; align-items: center; }
+        #settings-form-container .setting-item { display: grid; grid-template-columns: 2.5fr 1fr 1fr 1fr 1fr 1fr 1fr; gap: 15px; padding: 8px 0; border-bottom: 1px solid #eee; align-items: center; }
         #settings-form-container .setting-header { font-weight: bold; color: #004696; }
         #settings-form-container .setting-item input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
         #settings-form-container .setting-item .sell-price-display { font-weight: bold; text-align: right; padding-right: 10px; }
+        
+        .pricing-controls {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e0e6ec;
+        }
+        
+        .alt-pricing-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            color: #004696;
+            cursor: pointer;
+        }
+        
+        .alt-pricing-toggle input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
         
         /* --- DASHBOARD VIEW STYLES --- */
         /* --- DASHBOARD VIEW STYLES --- */
@@ -432,6 +455,9 @@
                     </div>
                 </div>
                 <div id="percentage-total-display">Total: <span id="percentage-sum">100%</span></div>
+                <div id="average-radius-display" style="margin-top: 10px; padding: 8px 12px; background-color: #e8f4fd; border-radius: 4px; border: 1px solid #004696; font-size: 13px;">
+                    <strong style="color: #004696;">Average Antenna Radius:</strong> <span id="average-radius" style="color: #004696; font-weight: bold;">Loading...</span>
+                </div>
             </div>
         </div>
 
@@ -561,6 +587,7 @@
                 <span class="close-btn">&times;</span>
             </div>
             <div class="modal-body">
+                <!-- Alternative pricing support added -->
                 <div class="modal-tabs">
                     <button class="tab-link active" data-tab="pricing">Pricing</button>
                     <button class="tab-link" data-tab="support">Support</button>

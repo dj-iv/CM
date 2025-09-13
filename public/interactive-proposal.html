@@ -284,6 +284,58 @@ ul li::marker {
         flex-direction: column;
         align-items: center;
     }   
+
+    /* --- Download Button Styling --- */
+    .download-container {
+        margin-top: 40px;
+        text-align: center;
+        padding: 30px;
+        background-color: var(--color-light-background);
+        border-radius: 12px;
+        border: 2px solid var(--color-secondary-teal);
+        max-width: 800px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .download-btn {
+        background: linear-gradient(135deg, var(--color-secondary-teal), var(--color-primary-blue));
+        color: var(--color-text-light);
+        border: none;
+        padding: 15px 30px;
+        font-size: 16pt;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(26, 131, 135, 0.3);
+        font-family: 'Montserrat', sans-serif;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .download-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 25px rgba(26, 131, 135, 0.4);
+        background: linear-gradient(135deg, var(--color-primary-blue), var(--color-secondary-teal));
+    }
+
+    .download-btn:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 10px rgba(26, 131, 135, 0.3);
+    }
+
+    .download-btn i {
+        font-size: 1.2em;
+    }
+
+    .download-note {
+        margin-top: 15px;
+        color: #666;
+        font-size: 12pt;
+        font-style: italic;
+    }   
 /* --- FINAL PRINT STYLES --- */
 
     @media print {
@@ -294,6 +346,11 @@ ul li::marker {
 
         #proposal-container {
             display: block;
+        }
+
+        /* Hide download button when printing */
+        .download-container {
+            display: none !important;
         }
 
         .page {
@@ -519,6 +576,15 @@ ul li::marker {
         Services are subject to UCtel’s standard Terms and Conditions.
         </p>
         <div class="footer"><span>CEL-FI {Solution} solution proposal for {Account}</span><span class="page-number"></span></div>
+    </div>
+    
+    <!-- Download Button Container -->
+    <div class="download-container">
+        <button id="download-pdf-btn" class="download-btn">
+            <i class="fa-solid fa-download"></i>
+            Download as PDF
+        </button>
+        <p class="download-note">Click to save this proposal as a PDF file</p>
     </div>
 </div>
 
@@ -748,6 +814,21 @@ document.title = newFilename;
                 li.className = heading.tagName === 'H2' ? 'toc-h2' : 'toc-h3';
                 li.appendChild(a);
                 tocList.appendChild(li);
+            });
+        })();
+
+        // --- 6. ADD DOWNLOAD FUNCTIONALITY ---
+        (function addDownloadFunctionality() {
+            const downloadBtn = document.getElementById('download-pdf-btn');
+            if (!downloadBtn) return;
+
+            downloadBtn.addEventListener('click', () => {
+                // Use the document title that was set earlier for the filename
+                const filename = document.title || 'UCtel_Proposal';
+                
+                // Trigger the browser's print dialog
+                // Users can then choose "Save as PDF" from the destination dropdown
+                window.print();
             });
         })();
     });
