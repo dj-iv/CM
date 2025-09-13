@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const PDF_MAKE_WEBHOOK_URL = 'https://hook.eu1.make.com/cfde3avwbdpr5y131ffkle13z40haem3'; 
 
     // --- DATA ---
-    const coverageData = {
+    const defaultCoverageData = {
         go: {
             high_band: { sqm: { solid: 56, hollow: 94, cubical: 157, open: 250 }, sqft: { solid: 603, hollow: 1012, cubical: 1690, open: 2691 } },
             low_band: { sqm: { solid: 65, hollow: 148, cubical: 314, open: 590 }, sqft: { solid: 700, hollow: 1593, cubical: 3380, open: 6351 } }
@@ -14,6 +14,9 @@ document.addEventListener('DOMContentLoaded', () => {
             low_band: { sqm: { solid: 279, hollow: 464, cubical: 1160, open: 2000, open_high_ceiling: 3000 }, sqft: { solid: 3003, hollow: 4994, cubical: 12486, open: 21528, open_high_ceiling: 32292 } }
         }
     };
+    
+    // Dynamic coverage data that can be loaded from database
+    let coverageData = JSON.parse(JSON.stringify(defaultCoverageData));
     const defaultPriceData = {
         'G41':{label:"GO G41",cost:800.19,margin:0.25},'G43':{label:"GO G43",cost:3149.37,margin:0.25},'QUATRA_NU':{label:"QUATRA 4000e NU",cost:5668.74,margin:0.25},'QUATRA_CU':{label:"QUATRA 4000e CU",cost:3400.74,margin:0.25},'QUATRA_HUB':{label:"QUATRA 4000e HUB",cost:4219.74,margin:0.25},'QUATRA_EVO_NU':{label:"QUATRA EVO NU",cost:2707.74,margin:0.25},'QUATRA_EVO_CU':{label:"QUATRA EVO CU",cost:1731.39,margin:0.25},'QUATRA_EVO_HUB':{label:"QUATRA EVO HUB",cost:2243.8,margin:0.25},'extender_cat6':{label:"Q4000 CAT6 Range Extender",cost:426.43,margin:0.25},'extender_fibre_cu':{label:"Q4000 Fibre Extender CU",cost:755.99,margin:0.25},'extender_fibre_nu':{label:"Q4000 Fibre Extender NU",cost:986.61,margin:0.25},'service_antennas':{label:"Omni Ceiling Antenna",cost:11.22,margin:7},'donor_wideband':{label:"Log-periodic Antenna",cost:20.08,margin:5},'donor_lpda':{label:"LPDA-R Antenna",cost:57.87,margin:3.5},'antenna_bracket':{label:"Antenna Bracket",cost:40,margin:0.5},
         'hybrids_4x4':{label:"4x4 Hybrid Combiner",cost:183.05,margin:1.0},
@@ -115,6 +118,124 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Populate coverage settings modal
+    function populateCoverageModal() {
+        const container = document.getElementById('coverage-form-container');
+        let html = `
+            <h3>Antenna Coverage Settings</h3>
+            <p>Configure antenna coverage areas (in square meters or square feet) for different system types, frequency bands, and wall types.</p>
+        `;
+        
+        // Create sections for each system type
+        Object.keys(coverageData).forEach(systemType => {
+            const systemLabel = systemType === 'go' ? 'GO Systems (G41/G43) & QUATRA/EVO DAS Systems' : 'QUATRA Systems (4000e/EVO)';
+            html += `<div class="coverage-section">
+                <h4>${systemLabel}</h4>`;
+            
+            Object.keys(coverageData[systemType]).forEach(band => {
+                const bandLabel = band === 'high_band' ? 'High Band' : 'Low Band';
+                html += `<h5 style="margin: 15px 15px 10px; color: #666; font-size: 13px;">${bandLabel}</h5>
+                    <table class="coverage-table">
+                        <thead>
+                            <tr>
+                                <th>Wall Type</th>
+                                <th>Square Meters</th>
+                                <th>Radius (m)</th>
+                                <th>Square Feet</th>
+                                <th>Radius (ft)</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+                
+                const wallTypes = ['solid', 'hollow', 'cubical', 'open'];
+                if (systemType === 'quatra') {
+                    wallTypes.push('open_high_ceiling');
+                }
+                
+                wallTypes.forEach(wallType => {
+                    const wallLabel = wallType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    const sqmValue = coverageData[systemType][band].sqm[wallType] || 0;
+                    const sqftValue = coverageData[systemType][band].sqft[wallType] || 0;
+                    
+                    // Calculate radius from area (radius = sqrt(area / π))
+                    const radiusM = sqmValue > 0 ? Math.sqrt(sqmValue / Math.PI).toFixed(1) : '0.0';
+                    const radiusFt = sqftValue > 0 ? Math.sqrt(sqftValue / Math.PI).toFixed(1) : '0.0';
+                    
+                    html += `<tr>
+                        <td><strong>${wallLabel}</strong></td>
+                        <td><input type="number" id="coverage-${systemType}-${band}-sqm-${wallType}" value="${sqmValue}" min="0" step="1"></td>
+                        <td style="background-color: #f8f9fa; color: #666; text-align: center; font-weight: bold;">${radiusM}</td>
+                        <td><input type="number" id="coverage-${systemType}-${band}-sqft-${wallType}" value="${sqftValue}" min="0" step="1"></td>
+                        <td style="background-color: #f8f9fa; color: #666; text-align: center; font-weight: bold;">${radiusFt}</td>
+                    </tr>`;
+                });
+                
+                html += `</tbody></table>`;
+            });
+            
+            html += `</div>`;
+        });
+        
+        container.innerHTML = html;
+        
+        // Add event listeners to update radius calculations when coverage values change
+        setupCoverageRadiusUpdates();
+    }
+    
+    // Function to setup automatic radius updates in coverage modal
+    function setupCoverageRadiusUpdates() {
+        // Find all coverage input fields and add change listeners
+        document.querySelectorAll('[id^="coverage-"]').forEach(input => {
+            if (input.type === 'number') {
+                input.addEventListener('input', function() {
+                    updateRadiusDisplay(this);
+                });
+            }
+        });
+    }
+    
+    // Function to update radius display for a specific input
+    function updateRadiusDisplay(input) {
+        const value = parseFloat(input.value) || 0;
+        const radius = value > 0 ? Math.sqrt(value / Math.PI).toFixed(1) : '0.0';
+        
+        // Find the corresponding radius cell (next sibling for sqm, or cell after next for sqft)
+        const row = input.closest('tr');
+        const cells = row.querySelectorAll('td');
+        const inputCell = input.closest('td');
+        const inputIndex = Array.from(cells).indexOf(inputCell);
+        
+        // Update the radius cell (column 2 for sqm radius, column 4 for sqft radius)
+        if (inputIndex === 1) { // sqm input (column 1)
+            const radiusCell = cells[2]; // radius (m) column
+            radiusCell.textContent = radius;
+        } else if (inputIndex === 3) { // sqft input (column 3)
+            const radiusCell = cells[4]; // radius (ft) column
+            radiusCell.textContent = radius;
+        }
+    }
+
+    // Setup modal tabs functionality
+    function setupModalTabs() {
+        const tabLinks = document.querySelectorAll('.tab-link');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        tabLinks.forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const targetTab = link.getAttribute('data-tab');
+                
+                // Remove active class from all tabs and contents
+                tabLinks.forEach(tl => tl.classList.remove('active'));
+                tabContents.forEach(tc => tc.classList.remove('active'));
+                
+                // Add active class to clicked tab and corresponding content
+                link.classList.add('active');
+                document.getElementById(targetTab).classList.add('active');
+            });
+        });
+    }
+
     // Helper function for updating alternative sell price displays
     window.updateAltSellPriceDisplay = function(key) {
         const altCostInput = document.getElementById(`alt-cost-${key}`);
@@ -131,15 +252,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function setupSettingsModal() { 
         const modal = document.getElementById('settings-modal'), btn = document.getElementById('settings-btn'), closeBtn = modal.querySelector('.close-btn'), cancelBtn = document.getElementById('modal-cancel'), saveBtn = document.getElementById('modal-save'); 
-        btn.onclick = () => { populateSettingsModal(); modal.style.display = "block"; }; 
+        btn.onclick = () => { 
+            populateSettingsModal(); 
+            populateCoverageModal();
+            setupModalTabs();
+            modal.style.display = "block"; 
+        }; 
         const closeModal = () => modal.style.display = "none"; 
         closeBtn.onclick = closeModal; cancelBtn.onclick = closeModal; 
         window.onclick = (event) => { if (event.target == modal) closeModal(); }; 
       saveBtn.onclick = async () => { 
     const newPriceData = JSON.parse(JSON.stringify(priceData)); 
     const newAltPriceData = {};
+    const newCoverageData = JSON.parse(JSON.stringify(coverageData));
     let allValid = true; 
     
+    // Validate and save pricing data
     for(const key in newPriceData) { 
         const newCost = parseFloat(document.getElementById(`cost-${key}`).value);
         const newMargin = parseFloat(document.getElementById(`margin-${key}`).value) / 100;
@@ -157,13 +285,34 @@ document.addEventListener('DOMContentLoaded', () => {
         } else { 
             allValid = false; 
         } 
-    } 
+    }
+    
+    // Validate and save coverage data
+    Object.keys(newCoverageData).forEach(systemType => {
+        Object.keys(newCoverageData[systemType]).forEach(band => {
+            ['sqm', 'sqft'].forEach(unit => {
+                Object.keys(newCoverageData[systemType][band][unit]).forEach(wallType => {
+                    const inputId = `coverage-${systemType}-${band}-${unit}-${wallType}`;
+                    const input = document.getElementById(inputId);
+                    if (input) {
+                        const value = parseFloat(input.value);
+                        if (!isNaN(value) && value >= 0) {
+                            newCoverageData[systemType][band][unit][wallType] = value;
+                        } else {
+                            allValid = false;
+                        }
+                    }
+                });
+            });
+        });
+    });
     
     const altPricingCheckbox = document.getElementById('use-alt-pricing');
     const newUseAltPricing = altPricingCheckbox ? altPricingCheckbox.checked : false;
     
     if(allValid) { 
-        await savePrices(newPriceData, newAltPriceData, newUseAltPricing); // Use await here
+        await savePrices(newPriceData, newAltPriceData, newUseAltPricing);
+        await saveCoverageData(newCoverageData);
         closeModal(); 
     } else { 
         alert("Please ensure all values are valid numbers."); 
@@ -287,6 +436,43 @@ async function loadPrices() {
     }
 }
 
+// Load coverage data from Firebase
+async function loadCoverageData() {
+    const coverageDocRef = firebase.firestore().collection('settings').doc('coverage');
+    
+    try {
+        const doc = await coverageDocRef.get();
+        if (doc.exists) {
+            console.log("Coverage data loaded from Firestore.");
+            coverageData = { ...defaultCoverageData, ...doc.data() };
+        } else {
+            console.log("No coverage document in Firestore, using default data.");
+            coverageData = JSON.parse(JSON.stringify(defaultCoverageData));
+        }
+    } catch (e) {
+        console.error("Could not load coverage data from Firestore, using default data.", e);
+        coverageData = JSON.parse(JSON.stringify(defaultCoverageData));
+    }
+}
+
+// Save coverage data to Firebase
+async function saveCoverageData(newCoverageData) {
+    const coverageDocRef = firebase.firestore().collection('settings').doc('coverage');
+    
+    try {
+        await coverageDocRef.set(newCoverageData);
+        coverageData = newCoverageData;
+        console.log("Coverage data saved to Firestore successfully.");
+        runFullCalculation(); // Recalculate with new coverage data
+        alert('Coverage settings saved successfully to the database!');
+        return true;
+    } catch (e) {
+        console.error("Could not save coverage data to Firestore.", e);
+        alert('Error: Could not save coverage data to the database.');
+        return false;
+    }
+}
+
     // Helper function to get the active pricing data
     function getActivePriceData() {
         return useAltPricing ? altPriceData : priceData;
@@ -300,6 +486,16 @@ async function loadPrices() {
     
    function calculateCoverageRequirements() {
     console.log('calculateCoverageRequirements called');
+    
+    // --- Define variables first ---
+    const systemType = document.getElementById('system-type').value;
+    const floorArea = parseFloat(document.getElementById('floor-area').value) || 0;
+    const unit = document.querySelector('input[name="unit-switch"]:checked').value;
+    const band = document.querySelector('input[name="band-switch"]:checked').value;
+    const isQuatraWithHighCeiling = ['QUATRA', 'QUATRA_EVO'].includes(systemType);
+    const isHighCeiling = document.getElementById('high-ceiling-warehouse').checked;
+    
+    console.log('System type:', systemType, 'Is Quatra with High Ceiling:', isQuatraWithHighCeiling, 'Is High Ceiling:', isHighCeiling);
     
     // --- This new block clears previous overrides ---
     if (currentResults['service_antennas']) {
@@ -319,16 +515,18 @@ async function loadPrices() {
     const pSolid = parseFloat(document.getElementById('percent-solid').value) || 0;
     const sum = pOpen + pCubical + pHollow + pSolid;
     const sumSpan = document.getElementById('percentage-sum');
-    sumSpan.textContent = `${sum.toFixed(0)}%`;
-    sumSpan.style.color = (sum.toFixed(0) === "100") ? 'green' : 'red';
-
-    const systemType = document.getElementById('system-type').value;
-    const floorArea = parseFloat(document.getElementById('floor-area').value) || 0;
-    const unit = document.querySelector('input[name="unit-switch"]:checked').value;
-    const band = document.querySelector('input[name="band-switch"]:checked').value;
-    const isQuatra = systemType.includes('QUATRA');
-    const isHighCeiling = document.getElementById('high-ceiling-warehouse').checked;
     
+    // Update percentage display based on high ceiling mode
+    if (isQuatraWithHighCeiling && isHighCeiling) {
+        sumSpan.textContent = `100% (High Ceiling Mode)`;
+        sumSpan.style.color = '#004696';
+        sumSpan.style.fontWeight = 'bold';
+    } else {
+        sumSpan.textContent = `${sum.toFixed(0)}%`;
+        sumSpan.style.color = (sum.toFixed(0) === "100") ? 'green' : 'red';
+        sumSpan.style.fontWeight = 'normal';
+    }
+
     const usesPassiveAntennas = systemType.includes('DAS') || systemType.includes('G4');
     const dataSource = usesPassiveAntennas ? coverageData.go : coverageData.quatra;
 
@@ -353,23 +551,24 @@ async function loadPrices() {
         console.log('Percentages:', { pOpen, pCubical, pHollow, pSolid, totalPercent });
         
         if (totalPercent > 0) {
-            if (isQuatra && isHighCeiling && coverage.open_high_ceiling) {
-                // Use high ceiling radius for open plan when selected
+            if (isQuatraWithHighCeiling && isHighCeiling && coverage.open_high_ceiling) {
+                // Use only high ceiling radius when high ceiling mode is active
                 const highCeilingRadius = calculateRadius(coverage.open_high_ceiling);
-                averageRadius = ((pOpen / totalPercent) * highCeilingRadius) +
-                               ((pCubical / totalPercent) * calculateRadius(coverage.cubical)) +
-                               ((pHollow / totalPercent) * calculateRadius(coverage.hollow)) +
-                               ((pSolid / totalPercent) * calculateRadius(coverage.solid));
+                averageRadius = highCeilingRadius;
+                console.log('Using high ceiling radius:', averageRadius, unitSuffix);
+                radiusElement.textContent = `${averageRadius.toFixed(1)}${unitSuffix} (High Ceiling)`;
+                radiusElement.style.fontWeight = 'bold';
+                radiusElement.style.color = '#004696';
             } else {
                 averageRadius = ((pOpen / totalPercent) * calculateRadius(coverage.open)) +
                                ((pCubical / totalPercent) * calculateRadius(coverage.cubical)) +
                                ((pHollow / totalPercent) * calculateRadius(coverage.hollow)) +
                                ((pSolid / totalPercent) * calculateRadius(coverage.solid));
+                console.log('Calculated average radius:', averageRadius, unitSuffix);
+                radiusElement.textContent = `${averageRadius.toFixed(1)}${unitSuffix}`;
+                radiusElement.style.fontWeight = 'bold';
+                radiusElement.style.color = '#004696';
             }
-            
-            console.log('Calculated average radius:', averageRadius, unitSuffix);
-            radiusElement.textContent = `${averageRadius.toFixed(1)}${unitSuffix}`;
-            console.log('Updated radius display');
         } else {
             radiusElement.textContent = '-';
         }
@@ -379,7 +578,7 @@ async function loadPrices() {
     }
 
     if (floorArea > 0 && coverage) {
-        if (isQuatra && isHighCeiling && !usesPassiveAntennas) {
+        if (isQuatraWithHighCeiling && isHighCeiling && !usesPassiveAntennas) {
             unitsForArea = floorArea / coverage.open_high_ceiling;
         } else {
             const percentages = { open: pOpen, cubical: pCubical, hollow: pHollow, solid: pSolid };
@@ -1002,6 +1201,7 @@ function setupScreenshotButton() {
 
     // --- Initial Setup ---
     await loadPrices(); // Use await here
+    await loadCoverageData(); // Load coverage data from database
     setupSettingsModal();
     populateSupportTable();
     toggleMultiFloorUI();
@@ -1017,21 +1217,84 @@ function setupScreenshotButton() {
     setTimeout(() => {
         const testElement = document.getElementById('average-radius');
         if (testElement) {
-            console.log('Test: Found average-radius element');
-            // Force a test calculation
-            testElement.textContent = '7.0m (test)';
-            // Then try the real calculation
-            setTimeout(() => {
-                calculateCoverageRequirements();
-            }, 500);
+            console.log('Test: Found average-radius element, content:', testElement.textContent);
+            // Force a calculation after everything is loaded
+            calculateCoverageRequirements();
         } else {
             console.log('Test: average-radius element not found');
         }
-    }, 100);
+    }, 500);
 
-    // Default to dashboard view
-    mainContainer.classList.add('screenshot-mode');
-    viewToggleButton.textContent = 'Switch to Simple View';
+    // Default to dashboard view only if no state was loaded from URL
+    if (!stateLoaded) {
+        mainContainer.classList.add('screenshot-mode');
+        viewToggleButton.textContent = 'Switch to Simple View';
+    } else {
+        // If state was loaded, check current mode and set button text accordingly
+        const isDashboard = mainContainer.classList.contains('screenshot-mode');
+        viewToggleButton.textContent = isDashboard ? 'Switch to Simple View' : 'Switch to Dashboard View';
+    }
+    
+    // Setup high ceiling warehouse functionality
+    setupHighCeilingControls();
+}
+
+// Function to handle high ceiling warehouse controls
+function setupHighCeilingControls() {
+    const highCeilingCheckbox = document.getElementById('high-ceiling-warehouse');
+    const wallPercentageGroup = document.querySelector('.percentage-group');
+    const wallPercentInputs = document.querySelectorAll('.wall-percent');
+    const highCeilingNotice = document.getElementById('high-ceiling-notice');
+    
+    function toggleWallPercentages() {
+        const isHighCeiling = highCeilingCheckbox ? highCeilingCheckbox.checked : false;
+        const systemType = document.getElementById('system-type').value;
+        const isQuatraWithHighCeiling = ['QUATRA', 'QUATRA_EVO'].includes(systemType);
+        
+        // Only disable for specific QUATRA systems (not DAS) in high ceiling mode
+        if (isQuatraWithHighCeiling && isHighCeiling) {
+            wallPercentageGroup.classList.add('wall-percentages-disabled');
+            wallPercentInputs.forEach(input => {
+                input.disabled = true;
+            });
+            
+            // Show notice
+            if (highCeilingNotice) {
+                highCeilingNotice.style.display = 'block';
+            }
+            
+            // DO NOT change the wall percentage values - just disable the inputs
+        } else {
+            wallPercentageGroup.classList.remove('wall-percentages-disabled');
+            wallPercentInputs.forEach(input => {
+                input.disabled = false;
+            });
+            
+            // Hide notice
+            if (highCeilingNotice) {
+                highCeilingNotice.style.display = 'none';
+            }
+            
+            // DO NOT reset values when unchecking - keep user's values
+        }
+        
+        // Recalculate coverage
+        calculateCoverageRequirements();
+    }
+    
+    // Add event listeners
+    if (highCeilingCheckbox) {
+        highCeilingCheckbox.addEventListener('change', toggleWallPercentages);
+    }
+    
+    // Also listen to system type changes
+    const systemTypeSelect = document.getElementById('system-type');
+    if (systemTypeSelect) {
+        systemTypeSelect.addEventListener('change', toggleWallPercentages);
+    }
+    
+    // Initial check
+    toggleWallPercentages();
 }
     function validateInputs(fieldIds) {
     let isValid = true;
