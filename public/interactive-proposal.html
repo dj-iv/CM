@@ -2043,52 +2043,16 @@ document.title = newFilename;
                     const html = await prepareHtmlForExport();
                     const filename = (document.title || 'UCtel_Proposal').replace(/[^a-z0-9_-]+/gi, '_');
 
-                    let response;
-                    let isDirectApiCall = false;
-
-                    try {
-                        // Try server endpoint first
-                        response = await fetch('/api/convert-to-pdf', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                html,
-                                filename,
-                                options: {
-                                    page_size: 'a4',
-                                    use_print: false,
-                                    margin: {
-                                        top: '0mm',
-                                        right: '0mm',
-                                        bottom: '0mm',
-                                        left: '0mm',
-                                    },
-                                    wait: 1,
-                                },
-                            }),
-                        });
-
-                        if (response.status === 405 || response.status === 404) {
-                            throw new Error('Server endpoint not available');
-                        }
-                    } catch (serverError) {
-                        // If server endpoint fails, try direct PDFShift API call
-                        console.log('Server endpoint unavailable, trying direct API call...');
-                        isDirectApiCall = true;
-                        
-                        setLoadingState(true, 'Trying alternative PDF generation method...');
-                        
-                        response = await fetch('https://api.pdfshift.io/v3/convert/pdf', {
-                            method: 'POST',
-                            headers: {
-                                'X-API-Key': 'sk_8722ff49f8583d027b448160a6985f7992ea57f3',
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                source: html,
-                                sandbox: false,
+                    const response = await fetch('/api/convert-to-pdf', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            html,
+                            filename,
+                            options: {
+                                page_size: 'a4',
                                 use_print: false,
                                 margin: {
                                     top: '0mm',
@@ -2096,9 +2060,10 @@ document.title = newFilename;
                                     bottom: '0mm',
                                     left: '0mm',
                                 },
-                            }),
-                        });
-                    }
+                                wait: 1,
+                            },
+                        }),
+                    });
 
                     if (!response.ok) {
                         let errorMessage = 'Failed to generate PDF via PDFShift.';
@@ -2126,54 +2091,7 @@ document.title = newFilename;
                     setLoadingState(false, 'PDF downloaded successfully.');
                 } catch (error) {
                     console.error('PDF download failed', error);
-                    
-                    // If the server endpoint failed and we didn't try direct API yet, try it now
-                    if (!isDirectApiCall && (error.message.includes('405') || error.message.includes('Method Not Allowed') || error.message.includes('Failed to generate PDF'))) {
-                        console.log('Attempting direct PDFShift API call as fallback...');
-                        try {
-                            setLoadingState(true, 'Trying alternative PDF generation method...');
-                            
-                            const directResponse = await fetch('https://api.pdfshift.io/v3/convert/pdf', {
-                                method: 'POST',
-                                headers: {
-                                    'X-API-Key': 'sk_8722ff49f8583d027b448160a6985f7992ea57f3',
-                                    'Content-Type': 'application/json',
-                                },
-                                body: JSON.stringify({
-                                    source: html,
-                                    sandbox: false,
-                                    use_print: false,
-                                    margin: {
-                                        top: '0mm',
-                                        right: '0mm',
-                                        bottom: '0mm',
-                                        left: '0mm',
-                                    },
-                                }),
-                            });
-
-                            if (!directResponse.ok) {
-                                throw new Error('Direct PDFShift API call failed');
-                            }
-
-                            const blob = await directResponse.blob();
-                            const url = URL.createObjectURL(blob);
-                            const link = document.createElement('a');
-                            link.href = url;
-                            link.download = `${filename}.pdf`;
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                            URL.revokeObjectURL(url);
-
-                            setLoadingState(false, 'PDF downloaded successfully via backup method.');
-                        } catch (fallbackError) {
-                            console.error('Fallback PDF generation also failed', fallbackError);
-                            setLoadingState(false, 'PDF service temporarily unavailable. Please use your browser\'s Print function (Ctrl+P) and select "Save as PDF" as a workaround.');
-                        }
-                    } else {
-                        setLoadingState(false, 'Failed to generate PDF. Please try again or contact support.');
-                    }
+                    setLoadingState(false, 'Failed to generate PDF. Please try again or contact support.');
                 }
             });
         })();
