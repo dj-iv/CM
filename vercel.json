@@ -1,5 +1,4 @@
 {
-  "_comment": "Updated for PDF generation deployment",
   "version": 2,
   "functions": {
     "api/convert-to-pdf.js": {
