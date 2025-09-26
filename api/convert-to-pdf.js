@@ -1,5 +1,13 @@
 ﻿// Vercel serverless function to convert proposal HTML into a PDF via PDFShift
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '15mb',
+    },
+  },
+};
+
 const { PDFSHIFT_API_KEY } = process.env;
 
 const CORS_HEADERS = {
