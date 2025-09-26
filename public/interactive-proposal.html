@@ -19,6 +19,125 @@
         --color-text-light: #ffffff;
     }
 
+    body.pdf-export {
+        background-color: var(--color-light-background);
+    }
+
+    body.pdf-export .page {
+        position: relative !important;
+        width: 210mm !important;
+        height: 297mm !important;
+        padding: 8mm 20mm 25mm 20mm !important;
+        margin: 0 auto !important;
+        border: none !important;
+        background: var(--color-text-light) !important;
+        box-shadow: none !important;
+        box-sizing: border-box !important;
+        page-break-after: always !important;
+        overflow: hidden !important;
+    }
+
+    body.pdf-export .page:last-of-type {
+        page-break-after: auto !important;
+    }
+
+    body.pdf-export .page-body {
+        display: block !important;
+        min-height: 0 !important;
+        box-sizing: border-box !important;
+    }
+
+    body.pdf-export .header,
+    body.pdf-export .footer {
+        position: absolute !important;
+        left: 20mm !important;
+        right: 20mm !important;
+    }
+
+    body.pdf-export .header {
+        top: 4mm !important;
+        display: flex !important;
+        justify-content: flex-end !important;
+        align-items: center !important;
+    }
+
+    body.pdf-export .header img {
+        width: 80px !important;
+        height: auto !important;
+    }
+
+    body.pdf-export .footer {
+        bottom: 8mm !important;
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        gap: 12px !important;
+        font-size: 8.5pt !important;
+        color: var(--color-primary-blue) !important;
+    }
+
+    body.pdf-export .footer::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: -6px;
+        height: 2px;
+        background: linear-gradient(90deg, var(--color-secondary-teal), var(--color-primary-blue));
+        opacity: 0.6;
+    }
+
+    body.pdf-export .footer-info {
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+    }
+
+    body.pdf-export h2.force-page-break {
+        break-before: page !important;
+        page-break-before: always !important;
+        display: block !important;
+    }
+    
+    body.pdf-export h2.force-page-break::before {
+        content: "" !important;
+        display: block !important;
+        height: 1px !important;
+        page-break-before: always !important;
+        break-before: page !important;
+    }
+
+    body.pdf-export .footer-logo {
+        width: 65px !important;
+        height: auto !important;
+    }
+
+    body.pdf-export .footer-text {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 2px !important;
+        line-height: 1.2 !important;
+    }
+
+    body.pdf-export .page-number {
+        font-weight: 600 !important;
+    }
+
+    body.pdf-export iframe {
+        display: block !important;
+    }
+
+    body.pdf-export .download-container {
+        display: none !important;
+    }
+
+    body.pdf-export .page .page-body > h1:first-of-type,
+    body.pdf-export .page .page-body > h2:first-of-type,
+    body.pdf-export .page .page-body > h3:first-of-type,
+    body.pdf-export .page .page-body > h4:first-of-type {
+        margin-top: 0 !important;
+    }
+
    /* --- General Body and Page Setup --- */
 body {
     font-family: 'Lato', Arial, sans-serif;
@@ -42,8 +161,8 @@ p a:hover {
         position: relative;
         width: 210mm;
         min-height: 297mm;
-         padding: 10mm 20mm 20mm 20mm; /* Top is now 10mm, sides/bottom are 20mm */
-        margin: 20mm auto;
+    padding: 20mm 20mm 25mm 20mm;
+    margin: 10mm auto;
         border: 1px solid #e0e0e0;
         background: var(--color-text-light);
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
@@ -62,22 +181,71 @@ p a:hover {
 
 /* Header-Specific Position */
 .header {
-    top: 5mm;
+    top: 10mm;
+    left: 20mm;
     right: 20mm;
-    text-align: right;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
 }
 
 .header img {
-    width: 100px;
-    margin-bottom: 0;
+    width: 95px;
+    margin: 0;
+}
+
+.page > h2:first-of-type {
+    margin-top: 24px;
 }
 
 /* Footer-Specific Position */
 .footer {
-    bottom: 10mm; /* This locks it to the bottom */
+    bottom: 8mm;
     left: 20mm;
+    right: 20mm;
     display: flex;
     justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    font-size: 8.5pt;
+    color: var(--color-primary-blue);
+}
+
+.footer::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -6px;
+    height: 2px;
+    background: linear-gradient(90deg, var(--color-secondary-teal), var(--color-primary-blue));
+    opacity: 0.6;
+}
+
+.footer-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.footer-logo {
+    width: 65px;
+    height: auto;
+}
+
+.footer-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    line-height: 1.2;
+}
+
+.footer-text span {
+    display: block;
+}
+
+.page-number {
+    font-weight: 600;
 }
 
     /* --- Typography & Headings --- */
@@ -173,6 +341,43 @@ ul li::marker {
     .text-container { flex: 2; }
     .text-container h3 { margin-top: 0; }
 
+    .embedded-video {
+        margin: 20px 0;
+    }
+
+    .embedded-video iframe {
+        width: 100%;
+        height: 315px;
+        border: none;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .embedded-video .video-fallback {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 12px;
+        text-decoration: none;
+        color: var(--color-primary-blue);
+        font-weight: 600;
+    }
+
+    .embedded-video .video-fallback img {
+        max-width: 100%;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    body.pdf-export .embedded-video iframe {
+        display: none !important;
+    }
+
+    body.pdf-export .embedded-video .video-fallback {
+        display: flex !important;
+    }
+
     /* --- Cover Page Styling --- */
     .cover-page {
         display: flex;
@@ -223,6 +428,9 @@ ul li::marker {
     /* --- Table of Contents (TOC) Styling --- */
     .toc { list-style-type: none; padding-left: 0; border-left: 3px solid var(--color-neutral-beige); padding-left: 20px; }
     .toc li { margin-bottom: 12px; }
+    body.pdf-export .toc-page .toc {
+        margin-bottom: 0 !important;
+    }
     .toc li a {
         text-decoration: none;
         color: var(--color-text-dark);
@@ -258,6 +466,22 @@ ul li::marker {
     .support-details-table td:first-child,
     .support-details-table td:nth-child(2) {
       text-align: left;
+    }
+
+    .support-legend {
+        margin-top: 0.6em;
+        margin-bottom: 0;
+    }
+
+    body.pdf-export .support-legend {
+        margin-top: 4mm !important;
+        margin-bottom: 0 !important;
+        break-before: page !important;
+        page-break-before: always !important;
+    }
+
+    body.pdf-export .support-details-table {
+        margin-bottom: 8mm !important;
     }
     
     /* --- NEW: Survey Call-to-Action Block --- */
@@ -324,6 +548,14 @@ ul li::marker {
     .download-btn:active {
         transform: translateY(0);
         box-shadow: 0 2px 10px rgba(26, 131, 135, 0.3);
+    }
+
+    .download-btn.is-loading,
+    .download-btn:disabled {
+        cursor: wait;
+        opacity: 0.7;
+        box-shadow: 0 2px 8px rgba(26, 131, 135, 0.2);
+        transform: none;
     }
 
     .download-btn i {
@@ -423,7 +655,16 @@ ul li::marker {
         <div class="header"><img src="images/uctel_logo.png" alt="UCtel Logo"></div>
         <h2 class="no-number">CONTENTS</h2>
         <ul class="toc" id="toc-list"></ul>
-        <div class="footer"><span>CEL-FI {Solution} solution proposal for {Account}</span><span class="page-number"></span></div>
+        <div class="footer">
+            <div class="footer-info">
+                <img src="images/uctel_logo.png" alt="UCtel Logo" class="footer-logo">
+                <div class="footer-text">
+                    <span>CEL-FI {Solution} solution proposal for {Account}</span>
+                    <span>www.uctel.co.uk | sales@uctel.co.uk</span>
+                </div>
+            </div>
+            <div class="page-number"></div>
+        </div>
     </div>
 
     <div class="page">
@@ -447,9 +688,18 @@ ul li::marker {
             <tr><td>Ivor Nicholls</td><td>Sales Director</td><td>ivor.nicholls@uctel.co.uk</td></tr>
             <tr><td>Ivan Romanov</td><td>Technical Director</td><td>ivan.romanov@uctel.co.uk</td></tr>
         </table>
-        <h3>Confidentiality</h3>
+        <h3 style="margin-top: 10mm !important;">Confidentiality</h3>
        <p>This document contains proprietary information and solution designs developed by UCtel. We present it to you <strong>in confidence</strong> and appreciate your discretion in handling the details of our proposal.</p>
-        <div class="footer"><span>CEL-FI {Solution} solution proposal for {Account}</span><span class="page-number"></span></div>
+        <div class="footer">
+            <div class="footer-info">
+                <img src="images/uctel_logo.png" alt="UCtel Logo" class="footer-logo">
+                <div class="footer-text">
+                    <span>CEL-FI {Solution} solution proposal for {Account}</span>
+                    <span>www.uctel.co.uk | sales@uctel.co.uk</span>
+                </div>
+            </div>
+            <div class="page-number"></div>
+        </div>
     </div>
 
     <div class="page">
@@ -457,7 +707,16 @@ ul li::marker {
         <h2><i class="fa-solid fa-sitemap"></i> Proposed Solution</h2>
         <div id="solution-architecture-section">
             </div>
-        <div class="footer"><span>CEL-FI {Solution} solution proposal for {Account}</span><span class="page-number"></span></div>
+        <div class="footer">
+            <div class="footer-info">
+                <img src="images/uctel_logo.png" alt="UCtel Logo" class="footer-logo">
+                <div class="footer-text">
+                    <span>CEL-FI {Solution} solution proposal for {Account}</span>
+                    <span>www.uctel.co.uk | sales@uctel.co.uk</span>
+                </div>
+            </div>
+            <div class="page-number"></div>
+        </div>
     </div>
 
 <div class="page" id="components-page">
@@ -465,7 +724,16 @@ ul li::marker {
         <h2>Solution Components</h2>
         <div id="solution-components-section">
              </div>
-        <div class="footer"><span>CEL-FI {Solution} solution proposal for {Account}</span><span class="page-number"></span></div>
+        <div class="footer">
+            <div class="footer-info">
+                <img src="images/uctel_logo.png" alt="UCtel Logo" class="footer-logo">
+                <div class="footer-text">
+                    <span>CEL-FI {Solution} solution proposal for {Account}</span>
+                    <span>www.uctel.co.uk | sales@uctel.co.uk</span>
+                </div>
+            </div>
+            <div class="page-number"></div>
+        </div>
     </div> 
    
        <div class="page">
@@ -487,7 +755,16 @@ ul li::marker {
             <li><i class="fa-solid fa-puzzle-piece"></i> <strong>Seamless Transition:</strong> Be ready to take immediate advantage of 5G's speed and capacity as soon as it's available for boosting, with no additional hardware installation required.</li>
         </ul>
 
-        <div class="footer"><span>CEL-FI {Solution} solution proposal for {Account}</span><span class="page-number"></span></div>
+        <div class="footer">
+            <div class="footer-info">
+                <img src="images/uctel_logo.png" alt="UCtel Logo" class="footer-logo">
+                <div class="footer-text">
+                    <span>CEL-FI {Solution} solution proposal for {Account}</span>
+                    <span>www.uctel.co.uk | sales@uctel.co.uk</span>
+                </div>
+            </div>
+            <div class="page-number"></div>
+        </div>
     </div>
    
 
@@ -512,12 +789,25 @@ ul li::marker {
         <p>Once the order for the solution has been received, UCtel will introduce a project coordinator to manage the installation process. The project coordinator will be responsible for communicating dates, arranging any required risk assessments, method statements and permits and ensuring the smooth delivery of the project.</p>
         <h3>Documentation</h3>
         <p>Once the installation is complete, the project coordinator will produce the final as-built documentation and post installation survey document. A project completion sign off will be requested to confirm acceptance of the installation and that all deliverables have been completed.</p>
-        <div class="footer"><span>CEL-FI {Solution} solution proposal for {Account}</span><span class="page-number"></span></div>
+        
+        <!-- Force page break before Section 6 -->
+        <div style="page-break-after: always; break-after: page; height: 1px; overflow: hidden;">&nbsp;</div>
+        
+        <div class="footer">
+            <div class="footer-info">
+                <img src="images/uctel_logo.png" alt="UCtel Logo" class="footer-logo">
+                <div class="footer-text">
+                    <span>CEL-FI {Solution} solution proposal for {Account}</span>
+                    <span>www.uctel.co.uk | sales@uctel.co.uk</span>
+                </div>
+            </div>
+            <div class="page-number"></div>
+        </div>
     </div>
     
     <div class="page">
         <div class="header"><img src="images/uctel_logo.png" alt="UCtel Logo"></div>
-        <h2><i class="fa-solid fa-sterling-sign"></i> Proposed Pricing</h2>
+    <h2><i class="fa-solid fa-sterling-sign"></i> Proposed Pricing</h2>
         <p>The following table provides indicative figures for the proposed solution.</p>
         <table class="pricing-table">
           <thead><tr><th>Description</th><th>Qty</th><th>Unit Price</th><th>Total Price</th></tr></thead>
@@ -545,7 +835,16 @@ ul li::marker {
     <p>The next step is a comprehensive site survey, which will allow us to <strong>finalise the system design</strong> and provide you with a fixed, formal quotation. This ensures the proposed solution is perfectly tailored to your building's specific needs.</p>
     <p>The price for the survey and report is <span class="survey-price">{SurveyPrice} + VAT</span></p>
 </div>
-        <div class="footer"><span>CEL-FI {Solution} solution proposal for {Account}</span><span class="page-number"></span></div>
+        <div class="footer">
+            <div class="footer-info">
+                <img src="images/uctel_logo.png" alt="UCtel Logo" class="footer-logo">
+                <div class="footer-text">
+                    <span>CEL-FI {Solution} solution proposal for {Account}</span>
+                    <span>www.uctel.co.uk | sales@uctel.co.uk</span>
+                </div>
+            </div>
+            <div class="page-number"></div>
+        </div>
     </div>
 
     <div class="page">
@@ -568,14 +867,23 @@ ul li::marker {
                 <tr><td>Maintenance (with engineer)</td><td>Break / fix maintenance with engineer to site</td><td>☐</td><td>☐</td><td>✅</td></tr>
             </tbody>
         </table>
-        <p>✅ - included in service O – optional ☐ - not included * Up to 4 changes per year per system</p>
+    <p class="support-legend force-page-break">✅ - included in service O – optional ☐ - not included * Up to 4 changes per year per system</p>
         <p><b>Notes:</b><br>
         The services apply to remotely manageable CEL-FI products<br>
         Management connectivity is included via cellular connections and does not need to run over customer infrastructure<br>
         Proactive Alerting, Incident Management and Change Management operate in normal working hours unless agreed otherwise.<br>
         Services are subject to UCtel’s standard Terms and Conditions.
         </p>
-        <div class="footer"><span>CEL-FI {Solution} solution proposal for {Account}</span><span class="page-number"></span></div>
+        <div class="footer">
+            <div class="footer-info">
+                <img src="images/uctel_logo.png" alt="UCtel Logo" class="footer-logo">
+                <div class="footer-text">
+                    <span>CEL-FI {Solution} solution proposal for {Account}</span>
+                    <span>www.uctel.co.uk | sales@uctel.co.uk</span>
+                </div>
+            </div>
+            <div class="page-number"></div>
+        </div>
     </div>
     
     <!-- Download Button Container -->
@@ -590,12 +898,24 @@ ul li::marker {
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
 <script>
+const VIDEO_ID = 'izDp2EcQOhs';
+const VIDEO_URL = `https://www.youtube.com/watch?v=${VIDEO_ID}`;
+const VIDEO_THUMBNAIL = `https://img.youtube.com/vi/${VIDEO_ID}/hqdefault.jpg`;
+const VIDEO_EMBED_HTML = `
+    <div class="embedded-video">
+        <iframe src="https://www.youtube.com/embed/${VIDEO_ID}" title="YouTube video player" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+        <a class="video-fallback" href="${VIDEO_URL}" target="_blank" rel="noopener">
+            <img src="${VIDEO_THUMBNAIL}" alt="Watch the CEL-FI overview video on YouTube">
+            <span>Watch this video on YouTube</span>
+        </a>
+    </div>`;
+
 const solutionSpecificData = {
     'G41': {
         architecture: `
             <h3 class="no-number">CEL-FI</h3>
             <p>UCtel proposes to deploy solutions from Nextivity. Nextivity manufactures the CEL-FI suite of cellular coverage solutions which are designed to optimise mobile signal coverage within buildings and vehicles. CEL-FI is unconditionally network safe, as it prevents interference with mobile operator networks and in the UK CEL-FI products are licence-exempt and fully comply with Ofcom’s UK Interface requirement 2102 (IR2102).</p>
-            <div style="padding:20px 0;"><iframe width="100%" height="315" src="https://www.youtube.com/embed/x_kXPIDpMcE" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>
+            ${VIDEO_EMBED_HTML}
             <h3>CEL-FI G41 System Architecture</h3>
             <p>The CEL-FI solution needs to receive the best available donor signal from outside and transport the signal through low loss cable to the network repeaters that then distribute the signal through indoor antennas. A system comprises:</p>
             <ul><li>Donor antenna installed where the best donor signal can be obtained</li><li>Low loss cables</li><li>Repeaters to receive donor signal and boost it</li><li>Internal antennas to broadcast the boosted signal</li></ul>
@@ -610,7 +930,7 @@ const solutionSpecificData = {
         architecture: `
             <h3 class="no-number">CEL-FI</h3>
             <p>UCtel proposes to deploy solutions from Nextivity. Nextivity manufactures the CEL-FI suite of cellular coverage solutions which are designed to optimise mobile signal coverage within buildings and vehicles. CEL-FI is unconditionally network safe, as it prevents interference with mobile operator networks and in the UK CEL-FI products are licence-exempt and fully comply with Ofcom’s UK Interface requirement 2102 (IR2102).</p>
-            <div style="padding:20px 0;"><iframe width="100%" height="315" src="https://www.youtube.com/embed/x_kXPIDpMcE" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>
+            ${VIDEO_EMBED_HTML}
             <h3>CEL-FI G43 System Architecture</h3>
             <p>The CEL-FI solution needs to receive the best available donor signal from outside and transport the signal through low loss cable to the network repeaters that then distribute the signal through indoor antennas. A system comprises:</p>
             <ul><li>Donor antenna installed where the best donor signal can be obtained</li><li>Low loss cables</li><li>Repeaters to receive donor signal and boost it</li><li>Internal antennas to broadcast the boosted signal</li></ul>
@@ -625,7 +945,7 @@ const solutionSpecificData = {
         architecture: `
             <h3 class="no-number">CEL-FI</h3>
             <p>UCtel proposes to deploy solutions from Nextivity. Nextivity manufactures the CEL-FI suite of cellular coverage solutions which are designed to optimise mobile signal coverage within buildings and vehicles. CEL-FI is unconditionally network safe, as it prevents interference with mobile operator networks and in the UK, CEL-FI products are licence-exempt and fully comply with Ofcom’s UK Interface requirement 2102 (IR2102).</p>
-            <div style="padding:20px 0;"><iframe width="100%" height="315" src="https://www.youtube.com/embed/x_kXPIDpMcE" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>
+            ${VIDEO_EMBED_HTML}
             <h3>CEL-FI QUATRA 4000e</h3>
             <p>CEL-FI QUATRA is a distributed antenna system (DAS) hybrid solution that combines the strength of passive and active DAS technologies to deliver high-quality mobile signal in buildings. The QUATRA 4000e boosts up to 4 network operators in a single system and complies with recent changes to Ofcom’s regulations in this regard.</p>
             <img src="images/quatra_diagram.png" alt="QUATRA 4000e Architecture Diagram">`,
@@ -640,7 +960,7 @@ const solutionSpecificData = {
         architecture: `
             <h3 class="no-number">CEL-FI</h3>
             <p>UCtel proposes to deploy solutions from Nextivity. Nextivity manufactures the CEL-FI suite of cellular coverage solutions which are designed to optimise mobile signal coverage within buildings and vehicles. CEL-FI is unconditionally network safe, as it prevents interference with mobile operator networks and in the UK, CEL-FI products are licence-exempt and fully comply with Ofcom’s UK Interface requirement 2102 (IR2102).</p>
-            <div style="padding:20px 0;"><iframe width="100%" height="315" src="https://www.youtube.com/embed/x_kXPIDpMcE" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>
+            ${VIDEO_EMBED_HTML}
             <h3>CEL-FI QUATRA EVO</h3>
             <p>CEL-FI QUATRA is a distributed antenna system (DAS) hybrid solution that combines the strength of passive and active DAS technologies to deliver high-quality mobile signal in buildings. The QUATRA EVO can boost two network operators in a single system and complies with recent changes to Ofcom’s regulations in this regard.</p>
             <img src="images/evo_diagram.png" alt="QUATRA EVO Architecture Diagram">`,
@@ -820,15 +1140,959 @@ document.title = newFilename;
         // --- 6. ADD DOWNLOAD FUNCTIONALITY ---
         (function addDownloadFunctionality() {
             const downloadBtn = document.getElementById('download-pdf-btn');
+            const downloadNote = document.querySelector('.download-note');
             if (!downloadBtn) return;
 
-            downloadBtn.addEventListener('click', () => {
-                // Use the document title that was set earlier for the filename
-                const filename = document.title || 'UCtel_Proposal';
-                
-                // Trigger the browser's print dialog
-                // Users can then choose "Save as PDF" from the destination dropdown
-                window.print();
+            const originalButtonContent = downloadBtn.innerHTML;
+
+            const setLoadingState = (isLoading, noteText) => {
+                if (isLoading) {
+                    downloadBtn.disabled = true;
+                    downloadBtn.classList.add('is-loading');
+                    downloadBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating PDF...';
+                    if (downloadNote && noteText) {
+                        downloadNote.textContent = noteText;
+                    }
+                } else {
+                    downloadBtn.disabled = false;
+                    downloadBtn.classList.remove('is-loading');
+                    downloadBtn.innerHTML = originalButtonContent;
+                    if (downloadNote && noteText) {
+                        downloadNote.textContent = noteText;
+                    }
+                }
+            };
+
+            const blobToDataUrl = (blob) => new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+
+            const compressImageBlobToDataUrl = async (blob) => {
+                // Premium tier allows original image sizes; keep native data for best fidelity.
+                return blobToDataUrl(blob);
+            };
+
+            const waitForImages = async (root) => {
+                const images = Array.from(root.querySelectorAll('img'));
+                await Promise.all(images.map((img) => {
+                    if (img.complete) {
+                        return Promise.resolve();
+                    }
+                    return new Promise((resolve) => {
+                        img.onload = img.onerror = () => resolve();
+                    });
+                }));
+            };
+
+            const MM_TO_PX = 96 / 25.4;
+            const mmToPx = (mm) => mm * MM_TO_PX;
+            const PAGINATION_TOLERANCE = 2;
+            const FOOTER_BUFFER = mmToPx(8);
+
+            const createPageShell = (doc, templatePage, header, footer) => {
+                const newPage = templatePage.cloneNode(false);
+                newPage.removeAttribute('id');
+
+                const headerClone = header ? header.cloneNode(true) : null;
+                const footerClone = footer ? footer.cloneNode(true) : null;
+                const pageBody = doc.createElement('div');
+                pageBody.className = 'page-body';
+
+                if (headerClone) {
+                    newPage.appendChild(headerClone);
+                }
+
+                newPage.appendChild(pageBody);
+
+                if (footerClone) {
+                    newPage.appendChild(footerClone);
+                }
+
+                return { page: newPage, body: pageBody };
+            };
+
+            const ensurePageBody = (doc, page, header, footer) => {
+                let body = page.querySelector('.page-body');
+                if (body) {
+                    return body;
+                }
+
+                body = doc.createElement('div');
+                body.className = 'page-body';
+
+                const children = Array.from(page.children);
+                children.forEach((child) => {
+                    if (child === header || child === footer) {
+                        return;
+                    }
+                    body.appendChild(child);
+                });
+
+                if (footer) {
+                    page.insertBefore(body, footer);
+                } else {
+                    page.appendChild(body);
+                }
+
+                return body;
+            };
+
+            const applyInsetsToBody = (body, topInset, bottomInset) => {
+                if (!body) {
+                    return;
+                }
+                body.style.paddingTop = `${topInset || 0}px`;
+                body.style.paddingBottom = `${bottomInset || 0}px`;
+            };
+
+            const getContentHeight = (body) => {
+                if (!body) {
+                    return 0;
+                }
+                const paddingTop = parseFloat(body.style.paddingTop) || 0;
+                const paddingBottom = parseFloat(body.style.paddingBottom) || 0;
+                return Math.max(0, body.scrollHeight - paddingTop - paddingBottom);
+            };
+
+            const computeMetrics = (view, page, header, footer) => {
+                if (!view || !page) {
+                    return null;
+                }
+
+                const pageRect = page.getBoundingClientRect();
+                const headerRect = header ? header.getBoundingClientRect() : null;
+                const footerRect = footer ? footer.getBoundingClientRect() : null;
+                const pageStyle = view.getComputedStyle(page);
+                const paddingTop = parseFloat(pageStyle.paddingTop) || 0;
+                const paddingBottom = parseFloat(pageStyle.paddingBottom) || 0;
+
+                const topInset = headerRect ? Math.max(paddingTop, headerRect.bottom - pageRect.top) : paddingTop;
+                const bottomInsetRaw = footerRect ? Math.max(paddingBottom, pageRect.bottom - footerRect.top) : paddingBottom;
+                const bottomInset = bottomInsetRaw + FOOTER_BUFFER;
+                const availableHeight = Math.max(0, pageRect.height - topInset - bottomInset);
+
+                return { pageRect, topInset, bottomInset, availableHeight };
+            };
+
+            const paginatePages = (doc) => {
+                const pages = Array.from(doc.querySelectorAll('.page'));
+                const view = doc.defaultView;
+                if (!view) {
+                    return false;
+                }
+
+                const queue = [];
+                const processedCounts = new WeakMap();
+                let didModify = false;
+
+                const splitElementToFit = (element, availableHeight) => {
+                    if (!element || element.nodeType !== 1) {
+                        return null;
+                    }
+
+                    if (!element.childNodes || !element.childNodes.length) {
+                        return null;
+                    }
+
+                    const UNSPLITTABLE_TAGS = new Set(['LI', 'P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'IMG', 'UL', 'OL', 'TABLE', 'TR', 'THEAD', 'TBODY', 'TFOOT']);
+                    if (UNSPLITTABLE_TAGS.has(element.tagName)) {
+                        return null;
+                    }
+
+                    const initialStyle = view.getComputedStyle(element);
+                    const initialMarginTop = parseFloat(initialStyle.marginTop) || 0;
+                    const initialMarginBottom = parseFloat(initialStyle.marginBottom) || 0;
+                    const initialHeight = element.getBoundingClientRect().height + initialMarginTop + initialMarginBottom;
+                    if (initialHeight <= availableHeight + PAGINATION_TOLERANCE) {
+                        return null;
+                    }
+
+                    const clone = element.cloneNode(false);
+                    const originalId = clone.id;
+                    if (originalId) {
+                        clone.removeAttribute('id');
+                    }
+
+                    const isWhitespace = (node) => node.nodeType === Node.TEXT_NODE && !node.textContent.trim();
+                    const remeasure = () => {
+                        if (!element.childNodes.length) {
+                            return 0;
+                        }
+                        const currentStyle = view.getComputedStyle(element);
+                        const marginTop = parseFloat(currentStyle.marginTop) || 0;
+                        const marginBottom = parseFloat(currentStyle.marginBottom) || 0;
+                        return element.getBoundingClientRect().height + marginTop + marginBottom;
+                    };
+
+                    let movedAny = false;
+
+                    while (element.childNodes.length) {
+                        let nodeToMove = element.lastChild;
+                        while (nodeToMove && isWhitespace(nodeToMove)) {
+                            element.removeChild(nodeToMove);
+                            nodeToMove = element.lastChild;
+                        }
+
+                        if (!nodeToMove) {
+                            break;
+                        }
+
+                        const movedNode = element.removeChild(nodeToMove);
+                        clone.insertBefore(movedNode, clone.firstChild);
+                        movedAny = true;
+
+                        const updatedHeight = remeasure();
+                        if (updatedHeight <= availableHeight + PAGINATION_TOLERANCE) {
+                            break;
+                        }
+                    }
+
+                    if (!movedAny || !clone.childNodes.length) {
+                        return null;
+                    }
+
+                    let originalRemoved = false;
+                    if (!element.childNodes.length) {
+                        if (element.parentNode) {
+                            element.parentNode.removeChild(element);
+                        }
+                        originalRemoved = true;
+                    }
+
+                    if (originalRemoved && originalId) {
+                        clone.id = originalId;
+                    }
+
+                    return { fragment: clone, originalRemoved };
+                };
+
+                pages.forEach((page) => {
+                    if (page.classList.contains('cover-page')) {
+                        return;
+                    }
+
+                    const header = page.querySelector('.header');
+                    const footer = page.querySelector('.footer');
+                    const body = ensurePageBody(doc, page, header, footer);
+                    queue.push({ page, body, header, footer });
+                });
+
+                while (queue.length) {
+                    const ctx = queue.shift();
+                    const { page, header, footer } = ctx;
+                    const body = ensurePageBody(doc, page, header, footer);
+
+                    if (!body || !body.children.length) {
+                        if (page.parentNode) {
+                            page.parentNode.removeChild(page);
+                            didModify = true;
+                        }
+                        continue;
+                    }
+
+                    const attempts = processedCounts.get(page) || 0;
+                    if (attempts > 200) {
+                        continue;
+                    }
+                    processedCounts.set(page, attempts + 1);
+
+                    const metrics = computeMetrics(view, page, header, footer);
+                    if (!metrics) {
+                        continue;
+                    }
+                    applyInsetsToBody(body, metrics.topInset, metrics.bottomInset);
+
+                    const children = Array.from(body.children);
+                    if (!children.length) {
+                        if (page.parentNode) {
+                            page.parentNode.removeChild(page);
+                            didModify = true;
+                        }
+                        continue;
+                    }
+
+                    let splitNode = null;
+                    const forcedBreakNode = children.find((child, index) => {
+                        if (child.nodeType !== 1) {
+                            return false;
+                        }
+                        if (!child.classList.contains('force-page-break')) {
+                            return false;
+                        }
+                        // Only break if there are actually previous elements
+                        return index > 0;
+                    });
+
+                    if (!forcedBreakNode && getContentHeight(body) <= metrics.availableHeight + PAGINATION_TOLERANCE) {
+                        continue;
+                    }
+
+                    if (forcedBreakNode) {
+                        splitNode = forcedBreakNode;
+                    }
+
+                    const contentBottom = metrics.pageRect.bottom - metrics.bottomInset;
+                    if (!splitNode) {
+                        for (let i = 0; i < children.length; i++) {
+                            const child = children[i];
+                            if (child.nodeType !== 1) {
+                                continue;
+                            }
+
+                            const childRect = child.getBoundingClientRect();
+                            const style = view.getComputedStyle(child);
+                            const marginBottom = parseFloat(style.marginBottom) || 0;
+                            const childBottom = childRect.bottom + marginBottom;
+
+                            if (childBottom <= contentBottom + PAGINATION_TOLERANCE) {
+                                continue;
+                            }
+
+                            splitNode = child;
+                            const prev = child.previousElementSibling;
+                            if (prev && /^H[1-6]$/i.test(prev.tagName)) {
+                                // Don't split at Section 6 "Proposed Pricing" heading
+                                if (prev.textContent && prev.textContent.includes('Proposed Pricing')) {
+                                    // Skip this split point
+                                    continue;
+                                }
+                                splitNode = prev;
+                            }
+                            break;
+                        }
+                    }
+
+                    if (!splitNode || !splitNode.parentNode) {
+                        continue;
+                    }
+
+                    const firstChild = children.find((node) => node.nodeType === 1) || null;
+                    
+                    if (splitNode === firstChild) {
+                        const style = view.getComputedStyle(splitNode);
+                        const totalHeight = splitNode.getBoundingClientRect().height + (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0);
+                        const elementCount = children.filter((node) => node.nodeType === 1).length;
+                        if (totalHeight > metrics.availableHeight + PAGINATION_TOLERANCE || elementCount === 1) {
+                            processedCounts.set(page, Number.POSITIVE_INFINITY);
+                            continue;
+                        }
+
+                        splitNode = splitNode.nextElementSibling;
+                        while (splitNode && splitNode.nodeType !== 1) {
+                            splitNode = splitNode.nextElementSibling;
+                        }
+                        if (!splitNode) {
+                            continue;
+                        }
+                    }
+
+                    const { page: newPage, body: newBody } = createPageShell(doc, page, header, footer);
+                    const originalNextSibling = splitNode.nextSibling;
+                    let moveSplitNode = true;
+
+                    if (splitNode.nodeType === 1) {
+                        const overflowResult = splitElementToFit(splitNode, metrics.availableHeight);
+                        if (overflowResult && overflowResult.fragment) {
+                            newBody.appendChild(overflowResult.fragment);
+                            moveSplitNode = false;
+                        }
+                    }
+
+                    let cursor = moveSplitNode ? splitNode : (splitNode.isConnected ? splitNode.nextSibling : originalNextSibling);
+                    const nodesToMove = [];
+                    while (cursor) {
+                        const next = cursor.nextSibling;
+                        nodesToMove.push(cursor);
+                        cursor = next;
+                    }
+                    nodesToMove.forEach((node) => newBody.appendChild(node));
+
+                    if (page.parentNode) {
+                        page.parentNode.insertBefore(newPage, page.nextSibling);
+                        didModify = true;
+                    }
+
+                    const newHeader = newPage.querySelector('.header');
+                    const newFooter = newPage.querySelector('.footer');
+                    const newMetrics = computeMetrics(view, newPage, newHeader, newFooter);
+                    if (newMetrics) {
+                        applyInsetsToBody(newBody, newMetrics.topInset, newMetrics.bottomInset);
+                    }
+
+                    queue.push({ page: newPage, body: newBody, header: newHeader, footer: newFooter });
+
+                    if (!body.children.length) {
+                        if (page.parentNode) {
+                            page.parentNode.removeChild(page);
+                            didModify = true;
+                        }
+                    } else if (getContentHeight(body) > metrics.availableHeight + PAGINATION_TOLERANCE) {
+                        queue.push({ page, body, header, footer });
+                    }
+                }
+
+                if (enforceManualPageBreaks(doc)) {
+                    didModify = true;
+                }
+
+                return didModify;
+            };
+
+            const hasOverflow = (doc) => {
+                const pages = Array.from(doc.querySelectorAll('.page'));
+                const view = doc.defaultView;
+                if (!view) {
+                    return false;
+                }
+
+                return pages.some((page) => {
+                    if (page.classList.contains('cover-page')) {
+                        return false;
+                    }
+
+                    const header = page.querySelector('.header');
+                    const footer = page.querySelector('.footer');
+                    const body = ensurePageBody(doc, page, header, footer);
+                    if (!body || !body.children.length) {
+                        return false;
+                    }
+
+                    const metrics = computeMetrics(view, page, header, footer);
+                    if (!metrics) {
+                        return false;
+                    }
+
+                    const contentHeight = getContentHeight(body);
+                    return contentHeight > metrics.availableHeight + PAGINATION_TOLERANCE;
+                });
+            };
+
+            const cleanupLonelyHeadings = (doc) => {
+                const pages = Array.from(doc.querySelectorAll('.page'));
+                const MAX_SECTION_HEIGHT = mmToPx(120);
+
+                for (let i = 0; i < pages.length - 1; i++) {
+                    const page = pages[i];
+                    if (page.classList.contains('cover-page')) {
+                        continue;
+                    }
+
+                    const header = page.querySelector('.header');
+                    const footer = page.querySelector('.footer');
+                    const body = ensurePageBody(doc, page, header, footer);
+                    if (!body) {
+                        continue;
+                    }
+
+                    const elementChildren = Array.from(body.children).filter((node) => node.nodeType === 1);
+                    if (!elementChildren.length) {
+                        continue;
+                    }
+
+                    const first = elementChildren[0];
+                    if (!/^H[1-6]$/i.test(first.tagName)) {
+                        continue;
+                    }
+
+                    if (first.classList.contains('force-page-break')) {
+                        continue;
+                    }
+
+                    // Don't move the Section 6 "Proposed Pricing" heading
+                    if (first.textContent && first.textContent.includes('Proposed Pricing')) {
+                        continue;
+                    }
+
+                    const elementsToMove = [first];
+                    if (elementChildren.length > 1) {
+                        const second = elementChildren[1];
+                        const isShortParagraph = second.tagName === 'P' && second.textContent.trim().length <= 400;
+
+                        if (elementChildren.length === 2 && isShortParagraph) {
+                            elementsToMove.push(second);
+                        } else {
+                            continue;
+                        }
+                    }
+                    if (elementChildren.length !== elementsToMove.length) {
+                        continue;
+                    }
+
+                    const totalHeight = elementsToMove.reduce((acc, el) => acc + el.getBoundingClientRect().height, 0);
+                    if (totalHeight > MAX_SECTION_HEIGHT) {
+                        continue;
+                    }
+
+                    const nextPage = pages[i + 1];
+                    if (!nextPage) {
+                        continue;
+                    }
+
+                    const nextHeader = nextPage.querySelector('.header');
+                    const nextFooter = nextPage.querySelector('.footer');
+                    const nextBody = ensurePageBody(doc, nextPage, nextHeader, nextFooter);
+                    if (!nextBody) {
+                        continue;
+                    }
+
+                    for (let j = elementsToMove.length - 1; j >= 0; j--) {
+                        const el = elementsToMove[j];
+                        nextBody.insertBefore(el, nextBody.firstChild || null);
+                    }
+
+                    if (!body.children.length && page.parentNode) {
+                        page.parentNode.removeChild(page);
+                        pages.splice(i, 1);
+                        i = Math.max(i - 1, -1);
+                    }
+                }
+            };
+
+            const enforceManualPageBreaks = (doc) => {
+                const view = doc.defaultView;
+                if (!view) {
+                    return false;
+                }
+
+                let modified = false;
+                const pages = Array.from(doc.querySelectorAll('.page'));
+
+                for (const page of pages) {
+                    if (page.classList.contains('cover-page')) {
+                        continue;
+                    }
+
+                    const header = page.querySelector('.header');
+                    const footer = page.querySelector('.footer');
+                    const body = ensurePageBody(doc, page, header, footer);
+                    if (!body) {
+                        continue;
+                    }
+
+                    const metrics = computeMetrics(view, page, header, footer);
+                    const elements = Array.from(body.children).filter((node) => node.nodeType === 1);
+                    for (let i = 0; i < elements.length; i++) {
+                        const element = elements[i];
+                        if (!element.classList || !element.classList.contains('force-page-break')) {
+                            continue;
+                        }
+
+                        const hasPreviousElements = elements.slice(0, i).some((node) => Boolean(node));
+                        let hasContentAbove = false;
+
+                        if (metrics) {
+                            const elementRect = element.getBoundingClientRect();
+                            const desiredTop = metrics.pageRect.top + metrics.topInset;
+                            hasContentAbove = elementRect.top - desiredTop > PAGINATION_TOLERANCE;
+                        }
+
+                        if (!hasPreviousElements && !hasContentAbove) {
+                            continue;
+                        }
+
+                        const { page: newPage, body: newBody } = createPageShell(doc, page, header, footer);
+                        const newHeader = newPage.querySelector('.header');
+                        const newFooter = newPage.querySelector('.footer');
+
+                        let cursor = element;
+                        while (cursor) {
+                            const next = cursor.nextSibling;
+                            newBody.appendChild(cursor);
+                            cursor = next;
+                        }
+
+                        if (page.parentNode) {
+                            page.parentNode.insertBefore(newPage, page.nextSibling);
+                        }
+
+                        const originalMetrics = metrics;
+                        if (originalMetrics) {
+                            applyInsetsToBody(body, originalMetrics.topInset, originalMetrics.bottomInset);
+                        }
+
+                        const newMetrics = computeMetrics(view, newPage, newHeader, newFooter);
+                        if (newMetrics) {
+                            applyInsetsToBody(newBody, newMetrics.topInset, newMetrics.bottomInset);
+                        }
+
+                        if (!body.children.length && page.parentNode) {
+                            page.parentNode.removeChild(page);
+                        }
+
+                        modified = true;
+                        break;
+                    }
+
+                    if (modified) {
+                        break;
+                    }
+                }
+
+                return modified;
+            };
+
+            const reflowTocPages = (doc, tocEntries) => {
+                const view = doc.defaultView;
+                if (!view) {
+                    return [];
+                }
+                const tocPages = Array.from(doc.querySelectorAll('.page.toc-page'));
+                if (!tocPages.length) {
+                    return [];
+                }
+
+                const templatePage = tocPages[0];
+                const templateHeader = templatePage.querySelector('.header');
+                const templateFooter = templatePage.querySelector('.footer');
+                const templateBody = ensurePageBody(doc, templatePage, templateHeader, templateFooter);
+                if (!templateBody) {
+                    return [];
+                }
+
+                const headingTemplate = templateBody.querySelector('h2');
+                const tocList = templateBody.querySelector('ul.toc');
+                if (!tocList) {
+                    return [];
+                }
+
+                for (let i = 1; i < tocPages.length; i++) {
+                    const page = tocPages[i];
+                    if (page.parentNode) {
+                        page.parentNode.removeChild(page);
+                    }
+                }
+
+                tocList.innerHTML = '';
+
+                const entryNodes = [];
+                if (!tocEntries.length) {
+                    return entryNodes;
+                }
+
+                const headingBaseText = headingTemplate ? headingTemplate.textContent.trim() : '';
+                const continuationHeadingText = headingBaseText ? `${headingBaseText} (CONTINUED)` : '';
+
+                let currentPage = templatePage;
+                let currentBody = templateBody;
+                let currentHeader = templateHeader;
+                let currentFooter = templateFooter;
+                let currentList = tocList;
+                let metrics = computeMetrics(view, currentPage, currentHeader, currentFooter);
+                if (metrics) {
+                    applyInsetsToBody(currentBody, metrics.topInset, metrics.bottomInset);
+                }
+
+                const createContinuationPage = () => {
+                    const { page: newPage, body: newBody } = createPageShell(doc, templatePage, templateHeader, templateFooter);
+                    const newHeader = newPage.querySelector('.header');
+                    const newFooter = newPage.querySelector('.footer');
+
+                    if (headingTemplate && continuationHeadingText) {
+                        const headingClone = headingTemplate.cloneNode(true);
+                        headingClone.textContent = continuationHeadingText;
+                        newBody.appendChild(headingClone);
+                    }
+
+                    const newList = tocList.cloneNode(false);
+                    newList.removeAttribute('id');
+                    newBody.appendChild(newList);
+
+                    currentPage.parentNode.insertBefore(newPage, currentPage.nextSibling);
+
+                    const newMetrics = computeMetrics(view, newPage, newHeader, newFooter);
+                    if (newMetrics) {
+                        applyInsetsToBody(newBody, newMetrics.topInset, newMetrics.bottomInset);
+                    }
+
+                    return { newPage, newBody, newHeader, newFooter, newList, newMetrics };
+                };
+
+                tocEntries.forEach((entry) => {
+                    const li = doc.createElement('li');
+                    li.className = entry.level === 'H2' ? 'toc-h2' : 'toc-h3';
+
+                    const link = doc.createElement('a');
+                    link.href = `#${entry.slug}`;
+
+                    const titleSpan = doc.createElement('span');
+                    titleSpan.textContent = `${entry.displayNumber} ${entry.text}`;
+
+                    const pageSpan = doc.createElement('span');
+                    pageSpan.className = 'toc-page-number';
+                    pageSpan.textContent = '';
+
+                    link.appendChild(titleSpan);
+                    link.appendChild(pageSpan);
+                    li.appendChild(link);
+
+                    currentList.appendChild(li);
+
+                    if (metrics && getContentHeight(currentBody) > metrics.availableHeight + PAGINATION_TOLERANCE) {
+                        currentList.removeChild(li);
+
+                        if (!currentList.children.length) {
+                            currentList.appendChild(li);
+                        } else {
+                            const created = createContinuationPage();
+                            currentPage = created.newPage;
+                            currentBody = created.newBody;
+                            currentHeader = created.newHeader;
+                            currentFooter = created.newFooter;
+                            currentList = created.newList;
+                            metrics = created.newMetrics;
+                            if (!metrics) {
+                                metrics = computeMetrics(view, currentPage, currentHeader, currentFooter);
+                                if (metrics) {
+                                    applyInsetsToBody(currentBody, metrics.topInset, metrics.bottomInset);
+                                }
+                            }
+
+                            currentList.appendChild(li);
+                        }
+                    }
+
+                    entryNodes.push({ entry, pageNumberNode: pageSpan });
+                });
+
+                const extraPages = Array.from(doc.querySelectorAll('.page.toc-page')).slice(1);
+                extraPages.forEach((page) => {
+                    const header = page.querySelector('.header');
+                    const footer = page.querySelector('.footer');
+                    const body = ensurePageBody(doc, page, header, footer);
+                    const list = body ? body.querySelector('ul.toc') : null;
+                    if (!list || !list.children.length) {
+                        if (page.parentNode) {
+                            page.parentNode.removeChild(page);
+                        }
+                    }
+                });
+
+                return entryNodes;
+            };
+
+            const refreshPageMetadata = (doc) => {
+                    const assignPageNumbers = () => {
+                        const pages = Array.from(doc.querySelectorAll('.page:not(.cover-page)'));
+                        const hasCover = Boolean(doc.querySelector('.page.cover-page'));
+                        const baseNumber = hasCover ? 2 : 1;
+
+                        pages.forEach((page, index) => {
+                            const pageNumElem = page.querySelector('.footer .page-number');
+                            if (pageNumElem) {
+                                pageNumElem.textContent = index + baseNumber;
+                            }
+                        });
+
+                        return { pages, baseNumber };
+                    };
+
+                    doc.querySelectorAll('.heading-number').forEach((span) => span.remove());
+
+                    let { pages, baseNumber } = assignPageNumbers();
+
+                    const headings = doc.querySelectorAll('.page:not(.cover-page, .toc-page) h2:not(.no-number), .page:not(.cover-page, .toc-page) h3:not(.no-number)');
+
+                    const tocEntries = [];
+                    let sectionCounter = 0;
+                    let subsectionCounter = 0;
+
+                    headings.forEach((heading) => {
+                        const headingText = heading.textContent.trim();
+                        const slug = 'section-' + headingText.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                        heading.id = slug;
+
+                        let displayNumber;
+                        const numberSpan = doc.createElement('span');
+                        numberSpan.className = 'heading-number';
+
+                        if (heading.tagName === 'H2') {
+                            sectionCounter++;
+                            subsectionCounter = 0;
+                            displayNumber = `${sectionCounter}`;
+                        } else {
+                            subsectionCounter++;
+                            displayNumber = `${sectionCounter}.${subsectionCounter}`;
+                        }
+
+                        numberSpan.textContent = `${displayNumber} `;
+                        heading.prepend(numberSpan);
+
+                        tocEntries.push({
+                            displayNumber,
+                            text: headingText,
+                            slug,
+                            level: heading.tagName,
+                            pageElement: heading.closest('.page')
+                        });
+                    });
+
+                    const tocNodes = reflowTocPages(doc, tocEntries);
+
+                    ({ pages, baseNumber } = assignPageNumbers());
+
+                    tocNodes.forEach(({ entry, pageNumberNode }) => {
+                        if (!pageNumberNode) {
+                            return;
+                        }
+                        const pageNumber = entry.pageElement?.querySelector('.footer .page-number')?.textContent || '';
+                        pageNumberNode.textContent = pageNumber;
+                    });
+                };
+
+            const inlineImages = async (root) => {
+                const imageElements = Array.from(root.querySelectorAll('img'));
+                for (const img of imageElements) {
+                    const src = img.getAttribute('src');
+                    if (!src || src.startsWith('data:') || src.startsWith('http')) {
+                        continue;
+                    }
+
+                    try {
+                        const absoluteUrl = new URL(src, window.location.origin).href;
+                        const response = await fetch(absoluteUrl);
+                        if (!response.ok) {
+                            console.warn(`Failed to inline image: ${src}`);
+                            continue;
+                        }
+
+                        const blob = await response.blob();
+                        const optimizedDataUrl = await compressImageBlobToDataUrl(blob);
+                        img.setAttribute('src', optimizedDataUrl);
+                    } catch (error) {
+                        console.warn('Error inlining image', src, error);
+                    }
+                }
+            };
+
+            const prepareHtmlForExport = async () => {
+                const iframe = document.createElement('iframe');
+                const pageWidthPx = mmToPx(210);
+                const pageHeightPx = mmToPx(297);
+                iframe.style.position = 'fixed';
+                iframe.style.left = '-9999px';
+                iframe.style.top = '0';
+                iframe.style.width = `${pageWidthPx}px`;
+                iframe.style.height = `${pageHeightPx}px`;
+                iframe.style.opacity = '0';
+                iframe.style.pointerEvents = 'none';
+                iframe.setAttribute('aria-hidden', 'true');
+                document.body.appendChild(iframe);
+
+                try {
+                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+
+                    const clonedRoot = document.documentElement.cloneNode(true);
+
+                    const clonedBody = clonedRoot.querySelector('body');
+                    if (clonedBody) {
+                        clonedBody.classList.add('pdf-export');
+                        clonedBody.setAttribute('data-export-mode', 'pdfshift');
+                    }
+
+                    const downloadContainer = clonedRoot.querySelector('.download-container');
+                    if (downloadContainer) {
+                        downloadContainer.remove();
+                    }
+
+                    clonedRoot.querySelectorAll('script').forEach((script) => script.remove());
+
+                    iframeDoc.open();
+                    iframeDoc.write('<!DOCTYPE html>' + clonedRoot.outerHTML);
+                    iframeDoc.close();
+
+                    await inlineImages(iframeDoc);
+                    await waitForImages(iframeDoc);
+
+                    const balancePagination = () => {
+                        const MAX_PASSES = 8;
+                        for (let pass = 0; pass < MAX_PASSES; pass++) {
+                            const modified = paginatePages(iframeDoc);
+                            cleanupLonelyHeadings(iframeDoc);
+                            refreshPageMetadata(iframeDoc);
+
+                            if (!modified && !hasOverflow(iframeDoc)) {
+                                break;
+                            }
+                        }
+
+                        refreshPageMetadata(iframeDoc);
+
+                        if (hasOverflow(iframeDoc)) {
+                            paginatePages(iframeDoc);
+                            cleanupLonelyHeadings(iframeDoc);
+                            refreshPageMetadata(iframeDoc);
+                        }
+                    };
+
+                    balancePagination();
+
+                    const serializedHtml = '<!DOCTYPE html>' + iframeDoc.documentElement.outerHTML;
+                    return serializedHtml;
+                } finally {
+                    document.body.removeChild(iframe);
+                }
+            };
+
+            downloadBtn.addEventListener('click', async () => {
+                try {
+                    setLoadingState(true, 'Generating PDF. This may take a few moments...');
+
+                    const html = await prepareHtmlForExport();
+                    const filename = (document.title || 'UCtel_Proposal').replace(/[^a-z0-9_-]+/gi, '_');
+
+                    const response = await fetch('/api/convert-to-pdf', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            html,
+                            filename,
+                            options: {
+                                page_size: 'a4',
+                                use_print: false,
+                                margin: {
+                                    top: '0mm',
+                                    right: '0mm',
+                                    bottom: '0mm',
+                                    left: '0mm',
+                                },
+                                wait: 1,
+                            },
+                        }),
+                    });
+
+                    if (!response.ok) {
+                        let errorMessage = 'Failed to generate PDF via PDFShift.';
+                        try {
+                            const errorPayload = await response.json();
+                            if (errorPayload && errorPayload.error) {
+                                errorMessage = errorPayload.error;
+                            }
+                        } catch (parseError) {
+                            // ignore parse errors and use generic message
+                        }
+                        throw new Error(errorMessage);
+                    }
+
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `${filename}.pdf`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+
+                    setLoadingState(false, 'PDF downloaded successfully.');
+                } catch (error) {
+                    console.error('PDF download failed', error);
+                    setLoadingState(false, 'Failed to generate PDF. Please try again or contact support.');
+                }
             });
         })();
     });
