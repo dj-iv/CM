@@ -1,18 +1,9 @@
-﻿{
+{
   "version": 2,
   "functions": {
     "api/convert-to-pdf.js": {
+      "runtime": "nodejs18.x",
       "maxDuration": 30
     }
-  },
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/public/$1"
-    }
-  ]
+  }
 }
