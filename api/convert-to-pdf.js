@@ -1,7 +1,7 @@
 // Vercel serverless function for PDF conversion
 // This replaces the Express /api/convert-to-pdf endpoint for production
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -30,9 +30,6 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    // Import fetch for Vercel Node.js environment
-    const fetch = require('node-fetch');
-
     const payload = {
       source: html,
       sandbox: false,
