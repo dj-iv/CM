@@ -1,5 +1,5 @@
 // Vercel serverless function for PDF conversion
-// This replaces the Express /api/convert-to-pdf endpoint for production
+const https = require('https');
 
 export default async function handler(req, res) {
   // Enable CORS
@@ -17,7 +17,12 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed. Use POST.' });
   }
 
-  const PDFSHIFT_API_KEY = process.env.PDFSHIFT_API_KEY || process.env.REACT_APP_PDFSHIFT_KEY;
+  // Simple test endpoint first
+  return res.status(200).json({ 
+    message: 'PDF endpoint is working!', 
+    timestamp: new Date().toISOString(),
+    method: req.method 
+  });
 
   if (!PDFSHIFT_API_KEY) {
     return res.status(500).json({ error: 'PDFShift API key is not configured on the server.' });
