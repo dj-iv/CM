@@ -1942,6 +1942,30 @@ document.title = newFilename;
                     });
                 };
 
+            const uint8ToBase64 = (bytes) => {
+                if (!(bytes instanceof Uint8Array)) {
+                    throw new TypeError('Expected Uint8Array for base64 conversion.');
+                }
+                let binary = '';
+                const chunk = 0x8000;
+                for (let i = 0; i < bytes.length; i += chunk) {
+                    const segment = bytes.subarray(i, i + chunk);
+                    binary += String.fromCharCode.apply(null, segment);
+                }
+                return btoa(binary);
+            };
+
+            const compressHtmlToBase64 = (htmlString) => {
+                if (typeof pako === 'undefined' || !pako.gzip) {
+                    throw new Error('pako.gzip is unavailable for compression.');
+                }
+                const compressed = pako.gzip(htmlString, { level: 6 });
+                return {
+                    base64: uint8ToBase64(compressed),
+                    byteLength: compressed.length,
+                };
+            };
+
             const inlineImages = async (root) => {
                 const imageElements = Array.from(root.querySelectorAll('img'));
                 for (const img of imageElements) {
@@ -2043,13 +2067,16 @@ document.title = newFilename;
                     const html = await prepareHtmlForExport();
                     const filename = (document.title || 'UCtel_Proposal').replace(/[^a-z0-9_-]+/gi, '_');
 
-                    const response = await fetch('/api/convert-to-pdf', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            html,
+                    const rawByteLength = new TextEncoder().encode(html).length;
+                    console.info('PDF export raw payload size (bytes):', rawByteLength);
+
+                    let requestBody;
+                    try {
+                        const { base64, byteLength } = compressHtmlToBase64(html);
+                        console.info('PDF export compressed payload size (bytes):', byteLength);
+                        requestBody = {
+                            encoding: 'gzip-base64',
+                            data: base64,
                             filename,
                             options: {
                                 page_size: 'a4',
@@ -2062,7 +2089,22 @@ document.title = newFilename;
                                 },
                                 wait: 1,
                             },
-                        }),
+                            diagnostics: {
+                                rawBytes: rawByteLength,
+                                compressedBytes: byteLength,
+                            },
+                        };
+                    } catch (compressionError) {
+                        console.error('Failed to compress HTML before sending to PDF service.', compressionError);
+                        throw new Error('Unable to compress proposal for PDF generation. Please refresh and try again.');
+                    }
+
+                    const response = await fetch('/api/convert-to-pdf', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(requestBody),
                     });
 
                     if (!response.ok) {

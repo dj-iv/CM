@@ -1,4 +1,6 @@
-﻿// Vercel serverless function to convert proposal HTML into a PDF via PDFShift
+﻿import { gunzipSync } from 'node:zlib';
+
+// Vercel serverless function to convert proposal HTML into a PDF via PDFShift
 
 export const config = {
   api: {
@@ -104,14 +106,39 @@ export default async function handler(req, res) {
     return createErrorResponse(res, 500, 'PDFShift API key is not configured on the server.');
   }
 
-  const { html, css, options, filename } = req.body || {};
+  const {
+    html,
+    css,
+    options,
+    filename,
+    encoding,
+    data,
+  } = req.body || {};
 
-  if (!html || typeof html !== 'string' || !html.trim()) {
+  let htmlContent = html;
+
+  if ((!htmlContent || typeof htmlContent !== 'string' || !htmlContent.trim())
+      && typeof data === 'string'
+      && encoding === 'gzip-base64') {
+    try {
+      const decompressed = gunzipSync(Buffer.from(data, 'base64')).toString('utf8');
+      htmlContent = decompressed;
+    } catch (decompressionError) {
+      return createErrorResponse(
+        res,
+        400,
+        'Failed to decode compressed HTML payload.',
+        decompressionError instanceof Error ? decompressionError.message : undefined,
+      );
+    }
+  }
+
+  if (!htmlContent || typeof htmlContent !== 'string' || !htmlContent.trim()) {
     return createErrorResponse(res, 400, 'Missing HTML content to convert.');
   }
 
   try {
-    const payload = buildPayload({ html, css, options });
+    const payload = buildPayload({ html: htmlContent, css, options });
 
     const pdfResponse = await fetch(PDFSHIFT_ENDPOINT, {
       method: 'POST',
