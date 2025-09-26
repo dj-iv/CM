@@ -146,6 +146,7 @@ const buildPayload = ({ html, css, options }) => {
       footer,
       wait,
       page_size,
+      format,
     } = options;
 
     if (typeof use_print === 'boolean') {
@@ -156,9 +157,21 @@ const buildPayload = ({ html, css, options }) => {
       payload.landscape = landscape;
     }
 
+    const resolvedFormat = typeof format === 'string' ? format : page_size;
+    if (typeof resolvedFormat === 'string' && resolvedFormat.trim()) {
+      payload.format = resolvedFormat.trim().toUpperCase();
+    }
+
     const resolvedMargins = margin || margins;
-    if (resolvedMargins && typeof resolvedMargins === 'object') {
+    if (typeof resolvedMargins === 'string') {
       payload.margin = resolvedMargins;
+    } else if (resolvedMargins && typeof resolvedMargins === 'object') {
+      const { top, right, bottom, left } = resolvedMargins;
+      const fallback = '0mm';
+      const marginParts = [top, right, bottom, left].map((value) =>
+        typeof value === 'string' && value.trim() ? value.trim() : fallback,
+      );
+      payload.margin = marginParts.join(' ');
     }
 
     if (header && typeof header === 'object') {
@@ -169,12 +182,8 @@ const buildPayload = ({ html, css, options }) => {
       payload.footer = footer;
     }
 
-    if (typeof wait === 'number') {
-      payload.wait = wait;
-    }
-
-    if (typeof page_size === 'string') {
-      payload.page_size = page_size;
+    if (typeof wait === 'number' && Number.isFinite(wait) && wait > 0) {
+      payload.delay = Math.round(wait * 1000);
     }
   }
 
@@ -263,6 +272,12 @@ export default async function handler(req, res) {
       } catch (readError) {
         // Ignore secondary errors when reading response text
       }
+
+      console.error('PDFShift API error', {
+        status: pdfResponse.status,
+        message: errorMessage,
+        details: errorDetails,
+      });
 
       return createErrorResponse(res, pdfResponse.status, errorMessage, errorDetails);
     }
