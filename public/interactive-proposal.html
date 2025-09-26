@@ -2027,7 +2027,6 @@ document.title = newFilename;
                     iframeDoc.write('<!DOCTYPE html>' + clonedRoot.outerHTML);
                     iframeDoc.close();
 
-                    await inlineImages(iframeDoc);
                     await waitForImages(iframeDoc);
 
                     const balancePagination = () => {
@@ -2078,6 +2077,7 @@ document.title = newFilename;
                             encoding: 'gzip-base64',
                             data: base64,
                             filename,
+                            origin: window.location.origin,
                             options: {
                                 page_size: 'a4',
                                 use_print: false,

@@ -1,5 +1,101 @@
 ﻿import { gunzipSync } from 'node:zlib';
 
+const INLINE_IMAGE_REGEX = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+
+const guessMimeType = (urlPath, fallback = 'application/octet-stream') => {
+  if (!urlPath || typeof urlPath !== 'string') {
+    return fallback;
+  }
+
+  const cleanPath = urlPath.split('?')[0].split('#')[0];
+  const extension = cleanPath.substring(cleanPath.lastIndexOf('.') + 1).toLowerCase();
+
+  switch (extension) {
+    case 'png':
+      return 'image/png';
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'svg':
+      return 'image/svg+xml';
+    case 'gif':
+      return 'image/gif';
+    case 'webp':
+      return 'image/webp';
+    default:
+      return fallback;
+  }
+};
+
+const inlineRemoteImages = async (html, origin) => {
+  if (!origin || typeof origin !== 'string') {
+    return html;
+  }
+
+  let originUrl;
+  try {
+    originUrl = new URL(origin);
+  } catch (invalidOriginError) {
+    return html;
+  }
+
+  const matches = [...html.matchAll(INLINE_IMAGE_REGEX)];
+  if (matches.length === 0) {
+    return html;
+  }
+
+  const replacements = new Map();
+  const uniqueSources = [...new Set(matches.map(([, src]) => src).filter(Boolean))];
+
+  for (const src of uniqueSources) {
+    if (!src || src.startsWith('data:')) {
+      continue;
+    }
+
+    let absoluteUrl;
+    try {
+      if (src.startsWith('http://') || src.startsWith('https://')) {
+        const candidate = new URL(src);
+        if (candidate.host !== originUrl.host) {
+          continue;
+        }
+        absoluteUrl = candidate.href;
+      } else {
+        absoluteUrl = new URL(src, originUrl).href;
+      }
+    } catch (urlError) {
+      continue;
+    }
+
+    try {
+      const response = await fetch(absoluteUrl);
+      if (!response.ok) {
+        continue;
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const contentType = response.headers.get('content-type') || guessMimeType(absoluteUrl);
+      const dataUri = `data:${contentType};base64,${buffer.toString('base64')}`;
+      replacements.set(src, dataUri);
+    } catch (fetchError) {
+      // Ignore fetch failures and leave src unmodified
+    }
+  }
+
+  if (replacements.size === 0) {
+    return html;
+  }
+
+  return html.replace(INLINE_IMAGE_REGEX, (match, src) => {
+    const replacement = replacements.get(src);
+    if (!replacement) {
+      return match;
+    }
+    return match.replace(src, replacement);
+  });
+};
+
 // Vercel serverless function to convert proposal HTML into a PDF via PDFShift
 
 export const config = {
@@ -113,6 +209,7 @@ export default async function handler(req, res) {
     filename,
     encoding,
     data,
+    origin,
   } = req.body || {};
 
   let htmlContent = html;
@@ -138,7 +235,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    const payload = buildPayload({ html: htmlContent, css, options });
+    const enrichedHtml = await inlineRemoteImages(htmlContent, origin);
+    const payload = buildPayload({ html: enrichedHtml, css, options });
 
     const pdfResponse = await fetch(PDFSHIFT_ENDPOINT, {
       method: 'POST',
