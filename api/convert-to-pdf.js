@@ -127,13 +127,24 @@ const sanitizeFilename = (name) => {
 };
 
 const buildPayload = ({ html, css, options }) => {
+
   const payload = {
     source: html,
     sandbox: false,
   };
 
+  // Always carry through provided CSS if any
   if (css) {
-    payload.stylesheets = Array.isArray(css) ? css : [css];
+    if (Array.isArray(css)) {
+      const merged = css.map((item) => {
+        const isUrl = typeof item === 'string' && /^(https?:)?\/\//i.test(item);
+        return isUrl ? `@import url("${item}");` : String(item);
+      }).join('\n');
+      payload.css = merged;
+    } else if (typeof css === 'string') {
+      const isUrl = /^(https?:)?\/\//i.test(css);
+      payload.css = isUrl ? `@import url("${css}");` : css;
+    }
   }
 
   if (options && typeof options === 'object') {
@@ -180,6 +191,9 @@ const buildPayload = ({ html, css, options }) => {
 
     if (footer && typeof footer === 'object') {
       payload.footer = footer;
+      if (!payload.footer.height) {
+        payload.footer.height = '12mm';
+      }
     }
 
     if (typeof wait === 'number' && Number.isFinite(wait) && wait > 0) {
@@ -238,14 +252,31 @@ export default async function handler(req, res) {
       );
     }
   }
+  // Prepare a minimal, stable HTML by stripping scripts and avoiding aggressive injections
+  const stripScripts = (input) => {
+    if (typeof input !== 'string') return input;
+    let out = input.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    out = out.replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+    return out;
+  };
+
+  htmlContent = stripScripts(htmlContent);
 
   if (!htmlContent || typeof htmlContent !== 'string' || !htmlContent.trim()) {
     return createErrorResponse(res, 400, 'Missing HTML content to convert.');
   }
 
   try {
-    const enrichedHtml = await inlineRemoteImages(htmlContent, origin);
-    const payload = buildPayload({ html: enrichedHtml, css, options });
+  const enrichedHtml = await inlineRemoteImages(htmlContent, origin);
+
+    // Debug mode: return the transformed HTML so you can inspect the exact payload
+    // that will be sent to PDFShift. Set { debug: true } in the POST body.
+    if (req.body && req.body.debug) {
+      res.setHeader('Content-Type', 'text/html');
+      return res.status(200).send(enrichedHtml);
+    }
+
+  const payload = buildPayload({ html: enrichedHtml, css, options });
 
     const pdfResponse = await fetch(PDFSHIFT_ENDPOINT, {
       method: 'POST',

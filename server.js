@@ -2,19 +2,190 @@ require('dotenv').config();
 
 const express = require('express');
 const path = require('path');
+const { gunzipSync } = require('zlib');
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
 if (typeof globalThis.btoa !== 'function') {
   globalThis.btoa = (input) => Buffer.from(input).toString('base64');
 }
 
+const INLINE_IMAGE_REGEX = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+
+const guessMimeType = (urlPath, fallback = 'application/octet-stream') => {
+  if (!urlPath || typeof urlPath !== 'string') {
+    return fallback;
+  }
+
+  const cleanPath = urlPath.split('?')[0].split('#')[0];
+  const extension = cleanPath.substring(cleanPath.lastIndexOf('.') + 1).toLowerCase();
+
+  switch (extension) {
+    case 'png':
+      return 'image/png';
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'svg':
+      return 'image/svg+xml';
+    case 'gif':
+      return 'image/gif';
+    case 'webp':
+      return 'image/webp';
+    default:
+      return fallback;
+  }
+};
+
+const inlineRemoteImages = async (html, origin) => {
+  if (!origin || typeof origin !== 'string') {
+    return html;
+  }
+
+  let originUrl;
+  try {
+    originUrl = new URL(origin);
+  } catch (invalidOriginError) {
+    return html;
+  }
+
+  const matches = [...html.matchAll(INLINE_IMAGE_REGEX)];
+  if (matches.length === 0) {
+    return html;
+  }
+
+  const replacements = new Map();
+  const uniqueSources = [...new Set(matches.map(([, src]) => src).filter(Boolean))];
+
+  for (const src of uniqueSources) {
+    if (!src || src.startsWith('data:')) {
+      continue;
+    }
+
+    let absoluteUrl;
+    try {
+      if (src.startsWith('http://') || src.startsWith('https://')) {
+        const candidate = new URL(src);
+        if (candidate.host !== originUrl.host) {
+          continue;
+        }
+        absoluteUrl = candidate.href;
+      } else {
+        absoluteUrl = new URL(src, originUrl).href;
+      }
+    } catch (urlError) {
+      continue;
+    }
+
+    try {
+      const response = await fetch(absoluteUrl);
+      if (!response.ok) {
+        continue;
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const contentType = response.headers.get('content-type') || guessMimeType(absoluteUrl);
+      const dataUri = `data:${contentType};base64,${buffer.toString('base64')}`;
+      replacements.set(src, dataUri);
+    } catch (fetchError) {
+      // Ignore fetch errors for individual assets
+    }
+  }
+
+  if (replacements.size === 0) {
+    return html;
+  }
+
+  return html.replace(INLINE_IMAGE_REGEX, (match, src) => {
+    const replacement = replacements.get(src);
+    if (!replacement) {
+      return match;
+    }
+    return match.replace(src, replacement);
+  });
+};
+
+const buildPayload = ({ html, css, options }) => {
+  const payload = {
+    source: html,
+    sandbox: false,
+  };
+
+  // Merge provided CSS into a single css string; support URLs via @import
+  if (css) {
+    if (Array.isArray(css)) {
+      const merged = css.map((item) => {
+        const isUrl = typeof item === 'string' && /^(https?:)?\/\//i.test(item);
+        return isUrl ? `@import url("${item}");` : String(item);
+      }).join('\n');
+      payload.css = merged;
+    } else if (typeof css === 'string') {
+      const isUrl = /^(https?:)?\/\//i.test(css);
+      payload.css = isUrl ? `@import url("${css}");` : css;
+    }
+  }
+
+  if (options && typeof options === 'object') {
+    const {
+      use_print,
+      landscape,
+      margin,
+      margins,
+      header,
+      footer,
+      wait,
+      page_size,
+      format,
+    } = options;
+
+    if (typeof use_print === 'boolean') {
+      payload.use_print = use_print;
+    }
+
+    if (typeof landscape === 'boolean') {
+      payload.landscape = landscape;
+    }
+
+    const resolvedFormat = typeof format === 'string' ? format : page_size;
+    if (typeof resolvedFormat === 'string' && resolvedFormat.trim()) {
+      payload.format = resolvedFormat.trim().toUpperCase();
+    }
+
+    const resolvedMargins = margin || margins;
+    if (typeof resolvedMargins === 'string') {
+      payload.margin = resolvedMargins;
+    } else if (resolvedMargins && typeof resolvedMargins === 'object') {
+      const { top, right, bottom, left } = resolvedMargins;
+      const fallback = '0mm';
+      const marginParts = [top, right, bottom, left].map((value) =>
+        typeof value === 'string' && value.trim() ? value.trim() : fallback,
+      );
+      payload.margin = marginParts.join(' ');
+    }
+
+    if (header && typeof header === 'object') {
+      payload.header = header;
+    }
+
+    if (footer && typeof footer === 'object') {
+      payload.footer = footer;
+    }
+
+    if (typeof wait === 'number' && Number.isFinite(wait) && wait > 0) {
+      payload.delay = Math.round(wait * 1000);
+    }
+  }
+
+  return payload;
+};
+
 const app = express();
 const PORT = process.env.PORT || 8080;
 
 const PDFSHIFT_API_KEY = process.env.PDFSHIFT_API_KEY || process.env.REACT_APP_PDFSHIFT_KEY;
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -23,53 +194,78 @@ app.post('/api/convert-to-pdf', async (req, res) => {
     return res.status(500).json({ error: 'PDFShift API key is not configured on the server.' });
   }
 
-  const { html, css, options, filename } = req.body || {};
+  const {
+    html,
+    css,
+    options,
+    filename,
+    encoding,
+    data,
+    origin,
+  } = req.body || {};
 
-  if (!html) {
+  let htmlContent = html;
+
+  console.info('[convert-to-pdf] incoming payload', {
+    hasHtml: typeof html === 'string' && html.length,
+    encoding,
+    dataLength: typeof data === 'string' ? data.length : null,
+    origin,
+  });
+
+  // If no raw HTML provided, try to decompress gzip-base64 data
+  if ((!htmlContent || typeof htmlContent !== 'string' || !htmlContent.trim())
+      && typeof data === 'string'
+      && encoding === 'gzip-base64') {
+    try {
+      htmlContent = gunzipSync(Buffer.from(data, 'base64')).toString('utf8');
+      console.info('[convert-to-pdf] decompressed html length', htmlContent.length);
+    } catch (decompressionError) {
+      return res.status(400).json({ error: 'Failed to decode compressed HTML payload.' });
+    }
+  }
+
+  if (!htmlContent || typeof htmlContent !== 'string' || !htmlContent.trim()) {
+    console.warn('[convert-to-pdf] missing html after processing');
     return res.status(400).json({ error: 'Missing HTML content to convert.' });
   }
 
   try {
-    const payload = {
-      source: html,
-      sandbox: false,
+    // 1) Sanitize: strip all <script> tags and inline event handlers to avoid client-side reflows in the PDF engine
+    const stripScripts = (input) => {
+      if (typeof input !== 'string') return input;
+      let out = input.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+      out = out.replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+      return out;
     };
 
-    if (css) {
-      payload.stylesheets = [css];
+    const sanitizedHtml = stripScripts(htmlContent);
+
+    // Debug mode: return sanitized HTML for quick inspection (no image inlining)
+    if (req.body && req.body.debug) {
+      res.setHeader('Content-Type', 'text/html');
+      return res.status(200).send(sanitizedHtml);
     }
 
-    if (options) {
-      const {
-        use_print,
-        landscape,
-        margin,
-        margins,
-        header,
-        footer,
-      } = options;
+    // 2) Inline same-origin images so the PDF is self-contained
+    const enrichedHtml = await inlineRemoteImages(sanitizedHtml, origin || `http://localhost:${PORT}`);
 
-      if (typeof use_print === 'boolean') {
-        payload.use_print = use_print;
-      }
-
-      if (typeof landscape === 'boolean') {
-        payload.landscape = landscape;
-      }
-
-      const resolvedMargins = margin || margins;
-      if (resolvedMargins && typeof resolvedMargins === 'object') {
-        payload.margin = resolvedMargins;
-      }
-
-      if (header && typeof header === 'object') {
-        payload.header = header;
-      }
-
-      if (footer && typeof footer === 'object') {
-        payload.footer = footer;
-      }
+    // 3) Build PDFShift payload and apply safe defaults
+    const payload = buildPayload({ html: enrichedHtml, css, options });
+    if (options && options.footer && typeof options.footer === 'object' && !options.footer.height) {
+      options.footer.height = '12mm';
     }
+
+    console.log('[convert-to-pdf] sending request to PDFShift', {
+      payloadSize: JSON.stringify(payload).length,
+      hasHtml: !!payload.source,
+      format: payload.format,
+      margin: payload.margin,
+    });
+
+    // 4) Send to PDFShift with a timeout guard
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
 
     const response = await fetch('https://api.pdfshift.io/v3/convert/pdf', {
       method: 'POST',
@@ -78,6 +274,15 @@ app.post('/api/convert-to-pdf', async (req, res) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    console.log('[convert-to-pdf] PDFShift response', {
+      status: response.status,
+      ok: response.ok,
+      statusText: response.statusText,
     });
 
     if (!response.ok) {
@@ -102,6 +307,12 @@ app.post('/api/convert-to-pdf', async (req, res) => {
         // ignore error while reading response
       }
 
+      console.error('[convert-to-pdf] PDFShift error', {
+        status: response.status,
+        message: errorMessage,
+        details: errorDetails,
+      });
+
       const error = new Error(errorMessage);
       error.statusCode = response.status;
       error.details = errorDetails;
@@ -109,6 +320,10 @@ app.post('/api/convert-to-pdf', async (req, res) => {
     }
 
     const pdfBuffer = Buffer.from(await response.arrayBuffer());
+    console.log('[convert-to-pdf] PDF generated successfully', {
+      size: pdfBuffer.length,
+      filename: filename || 'UCtel_Proposal',
+    });
 
     const safeFilename = (filename || 'UCtel_Proposal').replace(/[^a-z0-9_-]+/gi, '_');
 
@@ -120,6 +335,15 @@ app.post('/api/convert-to-pdf', async (req, res) => {
     return res.send(Buffer.from(pdfBuffer, 'binary'));
   } catch (error) {
     console.error('PDFShift conversion failed:', error);
+
+    if (error.name === 'AbortError') {
+      console.error('[convert-to-pdf] Request timed out after 60 seconds');
+      return res.status(408).json({
+        error: 'PDF generation timed out. Please try again with a smaller document.',
+        details: 'Request exceeded 60 second limit',
+      });
+    }
+
     if (error && error.details) {
       console.error('PDFShift error details:', typeof error.details === 'string' ? error.details : JSON.stringify(error.details, null, 2));
     }
