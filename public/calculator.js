@@ -2,6 +2,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- MAKE.COM WEBHOOK ---
     const MAKE_WEBHOOK_URL = 'https://hook.eu1.make.com/chemsqrmifjs5lwbrquhh1bha0vo96k2';
     const PDF_MAKE_WEBHOOK_URL = 'https://hook.eu1.make.com/cfde3avwbdpr5y131ffkle13z40haem3'; 
+    const SHARE_STATE_STORAGE_KEY = 'calculator-share-state';
+    let pendingShareOverrides = null;
+    let isApplyingShareState = false;
+    let initialViewMode = null;
 
     // --- DATA ---
     const defaultCoverageData = {
@@ -57,6 +61,17 @@ document.addEventListener('DOMContentLoaded', () => {
     let showZeroQuantityItems = false;
     let subTotalsForProposal = {};
     let supportPriceOverrides = { bronze: null, silver: null, gold: null };
+    let isDataInitialized = false;
+
+    const updateAltPricingIndicator = () => {
+        const indicator = document.getElementById('alt-pricing-indicator');
+        if (!indicator) return;
+        if (useAltPricing && isDataInitialized) {
+            indicator.classList.remove('hidden');
+        } else {
+            indicator.classList.add('hidden');
+        }
+    };
     function populateSettingsModal() {
         const container = document.getElementById('settings-form-container');
         let html = `
@@ -113,9 +128,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if(altPricingToggle) {
             altPricingToggle.addEventListener('change', (e) => {
                 useAltPricing = e.target.checked;
+                updateAltPricingIndicator();
                 runFullCalculation();
             });
         }
+
+        updateAltPricingIndicator();
     }
 
     // Populate coverage settings modal
@@ -401,6 +419,7 @@ async function loadPrices() {
             const settings = settingsDoc.data();
             useAltPricing = settings.useAltPricing || false;
             console.log("Settings loaded from Firestore. Use Alt Pricing:", useAltPricing);
+            updateAltPricingIndicator();
         }
         
     } catch (e) {
@@ -408,6 +427,7 @@ async function loadPrices() {
         priceData = JSON.parse(JSON.stringify(defaultPriceData));
         altPriceData = JSON.parse(JSON.stringify(defaultPriceData));
         useAltPricing = false;
+        updateAltPricingIndicator();
     }
 }
    async function savePrices(newPriceData, newAltPriceData, newUseAltPricing) {
@@ -427,6 +447,7 @@ async function loadPrices() {
         priceData = newPriceData;
         altPriceData = newAltPriceData;
         useAltPricing = newUseAltPricing;
+    updateAltPricingIndicator();
         
         runFullCalculation();
         alert('Pricing settings saved successfully to the database!');
@@ -498,14 +519,16 @@ async function saveCoverageData(newCoverageData) {
     console.log('System type:', systemType, 'Is Quatra with High Ceiling:', isQuatraWithHighCeiling, 'Is High Ceiling:', isHighCeiling);
     
     // --- This new block clears previous overrides ---
-    if (currentResults['service_antennas']) {
-        currentResults['service_antennas'].override = null;
-    }
-    if (currentResults['QUATRA_CU']) {
-        currentResults['QUATRA_CU'].override = null;
-    }
-    if (currentResults['QUATRA_EVO_CU']) {
-        currentResults['QUATRA_EVO_CU'].override = null;
+    if (!isApplyingShareState) {
+        if (currentResults['service_antennas']) {
+            currentResults['service_antennas'].override = null;
+        }
+        if (currentResults['QUATRA_CU']) {
+            currentResults['QUATRA_CU'].override = null;
+        }
+        if (currentResults['QUATRA_EVO_CU']) {
+            currentResults['QUATRA_EVO_CU'].override = null;
+        }
     }
     // --- End of new block ---
 
@@ -605,6 +628,13 @@ async function saveCoverageData(newCoverageData) {
     
 function runFullCalculation() {
     try {
+        if (!isDataInitialized) {
+            const resultsBody = document.getElementById('results-tbody');
+            if (resultsBody) {
+                resultsBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color: #57708A;">Loading data…</td></tr>`;
+            }
+            return;
+        }
         // --- THIS BLOCK IS UPDATED TO CONTROL VISIBILITY ---
         const includeSurvey = document.getElementById('include-survey-checkbox').checked;
         if (!currentResults['survey_price_item']) {
@@ -719,7 +749,13 @@ function runFullCalculation() {
     } catch (error) {
         console.error("A critical error occurred during calculation:", error);
         const resultsBody = document.getElementById('results-tbody');
-        if(resultsBody) resultsBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color: red;">An error occurred. Please refresh and try again.</td></tr>`;
+        if (resultsBody) {
+            const message = isDataInitialized
+                ? 'An error occurred. Please refresh and try again.'
+                : 'Loading data…';
+            const color = isDataInitialized ? 'red' : '#57708A';
+            resultsBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color: ${color};">${message}</td></tr>`;
+        }
     }
 }
     
@@ -1064,23 +1100,17 @@ function setupScreenshotButton() {
         screenshotBtn.disabled = true;
 
         const options = {
-            // We no longer need to set width/height here.
-            // The library will calculate it from the modified clone.
-            
             onclone: (documentClone) => {
-                // Find the elements within the cloned document
                 const headerToHide = documentClone.querySelector('.results-header');
                 const containerClone = documentClone.getElementById('main-container');
 
-                // 1. Hide the header section as before
                 if (headerToHide) {
                     headerToHide.style.display = 'none';
                 }
 
-                // 2. Shrink-wrap the main container to fit its content
                 if (containerClone) {
                     containerClone.style.width = 'fit-content';
-                    containerClone.style.maxWidth = 'none'; // Remove any max-width constraints
+                    containerClone.style.maxWidth = 'none';
                 }
             }
         };
@@ -1094,7 +1124,7 @@ function setupScreenshotButton() {
                 }).catch(err => {
                     console.error('Failed to copy to clipboard:', err);
                     alert('Could not copy to clipboard. The image will be downloaded instead.');
-                    
+
                     const link = document.createElement('a');
                     link.href = URL.createObjectURL(blob);
                     link.download = 'calculator-screenshot.png';
@@ -1120,12 +1150,33 @@ function setupScreenshotButton() {
     const mainContainer = document.getElementById('main-container');
     const viewToggleButton = document.getElementById('view-toggle-btn');
 
+    const applyViewMode = (mode) => {
+        if (!mainContainer || !viewToggleButton) {
+            return;
+        }
+
+        if (mode === 'dashboard') {
+            mainContainer.classList.add('screenshot-mode');
+        } else {
+            mainContainer.classList.remove('screenshot-mode');
+        }
+
+        viewToggleButton.textContent = mode === 'dashboard'
+            ? 'Switch to Simple View'
+            : 'Switch to Dashboard View';
+    };
+
+    let currentViewMode = initialViewMode || 'dashboard';
+    applyViewMode(currentViewMode);
+
     // --- Attach all event listeners ---
     setupScreenshotButton();
-    viewToggleButton.addEventListener('click', () => {
-        const isDashboard = mainContainer.classList.toggle('screenshot-mode');
-        viewToggleButton.textContent = isDashboard ? 'Switch to Simple View' : 'Switch to Dashboard View';
-    });
+    if (viewToggleButton) {
+        viewToggleButton.addEventListener('click', () => {
+            currentViewMode = currentViewMode === 'dashboard' ? 'simple' : 'dashboard';
+            applyViewMode(currentViewMode);
+        });
+    }
     document.getElementById('generate-pdf-btn').addEventListener('click', generatePdf);
     document.getElementById('generate-document-btn').addEventListener('click', generateDocument);
     document.getElementById('quote-to-monday-btn').addEventListener('click', () => sendDataToMake('quote'));
@@ -1200,11 +1251,19 @@ function setupScreenshotButton() {
     });
 
     // --- Initial Setup ---
+    const resultsBody = document.getElementById('results-tbody');
+    if (resultsBody) {
+        resultsBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color: #57708A;">Loading data…</td></tr>`;
+    }
+
     await loadPrices(); // Use await here
     await loadCoverageData(); // Load coverage data from database
     setupSettingsModal();
     populateSupportTable();
     toggleMultiFloorUI();
+
+    isDataInitialized = true;
+    updateAltPricingIndicator();
 
     // --- Final Calculation Logic ---
     if (!stateLoaded) {
@@ -1213,30 +1272,35 @@ function setupScreenshotButton() {
 
     calculateCoverageRequirements(); 
 
-    // Test the radius display after a short delay
-    setTimeout(() => {
-        const testElement = document.getElementById('average-radius');
-        if (testElement) {
-            console.log('Test: Found average-radius element, content:', testElement.textContent);
-            // Force a calculation after everything is loaded
-            calculateCoverageRequirements();
-        } else {
-            console.log('Test: average-radius element not found');
-        }
-    }, 500);
-
-    // Default to dashboard view only if no state was loaded from URL
-    if (!stateLoaded) {
-        mainContainer.classList.add('screenshot-mode');
-        viewToggleButton.textContent = 'Switch to Simple View';
-    } else {
-        // If state was loaded, check current mode and set button text accordingly
-        const isDashboard = mainContainer.classList.contains('screenshot-mode');
-        viewToggleButton.textContent = isDashboard ? 'Switch to Simple View' : 'Switch to Dashboard View';
+    if (pendingShareOverrides && Object.keys(pendingShareOverrides).length > 0) {
+        setTimeout(() => applyPendingShareOverrides(), 0);
     }
+
+    if (!stateLoaded) {
+        // Test the radius display after a short delay
+        setTimeout(() => {
+            const testElement = document.getElementById('average-radius');
+            if (testElement) {
+                console.log('Test: Found average-radius element, content:', testElement.textContent);
+                // Force a calculation after everything is loaded
+                calculateCoverageRequirements();
+            } else {
+                console.log('Test: average-radius element not found');
+            }
+        }, 500);
+    }
+
+    if (!initialViewMode) {
+        initialViewMode = 'dashboard';
+    }
+
+    currentViewMode = initialViewMode;
+    applyViewMode(currentViewMode);
     
     // Setup high ceiling warehouse functionality
     setupHighCeilingControls();
+
+    updateAltPricingIndicator();
 }
 
 // Function to handle high ceiling warehouse controls
@@ -1596,7 +1660,19 @@ async function generatePdf() {
     const originalText = button.innerHTML;
 
     try {
-        // 1. Gather all input values into a state object
+        button.disabled = true;
+        button.innerHTML = 'Generating...';
+
+        const mainContainer = document.getElementById('main-container');
+        const activePresetButton = document.querySelector('.support-presets-main button.active-preset');
+        const filteredSupportOverrides = Object.keys(supportPriceOverrides).reduce((acc, tier) => {
+            const value = supportPriceOverrides[tier];
+            if (value !== null && value !== undefined) {
+                acc[tier] = value;
+            }
+            return acc;
+        }, {});
+
         const state = {
             inputs: {
                 'customer-name': document.getElementById('customer-name').value,
@@ -1617,26 +1693,45 @@ async function generatePdf() {
                 'no-hardware-checkbox': document.getElementById('no-hardware-checkbox').checked,
                 'referral-fee-percent': document.getElementById('referral-fee-percent').value,
                 'maintenance-percent': document.getElementById('maintenance-percent').value,
+                'include-survey-checkbox': document.getElementById('include-survey-checkbox').checked,
+                'total-service-antennas': document.getElementById('total-service-antennas').value,
             },
-            overrides: {}
+            overrides: {},
+            support: {
+                activePreset: activePresetButton ? activePresetButton.id.replace('support-preset-', '') : null,
+                priceOverrides: filteredSupportOverrides
+            },
+            pricing: {
+                useAltPricing
+            },
+            flags: {
+                showZeroQuantityItems,
+                viewMode: mainContainer && mainContainer.classList.contains('screenshot-mode') ? 'dashboard' : 'simple'
+            }
         };
 
-        // 2. Gather all quantity overrides
         for (const key in currentResults) {
             if (currentResults[key].override !== null) {
                 state.overrides[key] = currentResults[key].override;
             }
         }
 
-        // 3. Compress and encode the state using a more robust method
         const jsonString = JSON.stringify(state);
-        const compressed = pako.deflate(jsonString); // Produces a Uint8Array
-        const encodedState = btoa(String.fromCharCode.apply(null, compressed));
+        const compressed = pako.deflate(jsonString);
+        let binary = '';
+        const chunkSize = 0x8000;
+        for (let i = 0; i < compressed.length; i += chunkSize) {
+            binary += String.fromCharCode.apply(null, compressed.subarray(i, i + chunkSize));
+        }
+        const encodedState = btoa(binary);
 
-        // 4. Create the final shareable URL
+        try {
+            sessionStorage.setItem(SHARE_STATE_STORAGE_KEY, encodedState);
+        } catch (storageError) {
+            console.warn('Unable to cache share-state in sessionStorage:', storageError);
+        }
+
         const shareUrl = `${window.location.origin}${window.location.pathname}#${encodedState}`;
-
-        // 5. Copy the URL to the clipboard and update the button
         await navigator.clipboard.writeText(shareUrl);
         button.innerHTML = 'Link Copied! ✅';
 
@@ -1646,6 +1741,7 @@ async function generatePdf() {
     } finally {
         setTimeout(() => {
             button.innerHTML = originalText;
+            button.disabled = false;
         }, 3000);
     }
 }
@@ -1693,13 +1789,25 @@ async function generateInteractiveLink() {
 }
     
    function loadStateFromURL() {
-    if (!window.location.hash) return false;
+    let encodedState = window.location.hash.substring(1);
+    if (encodedState) {
+        try {
+            sessionStorage.setItem(SHARE_STATE_STORAGE_KEY, encodedState);
+        } catch (storageError) {
+            console.warn('Unable to cache share-state in sessionStorage:', storageError);
+        }
+    } else {
+        try {
+            encodedState = sessionStorage.getItem(SHARE_STATE_STORAGE_KEY) || '';
+        } catch (storageError) {
+            console.warn('Unable to read share-state from sessionStorage:', storageError);
+            encodedState = '';
+        }
+    }
+
+    if (!encodedState) return false;
 
     try {
-        const encodedState = window.location.hash.substring(1);
-        if (!encodedState) return false;
-
-        // 1. Decode and decompress using a more robust method
         const compressedString = atob(encodedState);
         const compressed = new Uint8Array(compressedString.length);
         for (let i = 0; i < compressedString.length; i++) {
@@ -1708,27 +1816,32 @@ async function generateInteractiveLink() {
         const jsonString = pako.inflate(compressed, { to: 'string' });
         const state = JSON.parse(jsonString);
 
-        // 2. Apply all the saved input values
+        let maintenanceFromState = null;
+        if (state.inputs && Object.prototype.hasOwnProperty.call(state.inputs, 'maintenance-percent')) {
+            maintenanceFromState = state.inputs['maintenance-percent'];
+        }
+
         if (state.inputs) {
             for (const id in state.inputs) {
                 const element = document.getElementById(id);
                 if (element) {
                     if (element.type === 'checkbox' || element.type === 'radio') {
-                         if(element.value === state.inputs[id] || typeof state.inputs[id] === 'boolean') {
+                        if (element.value === state.inputs[id] || typeof state.inputs[id] === 'boolean') {
                             element.checked = state.inputs[id];
-                         }
+                        }
                     } else {
                         element.value = state.inputs[id];
                     }
-                } else { // Handle radio buttons by name
-                     const radio = document.querySelector(`input[name="${id}"][value="${state.inputs[id]}"]`);
-                     if(radio) radio.checked = true;
+                } else {
+                    const radio = document.querySelector(`input[name="${id}"][value="${state.inputs[id]}"]`);
+                    if (radio) radio.checked = true;
                 }
             }
         }
 
-        // 3. Apply all the saved quantity overrides
         if (state.overrides) {
+            pendingShareOverrides = { ...state.overrides };
+            isApplyingShareState = true;
             for (const key in state.overrides) {
                 if (!currentResults[key]) {
                     currentResults[key] = { calculated: 0, override: null, decimals: 0, unit: '' };
@@ -1737,14 +1850,81 @@ async function generateInteractiveLink() {
             }
         }
 
-        // 4. Clear the hash from the URL for a cleaner look
-        history.pushState("", document.title, window.location.pathname + window.location.search);
-        return true; // State was successfully loaded
+        if (state.support) {
+            if (state.support.priceOverrides) {
+                supportPriceOverrides = { ...supportPriceOverrides, ...state.support.priceOverrides };
+            }
+            if (state.support.activePreset) {
+                setSupportPreset(state.support.activePreset);
+            }
+        }
+
+        if (state.pricing && Object.prototype.hasOwnProperty.call(state.pricing, 'useAltPricing')) {
+            useAltPricing = !!state.pricing.useAltPricing;
+            updateAltPricingIndicator();
+        }
+
+        if (state.flags) {
+            if (Object.prototype.hasOwnProperty.call(state.flags, 'showZeroQuantityItems')) {
+                showZeroQuantityItems = !!state.flags.showZeroQuantityItems;
+                const toggleButton = document.getElementById('toggle-zero-qty-btn');
+                if (toggleButton) {
+                    toggleButton.textContent = showZeroQuantityItems ? 'Hide Zero Qty Items' : 'Show All Items';
+                }
+            }
+            if (Object.prototype.hasOwnProperty.call(state.flags, 'viewMode')) {
+                initialViewMode = state.flags.viewMode === 'simple' ? 'simple' : 'dashboard';
+            }
+        }
+
+        if (!initialViewMode) {
+            initialViewMode = 'dashboard';
+        }
+
+        if (maintenanceFromState !== null) {
+            const maintenanceField = document.getElementById('maintenance-percent');
+            if (maintenanceField) {
+                maintenanceField.value = maintenanceFromState;
+            }
+        }
+
+        if (window.location.hash) {
+            history.replaceState('', document.title, window.location.pathname + window.location.search);
+        }
+
+        return true;
 
     } catch (error) {
-        console.error("Failed to load state from URL:", error);
+        console.error('Failed to load state from URL:', error);
         return false;
     }
+}
+
+function applyPendingShareOverrides() {
+    if (!pendingShareOverrides || Object.keys(pendingShareOverrides).length === 0) {
+        isApplyingShareState = false;
+        return;
+    }
+
+    isApplyingShareState = true;
+    let appliedAny = false;
+    for (const key in pendingShareOverrides) {
+        if (!Object.prototype.hasOwnProperty.call(pendingShareOverrides, key)) continue;
+        const overrideValue = pendingShareOverrides[key];
+        if (!currentResults[key]) {
+            currentResults[key] = { calculated: 0, override: null, decimals: 0, unit: '' };
+        }
+        currentResults[key].override = overrideValue;
+        appliedAny = true;
+    }
+
+    pendingShareOverrides = null;
+
+    if (appliedAny) {
+        runFullCalculation();
+    }
+
+    isApplyingShareState = false;
 }
     
 
