@@ -3,13 +3,19 @@ import { FieldValue } from "firebase-admin/firestore";
 import ProposalClient from "./ProposalClient";
 import { getAdminFirestore } from "@/lib/firebaseAdmin";
 
+export interface DecodedProposal {
+  [key: string]: unknown;
+}
+
 interface ProposalPageProps {
   params: Promise<{ slug: string }> | { slug: string };
   searchParams: Promise<Record<string, string | string[] | undefined>> | Record<string, string | string[] | undefined>;
 }
 
-export interface DecodedProposal {
-  [key: string]: unknown;
+interface ProposalLoadResult {
+  proposal: DecodedProposal | null;
+  introduction: string | null;
+  error: string | null;
 }
 
 const PROPOSAL_HINT_KEYS = [
@@ -40,9 +46,9 @@ const hasLikelyProposalShape = (value: unknown): value is DecodedProposal => {
   return PROPOSAL_HINT_KEYS.some((key) => key in value);
 };
 
-function decodePayload(encoded: string | undefined): { proposal: DecodedProposal | null; error: string | null } {
+function decodePayload(encoded: string | undefined): ProposalLoadResult {
   if (!encoded) {
-    return { proposal: null, error: "No payload provided." };
+    return { proposal: null, introduction: null, error: "No payload provided." };
   }
 
   try {
@@ -51,27 +57,27 @@ function decodePayload(encoded: string | undefined): { proposal: DecodedProposal
     const parsed = JSON.parse(json) as unknown;
 
     if (hasLikelyProposalShape(parsed)) {
-      return { proposal: parsed, error: null };
+      return { proposal: parsed, introduction: null, error: null };
     }
 
     if (isRecord(parsed) && hasLikelyProposalShape(parsed["proposal"])) {
-      return { proposal: parsed["proposal"] as DecodedProposal, error: null };
+      return { proposal: parsed["proposal"] as DecodedProposal, introduction: null, error: null };
     }
 
     if (isRecord(parsed) && ("inputs" in parsed || "overrides" in parsed || "support" in parsed)) {
-      return { proposal: null, error: "Decoded payload contained calculator state but no proposal data." };
+      return { proposal: null, introduction: null, error: "Decoded payload contained calculator state but no proposal data." };
     }
 
-    return { proposal: null, error: "Decoded payload did not contain proposal data." };
+    return { proposal: null, introduction: null, error: "Decoded payload did not contain proposal data." };
   } catch (err) {
     console.error("Failed to decode proposal payload", err);
-    return { proposal: null, error: "Could not decode proposal payload." };
+    return { proposal: null, introduction: null, error: "Could not decode proposal payload." };
   }
 }
 
-async function loadProposalFromFirestore(slug: string): Promise<{ proposal: DecodedProposal | null; error: string | null }> {
+async function loadProposalFromFirestore(slug: string): Promise<ProposalLoadResult> {
   if (!slug) {
-    return { proposal: null, error: "Proposal slug is required." };
+    return { proposal: null, introduction: null, error: "Proposal slug is required." };
   }
 
   try {
@@ -80,7 +86,7 @@ async function loadProposalFromFirestore(slug: string): Promise<{ proposal: Deco
     const snapshot = await docRef.get();
 
     if (!snapshot.exists) {
-      return { proposal: null, error: `Proposal not found for slug "${slug}".` };
+      return { proposal: null, introduction: null, error: `Proposal not found for slug "${slug}".` };
     }
 
     const data = snapshot.data() ?? {};
@@ -92,36 +98,45 @@ async function loadProposalFromFirestore(slug: string): Promise<{ proposal: Deco
       console.error(`Failed to increment view count for slug ${slug}`, err);
     }
     const encodedState = typeof data.encodedState === "string" ? data.encodedState : undefined;
-  const storedProposalRaw = data.proposal as unknown;
-  const storedProposal = hasLikelyProposalShape(storedProposalRaw) ? (storedProposalRaw as DecodedProposal) : null;
-  const storedProposalFallback = isRecord(storedProposalRaw) ? (storedProposalRaw as DecodedProposal) : null;
+    const storedProposalRaw = data.proposal as unknown;
+    const storedProposal = hasLikelyProposalShape(storedProposalRaw) ? (storedProposalRaw as DecodedProposal) : null;
+    const storedProposalFallback = isRecord(storedProposalRaw) ? (storedProposalRaw as DecodedProposal) : null;
+    const introduction = typeof data.introduction === "string" ? data.introduction : null;
 
     if (storedProposal) {
-      return { proposal: storedProposal, error: null };
+      return { proposal: storedProposal, introduction, error: null };
     }
 
     if (encodedState) {
       const decoded = decodePayload(encodedState);
       if (decoded.proposal) {
-        return decoded;
+        return { proposal: decoded.proposal, introduction, error: decoded.error };
       }
 
       if (storedProposalFallback) {
-        return { proposal: storedProposalFallback, error: decoded.error };
+        return { proposal: storedProposalFallback, introduction, error: decoded.error };
       }
 
-      return decoded;
+      return { proposal: decoded.proposal, introduction, error: decoded.error };
     }
 
     if (storedProposalFallback) {
-      return { proposal: storedProposalFallback, error: "Proposal document contains unrecognised proposal data." };
+      return {
+        proposal: storedProposalFallback,
+        introduction,
+        error: "Proposal document contains unrecognised proposal data.",
+      };
     }
 
-    return { proposal: null, error: `Proposal document for slug "${slug}" is missing payload data.` };
+    return {
+      proposal: null,
+      introduction,
+      error: `Proposal document for slug "${slug}" is missing payload data.`,
+    };
   } catch (err) {
     console.error(`Failed to load proposal for slug ${slug}`, err);
     const message = err instanceof Error ? err.message : "Unknown error while loading proposal.";
-    return { proposal: null, error: `Failed to load proposal: ${message}` };
+    return { proposal: null, introduction: null, error: `Failed to load proposal: ${message}` };
   }
 }
 
@@ -141,5 +156,12 @@ export default async function ProposalPage(props: ProposalPageProps) {
     }
   }
 
-  return <ProposalClient slug={resolvedParams.slug} proposal={result.proposal} error={result.error} />;
+  return (
+    <ProposalClient
+      slug={resolvedParams.slug}
+      proposal={result.proposal}
+      introduction={result.introduction}
+      error={result.error}
+    />
+  );
 }

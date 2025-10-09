@@ -1,7 +1,7 @@
 import { FieldValue, type Query, type CollectionReference } from "firebase-admin/firestore";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { verifyFirebaseToken, resolveBearerToken } from "@/lib/auth";
+import { verifyFirebaseToken, resolveBearerToken, UnauthorizedDomainError } from "@/lib/auth";
 import { handleCorsPreflight, withCors } from "@/lib/cors";
 import { getAdminFirestore } from "@/lib/firebaseAdmin";
 import {
@@ -12,6 +12,7 @@ import {
   sanitizeSlug,
   randomSlug,
 } from "@/lib/proposalUtils";
+import { buildDefaultIntroduction, INTRODUCTION_MAX_LENGTH, normalizeIntroductionInput } from "@/lib/proposalCopy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,6 +28,7 @@ const CreateProposalSchema = z.object({
   tags: z.array(z.string().min(1).max(MAX_TAG_LENGTH)).max(20).optional(),
   expiresAt: z.union([z.string().min(1), z.null()]).optional(),
   isArchived: z.boolean().optional(),
+  introduction: z.string().max(INTRODUCTION_MAX_LENGTH).optional(),
 });
 
 const normalizeNotes = (value: unknown): string => {
@@ -84,6 +86,44 @@ const parseExpiresAt = (value: unknown): Date | null | undefined => {
   return date;
 };
 
+const extractFirstName = (displayName: string | null | undefined, email: string | null | undefined): string | null => {
+  const fromDisplayName = displayName?.trim();
+  if (fromDisplayName) {
+    const [firstSegment] = fromDisplayName.split(/\s+/);
+    if (firstSegment) {
+      return firstSegment.trim() || null;
+    }
+  }
+  const fromEmail = email?.trim();
+  if (fromEmail) {
+    const [prefix] = fromEmail.split("@");
+    return prefix?.trim() || null;
+  }
+  return null;
+};
+
+const sanitizeUserInfo = (
+  value: unknown,
+): { displayName: string | null; email: string | null; firstName: string | null } | null => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const maybeRecord = value as Record<string, unknown>;
+  const displayName = typeof maybeRecord.displayName === "string" ? maybeRecord.displayName : null;
+  const email = typeof maybeRecord.email === "string" ? maybeRecord.email : null;
+  const firstNameCandidate = typeof maybeRecord.firstName === "string" ? maybeRecord.firstName : null;
+  const derivedFirstName = (() => {
+    if (firstNameCandidate) {
+      return firstNameCandidate.trim() || null;
+    }
+    return extractFirstName(displayName, email);
+  })();
+  if (!displayName && !email && !derivedFirstName) {
+    return null;
+  }
+  return { displayName, email, firstName: derivedFirstName };
+};
+
 const ensureAuthenticated = async (request: NextRequest, origin: string | null) => {
   const token = resolveBearerToken(request);
   if (!token) {
@@ -93,6 +133,15 @@ const ensureAuthenticated = async (request: NextRequest, origin: string | null) 
     const context = await verifyFirebaseToken(token);
     return { context };
   } catch (error) {
+    if (error instanceof UnauthorizedDomainError) {
+      console.warn("Unauthorized domain attempted to access admin API", error.email);
+      return {
+        error: withCors(
+          NextResponse.json({ error: "Access restricted to uctel.co.uk accounts" }, { status: 403 }),
+          origin,
+        ),
+      };
+    }
     console.error("Failed to verify Firebase token", error);
     return { error: withCors(NextResponse.json({ error: "Invalid authentication token" }, { status: 401 }), origin) };
   }
@@ -167,9 +216,15 @@ export const POST = async (request: NextRequest) => {
   const collection = firestore.collection("proposals");
   let docRef = collection.doc(slug);
   let snapshot = await docRef.get();
+  const existingData = snapshot.exists ? snapshot.data() : null;
+  const hasExistingIntroduction = typeof existingData?.introduction === "string";
+  const existingIntroduction = hasExistingIntroduction ? (existingData!.introduction as string) : null;
+
+  const normalizedIntroduction = normalizeIntroductionInput(body.introduction);
+  const defaultIntroduction = buildDefaultIntroduction(body.proposal as ProposalPayload);
+  let introductionResponse = existingIntroduction ?? defaultIntroduction;
 
   if (snapshot.exists) {
-    const existingData = snapshot.data();
     const previousSolution = normalizeSolutionType(existingData?.metadata?.solutionType);
     const incomingSolution = normalizeSolutionType(metadata.solutionType);
 
@@ -213,6 +268,7 @@ export const POST = async (request: NextRequest) => {
     uid: context.uid,
     email: context.email ?? null,
     displayName: context.displayName ?? null,
+    firstName: extractFirstName(context.displayName ?? null, context.email ?? null),
   };
 
   const payload = {
@@ -232,7 +288,6 @@ export const POST = async (request: NextRequest) => {
     updatedBy: userSnapshot,
   };
 
-  const existingData = snapshot.exists ? snapshot.data() : null;
   const existingViewCount = typeof existingData?.viewCount === "number" ? existingData.viewCount : 0;
   const existingDownloadCount = typeof existingData?.downloadCount === "number" ? existingData.downloadCount : 0;
   const existingExpiresAt = (() => {
@@ -266,9 +321,17 @@ export const POST = async (request: NextRequest) => {
     if (hasArchivedFlag) {
       updates.isArchived = body.isArchived ?? false;
     }
+    if (normalizedIntroduction !== undefined) {
+      updates.introduction = normalizedIntroduction;
+      introductionResponse = normalizedIntroduction;
+    } else if (!hasExistingIntroduction) {
+      updates.introduction = defaultIntroduction;
+      introductionResponse = defaultIntroduction;
+    }
 
     await docRef.update(updates);
   } else {
+    const introductionForCreate = normalizedIntroduction ?? existingIntroduction ?? defaultIntroduction;
     await docRef.set({
       ...payload,
       createdAt: timestamp,
@@ -285,7 +348,9 @@ export const POST = async (request: NextRequest) => {
         lastGeneratedAt: null,
         error: null,
       },
+      introduction: introductionForCreate,
     });
+    introductionResponse = introductionForCreate;
   }
 
   const siteOrigin = request.nextUrl.origin;
@@ -304,6 +369,7 @@ export const POST = async (request: NextRequest) => {
   const responseIsArchived = hasArchivedFlag
     ? (body.isArchived ?? false)
     : Boolean(existingData?.isArchived);
+  const responseCreatedBy = sanitizeUserInfo(existingData?.createdBy) ?? sanitizeUserInfo(userSnapshot);
 
   return withCors(NextResponse.json({
     slug,
@@ -315,6 +381,8 @@ export const POST = async (request: NextRequest) => {
     isArchived: responseIsArchived,
     viewCount: snapshot.exists ? existingViewCount : 0,
     downloadCount: snapshot.exists ? existingDownloadCount : 0,
+    introduction: introductionResponse,
+    createdBy: responseCreatedBy,
   }), requestOrigin);
 };
 
@@ -363,6 +431,10 @@ export const GET = async (request: NextRequest) => {
     const tags = Array.isArray(data.tags) ? data.tags.filter((tag: unknown): tag is string => typeof tag === "string") : [];
     const viewCount = typeof data.viewCount === "number" ? data.viewCount : 0;
     const downloadCount = typeof data.downloadCount === "number" ? data.downloadCount : 0;
+    const proposalData = data.proposal && typeof data.proposal === "object" && !Array.isArray(data.proposal)
+      ? (data.proposal as Record<string, unknown>)
+      : null;
+    const createdBy = sanitizeUserInfo(data.createdBy);
     return {
       slug: doc.id,
       metadata: data.metadata ?? null,
@@ -375,6 +447,10 @@ export const GET = async (request: NextRequest) => {
       isArchived: Boolean(data.isArchived),
       viewCount,
       downloadCount,
+      introduction: typeof data.introduction === "string"
+        ? data.introduction
+        : buildDefaultIntroduction(proposalData),
+      createdBy,
     };
   });
 

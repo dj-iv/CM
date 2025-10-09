@@ -8,12 +8,14 @@ import { useEffect, useMemo, useState } from "react";
 import { createPdfDownloadHandler } from "./pdfExport";
 import type { DecodedProposal } from "./page";
 import "./proposal.css";
+import { buildDefaultIntroduction } from "@/lib/proposalCopy";
 
 type SupportTier = "bronze" | "silver" | "gold";
 
 interface ProposalClientProps {
   slug: string;
   proposal: DecodedProposal | null;
+  introduction: string | null;
   error: string | null;
 }
 
@@ -286,7 +288,7 @@ const updateProposalOutline = (container: HTMLElement, tocList: HTMLElement): vo
   });
 };
 
-export default function ProposalClient({ slug, proposal, error }: ProposalClientProps) {
+export default function ProposalClient({ slug, proposal, introduction, error }: ProposalClientProps) {
   const [selectedTier, setSelectedTier] = useState<SupportTier | null>(null);
   const supportRowClass = (tier: SupportTier) =>
     selectedTier === tier ? "support-tier-option selected" : "support-tier-option";
@@ -478,6 +480,11 @@ export default function ProposalClient({ slug, proposal, error }: ProposalClient
   };
 
   const hasProposal = Boolean(proposal);
+  const introductionHtml = useMemo(() => {
+    const stored = typeof introduction === "string" ? introduction.trim() : "";
+    const base = stored || buildDefaultIntroduction(proposal);
+    return base.replace(/\n/g, "<br />");
+  }, [introduction, proposal]);
 
   return (
     <>
@@ -557,9 +564,7 @@ export default function ProposalClient({ slug, proposal, error }: ProposalClient
               <h2>
                 <i className="fa-solid fa-circle-info" /> Introduction
               </h2>
-              <p>
-                UCtel is pleased to present this proposal to provide a comprehensive mobile signal solution for <strong>{getField("Account", "your organisation")}</strong>, designed to deliver reliable, high-quality indoor coverage for your staff and visitors. Coverage is required over {getField("NumberOfNetworks", "") || "—"} of the UK Mobile Network Operators (MNOs) – EE, O2, Vodafone and Three (3). Based on the information provided, UCtel proposes the use of the CEL-FI {getField("Solution", "Solution")} solution. This document sets out the details of the proposed solution, UCtel’s approach and budgetary pricing.
-              </p>
+              <p dangerouslySetInnerHTML={{ __html: introductionHtml }} />
               <h3>About UCtel</h3>
               <p>UCtel specialises in the design, installation and management of in-building mobile signal systems.</p>
               <h4 className="no-number">Why UCtel:</h4>

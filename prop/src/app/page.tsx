@@ -6,8 +6,11 @@ import {
   signInWithPopup,
   signOut,
 } from "firebase/auth";
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getFirebaseAuth } from "@/lib/firebaseClient";
+import { ALLOWED_EMAIL_DOMAINS, isEmailAllowed } from "@/lib/accessControl";
+import { INTRODUCTION_MAX_LENGTH } from "@/lib/proposalCopy";
 
 type ProposalMetadata = {
   customerName?: string;
@@ -24,12 +27,12 @@ type ProposalListItem = {
   createdAt: string | null;
   updatedAt: string | null;
   pdf: { status?: string | null } | null;
-  notes?: string;
-  tags?: string[];
   expiresAt?: string | null;
   isArchived?: boolean;
   viewCount?: number;
   downloadCount?: number;
+  createdBy?: { firstName?: string | null; displayName: string | null; email: string | null } | null;
+  introduction?: string | null;
 };
 
 type Toast = {
@@ -37,9 +40,6 @@ type Toast = {
   type: "success" | "error";
   message: string;
 };
-
-const MAX_TAG_LENGTH = 40;
-const TOAST_DISMISS_MS = 4000;
 
 const formatCurrency = (value: number | null | undefined): string => {
   if (typeof value !== "number" || Number.isNaN(value)) {
@@ -85,23 +85,6 @@ const formatExpiry = (iso: string | null | undefined): string => {
   });
 };
 
-const parseTagsInput = (raw: string): string[] => {
-  const seen = new Set<string>();
-  return raw
-    .split(",")
-    .map((tag) => tag.trim())
-    .filter((tag) => tag.length > 0 && tag.length <= MAX_TAG_LENGTH)
-    .filter((tag) => {
-      const key = tag.toLowerCase();
-      if (seen.has(key)) {
-        return false;
-      }
-      seen.add(key);
-      return true;
-    })
-    .slice(0, 20);
-};
-
 const buildQueryString = (search: string): string => {
   const params = new URLSearchParams({ limit: "200" });
   const trimmed = search.trim();
@@ -139,8 +122,7 @@ export default function Home() {
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [detailSlug, setDetailSlug] = useState<string | null>(null);
-  const [notesDraft, setNotesDraft] = useState("");
-  const [tagsDraft, setTagsDraft] = useState("");
+  const [introductionDraft, setIntroductionDraft] = useState("");
   const [expiryDraft, setExpiryDraft] = useState("");
   const [detailDirty, setDetailDirty] = useState(false);
   const [detailSaving, setDetailSaving] = useState(false);
@@ -183,6 +165,14 @@ export default function Home() {
         return;
       }
       if (firebaseUser) {
+        if (!isEmailAllowed(firebaseUser.email)) {
+          const message = `Access restricted to ${ALLOWED_EMAIL_DOMAINS.join(", ")} accounts`;
+          setAuthError(message);
+          pushToast({ type: "error", message });
+          await signOut(auth);
+          setAuthReady(true);
+          return;
+        }
         setCurrentUserEmail(firebaseUser.email ?? firebaseUser.displayName ?? firebaseUser.uid);
         const token = await firebaseUser.getIdToken();
         setAuthToken(token);
@@ -211,7 +201,7 @@ export default function Home() {
       }
       window.clearInterval(refreshInterval);
     };
-  }, []);
+  }, [pushToast]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -245,7 +235,9 @@ export default function Home() {
 
       if (!response.ok) {
         const errorMessage = await readErrorMessage(response);
-        throw new Error(errorMessage);
+        const error: Error & { status?: number } = new Error(errorMessage);
+        error.status = response.status;
+        throw error;
       }
 
       const data = await response.json();
@@ -254,6 +246,7 @@ export default function Home() {
         ...item,
         viewCount: typeof item.viewCount === "number" ? item.viewCount : 0,
         downloadCount: typeof item.downloadCount === "number" ? item.downloadCount : 0,
+        createdBy: item.createdBy ?? null,
       }));
       setProposals(normalised);
     } catch (error) {
@@ -261,7 +254,18 @@ export default function Home() {
         return;
       }
       console.error("Failed to load proposals", error);
-      setListError((error as Error).message || "Unable to load proposals");
+      const message = (error as Error).message || "Unable to load proposals";
+      setListError(message);
+      const status = (error as { status?: number }).status;
+      if (status === 401 || status === 403) {
+        setAuthError(message);
+        try {
+          const auth = getFirebaseAuth();
+          await signOut(auth);
+        } catch (signOutError) {
+          console.warn("Failed to sign out after unauthorized response", signOutError);
+        }
+      }
     } finally {
       setListLoading(false);
     }
@@ -294,8 +298,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!detailSlug) {
-      setNotesDraft("");
-      setTagsDraft("");
+      setIntroductionDraft("");
       setExpiryDraft("");
       setDetailDirty(false);
       return;
@@ -311,8 +314,7 @@ export default function Home() {
       return;
     }
 
-    setNotesDraft(next.notes ?? "");
-    setTagsDraft((next.tags ?? []).join(", "));
+    setIntroductionDraft(typeof next.introduction === "string" ? next.introduction : "");
     setExpiryDraft(next.expiresAt ? next.expiresAt.slice(0, 10) : "");
   }, [detailSlug, proposals, detailDirty]);
 
@@ -467,10 +469,8 @@ export default function Home() {
       return;
     }
 
-    const tags = parseTagsInput(tagsDraft);
     const payload: Record<string, unknown> = {
-      notes: notesDraft,
-      tags,
+      introduction: introductionDraft,
     };
 
     if (expiryDraft) {
@@ -501,11 +501,10 @@ export default function Home() {
       }
 
       const result = await response.json();
-      const nextNotes = typeof result.notes === "string" ? result.notes : (payload.notes as string) ?? "";
-      const nextTags = Array.isArray(result.tags) ? result.tags : tags;
       const nextExpiresAt = typeof result.expiresAt === "string" || result.expiresAt === null
         ? result.expiresAt
         : (payload.expiresAt as string | null | undefined) ?? null;
+      const nextIntroduction = typeof result.introduction === "string" ? result.introduction : introductionDraft;
 
       setProposals((current) => current.map((proposal) => {
         if (proposal.slug !== detailSlug) {
@@ -513,12 +512,13 @@ export default function Home() {
         }
         return {
           ...proposal,
-          notes: nextNotes,
-          tags: nextTags,
           expiresAt: nextExpiresAt ?? null,
           isArchived: typeof result.isArchived === "boolean" ? result.isArchived : proposal.isArchived,
+          introduction: nextIntroduction,
         };
       }));
+
+      setIntroductionDraft(nextIntroduction);
 
       pushToast({ type: "success", message: "Proposal updated" });
       setDetailDirty(false);
@@ -531,6 +531,8 @@ export default function Home() {
   };
 
   const activeProposal = detailSlug ? proposals.find((item) => item.slug === detailSlug) : null;
+  const creatorDisplayName = activeProposal?.createdBy?.displayName?.trim() || null;
+  const creatorEmail = activeProposal?.createdBy?.email?.trim() || null;
 
   const renderAuthGate = () => {
     if (!authReady) {
@@ -543,20 +545,30 @@ export default function Home() {
 
     if (!authToken) {
       return (
-        <div className="flex h-screen flex-col items-center justify-center gap-6">
-          <h1 className="text-2xl font-semibold">UCtel Proposal Admin</h1>
-          <p className="text-center text-neutral-600 max-w-md">
-            Sign in with your UCtel Google account to manage saved proposals, add notes, and run bulk actions.
-          </p>
+        <div className="flex h-screen flex-col items-center justify-center gap-6 bg-[var(--background)] px-6 text-center text-[var(--foreground)]">
+          <Image
+            src="/images/uctel_logo.png"
+            alt="UCtel logo"
+            width={200}
+            height={60}
+            priority
+            className="h-14 w-auto"
+          />
+          <div className="max-w-md space-y-2">
+            <h1 className="text-2xl font-semibold text-[var(--uctel-navy)]">UCtel Proposal Admin</h1>
+            <p className="text-base text-[var(--muted-foreground)]">
+              Sign in with your UCtel Google account to manage proposals, update introductions, and export PDFs.
+            </p>
+          </div>
           <button
             type="button"
             onClick={handleSignIn}
-            className="rounded-md bg-blue-600 px-6 py-3 text-white shadow hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            className="uctel-primary rounded-md px-6 py-3 text-base font-semibold shadow focus:outline-none focus:ring-2 focus:ring-[rgba(28,139,157,0.35)] focus:ring-offset-2 focus:ring-offset-[var(--background)]"
           >
             Sign in with Google
           </button>
-            {authError && (
-              <p className="text-sm text-red-600">{authError}</p>
+          {authError && (
+            <p className="text-sm text-[#d8613b]">{authError}</p>
           )}
         </div>
       );
@@ -571,18 +583,30 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50 text-neutral-900">
-      <header className="flex flex-col gap-2 border-b border-neutral-200 bg-white px-6 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">Proposal management</h1>
-          <p className="text-sm text-neutral-600">Search, tag, and maintain saved proposals.</p>
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+      <header className="flex flex-col gap-4 border-b border-transparent bg-[var(--uctel-navy)] px-6 py-5 text-white shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-4">
+          <Image
+            src="/images/uctel_logo.png"
+            alt="UCtel logo"
+            width={160}
+            height={48}
+            priority
+            className="h-10 w-auto"
+          />
+          <div>
+            <h1 className="text-xl font-semibold text-white">Proposal management</h1>
+            <p className="text-sm text-white/75">Search, review, and maintain saved proposals.</p>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="text-sm text-neutral-600">{currentUserEmail}</div>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white/90">
+            {currentUserEmail ?? "UCtel admin"}
+          </span>
           <button
             type="button"
             onClick={handleSignOut}
-            className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
+            className="rounded-md border border-white/60 bg-white/0 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40 focus:ring-offset-2 focus:ring-offset-[var(--uctel-navy)]"
           >
             Sign out
           </button>
@@ -593,7 +617,7 @@ export default function Home() {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`pointer-events-auto rounded-md border px-4 py-3 shadow ${toast.type === "success" ? "border-green-200 bg-green-50 text-green-700" : "border-red-200 bg-red-50 text-red-700"}`}
+            className={`pointer-events-auto rounded-md border px-4 py-3 shadow transition ${toast.type === "success" ? "border-[#b7e3ea] bg-[#e9f6f8] text-[#1c8b9d]" : "border-[#f3c4aa] bg-[#fef0e6] text-[#d8613b]"}`}
           >
             <div className="flex items-start gap-3">
               <span className="flex-1 text-sm">{toast.message}</span>
@@ -601,7 +625,7 @@ export default function Home() {
                 type="button"
                 aria-label="Dismiss notification"
                 onClick={() => dismissToast(toast.id)}
-                className="rounded-full p-1 text-xs text-current/80 transition hover:bg-white/40"
+                className="rounded-full p-1 text-xs text-current/80 transition hover:bg-white/40 focus:outline-none focus:ring-2 focus:ring-current/30"
               >
                 ×
               </button>
@@ -611,20 +635,20 @@ export default function Home() {
       </div>
 
       <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-6">
-        <section className="flex flex-col gap-4 rounded-lg border border-neutral-200 bg-white p-5 shadow-sm">
+        <section className="flex flex-col gap-4 rounded-xl uctel-surface p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-1 items-center gap-3">
               <input
                 type="search"
-                placeholder="Search by customer, quote number, or tag"
+                placeholder="Search by customer, quote number, or keyword"
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
-                className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                className="w-full rounded-lg border border-[#cad7df] px-3 py-2 text-sm text-[var(--foreground)] shadow-sm focus:border-[var(--uctel-teal)] focus:outline-none focus:ring-2 focus:ring-[rgba(28,139,157,0.25)]"
               />
               <button
                 type="button"
                 onClick={() => loadProposals(authToken!, searchInput)}
-                className="hidden rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100 lg:inline-flex"
+                className="hidden rounded-lg border border-[#9bbccc] px-3 py-2 text-sm font-medium text-[var(--uctel-navy)] transition hover:bg-[#f0f7f9] lg:inline-flex"
               >
                 Refresh
               </button>
@@ -634,7 +658,7 @@ export default function Home() {
                 type="button"
                 onClick={() => handleBulkAction("archive", authToken!, Array.from(selected), loadProposals, debouncedSearch)}
                 disabled={!visibleSelectionCount || bulkLoading}
-                className="rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 disabled:cursor-not-allowed disabled:opacity-50 hover:bg-neutral-100"
+                className="uctel-outlined rounded-lg px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Archive
               </button>
@@ -642,7 +666,7 @@ export default function Home() {
                 type="button"
                 onClick={() => handleBulkAction("unarchive", authToken!, Array.from(selected), loadProposals, debouncedSearch)}
                 disabled={!visibleSelectionCount || bulkLoading}
-                className="rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 disabled:cursor-not-allowed disabled:opacity-50 hover:bg-neutral-100"
+                className="uctel-outlined rounded-lg px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Unarchive
               </button>
@@ -650,7 +674,7 @@ export default function Home() {
                 type="button"
                 onClick={() => handleBulkAction("set-expiry", authToken!, Array.from(selected), loadProposals, debouncedSearch)}
                 disabled={!visibleSelectionCount || bulkLoading}
-                className="rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 disabled:cursor-not-allowed disabled:opacity-50 hover:bg-neutral-100"
+                className="uctel-outlined rounded-lg px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Set expiry
               </button>
@@ -658,7 +682,7 @@ export default function Home() {
                 type="button"
                 onClick={() => handleBulkAction("clear-expiry", authToken!, Array.from(selected), loadProposals, debouncedSearch)}
                 disabled={!visibleSelectionCount || bulkLoading}
-                className="rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 disabled:cursor-not-allowed disabled:opacity-50 hover:bg-neutral-100"
+                className="uctel-outlined rounded-lg px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Clear expiry
               </button>
@@ -666,16 +690,16 @@ export default function Home() {
                 type="button"
                 onClick={() => handleBulkAction("delete", authToken!, Array.from(selected), loadProposals, debouncedSearch)}
                 disabled={!visibleSelectionCount || bulkLoading}
-                className="rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-600 disabled:cursor-not-allowed disabled:opacity-50 hover:bg-red-50"
+                className="rounded-lg border border-[#f3c4aa] px-3 py-2 text-sm font-medium text-[#d8613b] transition hover:bg-[#fef0e6] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Delete
               </button>
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-md border border-neutral-200">
-            <table className="min-w-full divide-y divide-neutral-200 text-sm">
-              <thead className="bg-neutral-50 text-left">
+          <div className="overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-white shadow-sm">
+            <table className="min-w-full divide-y divide-[var(--border-subtle)] text-sm">
+              <thead className="uctel-table-header text-left">
                 <tr>
                   <th className="w-12 px-3 py-2">
                     <input
@@ -689,7 +713,7 @@ export default function Home() {
                   <th className="px-3 py-2 font-semibold">Solution</th>
                   <th className="px-3 py-2 font-semibold">Networks</th>
                   <th className="px-3 py-2 font-semibold">Total</th>
-                  <th className="px-3 py-2 font-semibold">Notes</th>
+                  <th className="px-3 py-2 font-semibold">Owner</th>
                   <th className="px-3 py-2 font-semibold">Expiry</th>
                   <th className="px-3 py-2 font-semibold">Updated</th>
                   <th className="px-3 py-2 font-semibold text-center">Opens</th>
@@ -697,14 +721,17 @@ export default function Home() {
                   <th className="px-3 py-2 font-semibold text-center">Link</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-200">
+              <tbody className="divide-y divide-[var(--border-subtle)]">
                 {proposals.map((proposal) => {
                   const isSelected = selected.has(proposal.slug);
                   const isArchived = Boolean(proposal.isArchived);
+                  const isActive = detailSlug === proposal.slug;
                   return (
                     <tr
                       key={proposal.slug}
-                      className={`${isSelected ? "bg-blue-50" : "bg-white"} ${isArchived ? "opacity-70" : ""}`}
+                      className={`uctel-table-row cursor-pointer bg-white ${isArchived ? "opacity-70" : ""}`}
+                      data-selected={isSelected ? "true" : "false"}
+                      data-active={isActive ? "true" : "false"}
                       onClick={() => {
                         setDetailSlug((current) => (current === proposal.slug ? current : proposal.slug));
                         setDetailDirty(false);
@@ -722,33 +749,42 @@ export default function Home() {
                       </td>
                       <td className="px-3 py-3">
                         <div className="flex flex-col">
-                          <span className="font-medium text-neutral-900">{proposal.metadata?.customerName ?? "—"}</span>
+                          <span className="font-medium text-[var(--foreground)]">{proposal.metadata?.customerName ?? "—"}</span>
                           <a
                             href={`/${proposal.slug}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs font-medium text-blue-600 hover:underline"
+                            className="text-xs font-medium text-[var(--uctel-teal)] hover:underline"
                             onClick={(event) => event.stopPropagation()}
                           >
                             {proposal.slug}
                           </a>
-                          {isArchived && <span className="mt-1 inline-flex items-center rounded-md bg-neutral-200 px-2 py-0.5 text-[11px] font-medium uppercase text-neutral-700">Archived</span>}
+                          {isArchived && <span className="mt-1 inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium uppercase uctel-badge-accent">Archived</span>}
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-neutral-700">{proposal.metadata?.solutionType ?? "—"}</td>
-                      <td className="px-3 py-3 text-neutral-700">{typeof proposal.metadata?.numberOfNetworks === "number" ? proposal.metadata.numberOfNetworks : "—"}</td>
-                      <td className="px-3 py-3 text-neutral-700">{formatCurrency(proposal.metadata?.totalPrice ?? null)}</td>
-                      <td className="px-3 py-3 text-neutral-700">
-                        {proposal.notes?.trim() ? proposal.notes.trim().slice(0, 80) + (proposal.notes.trim().length > 80 ? "…" : "") : "—"}
+                      <td className="px-3 py-3 text-[var(--muted-foreground)]">{proposal.metadata?.solutionType ?? "—"}</td>
+                      <td className="px-3 py-3 text-[var(--muted-foreground)]">{typeof proposal.metadata?.numberOfNetworks === "number" ? proposal.metadata.numberOfNetworks : "—"}</td>
+                      <td className="px-3 py-3 text-[var(--muted-foreground)]">{formatCurrency(proposal.metadata?.totalPrice ?? null)}</td>
+                      <td className="px-3 py-3 text-[var(--muted-foreground)]">
+                        {(() => {
+                          const createdBy = proposal.createdBy;
+                          if (!createdBy) {
+                            return "—";
+                          }
+                          const preferred = (createdBy.firstName && createdBy.firstName.trim())
+                            || (createdBy.displayName && createdBy.displayName.trim())
+                            || (createdBy.email && createdBy.email.trim());
+                          return preferred || "—";
+                        })()}
                       </td>
-                      <td className="px-3 py-3 text-neutral-700">{formatExpiry(proposal.expiresAt)}</td>
-                      <td className="px-3 py-3 text-neutral-700">{formatDateTime(proposal.updatedAt)}</td>
-                      <td className="px-3 py-3 text-center text-neutral-700">{proposal.viewCount ?? 0}</td>
-                      <td className="px-3 py-3 text-center text-neutral-700">{proposal.downloadCount ?? 0}</td>
+                      <td className="px-3 py-3 text-[var(--muted-foreground)]">{formatExpiry(proposal.expiresAt)}</td>
+                      <td className="px-3 py-3 text-[var(--muted-foreground)]">{formatDateTime(proposal.updatedAt)}</td>
+                      <td className="px-3 py-3 text-center text-[var(--muted-foreground)]">{proposal.viewCount ?? 0}</td>
+                      <td className="px-3 py-3 text-center text-[var(--muted-foreground)]">{proposal.downloadCount ?? 0}</td>
                       <td className="px-3 py-3 text-center">
                         <button
                           type="button"
-                          className="inline-flex items-center justify-center rounded-full border border-neutral-300 bg-white p-2 text-neutral-600 hover:bg-neutral-100"
+                          className="inline-flex items-center justify-center rounded-full border border-[#cad7df] bg-white p-2 text-[var(--muted-foreground)] transition hover:bg-[#f3fbfd]"
                           onClick={(event) => {
                             event.stopPropagation();
                             void copyProposalLink(proposal.slug);
@@ -778,75 +814,48 @@ export default function Home() {
             </table>
 
             {!listLoading && !proposals.length && (
-              <div className="p-6 text-center text-sm text-neutral-500">No proposals found. Adjust your filters and try again.</div>
+              <div className="p-6 text-center text-sm text-[var(--muted-foreground)]">No proposals found. Adjust your filters and try again.</div>
             )}
             {listLoading && (
-              <div className="p-6 text-center text-sm text-neutral-500">Loading proposals…</div>
+              <div className="p-6 text-center text-sm text-[var(--muted-foreground)]">Loading proposals…</div>
             )}
             {listError && (
-              <div className="p-6 text-center text-sm text-red-600">{listError}</div>
+              <div className="p-6 text-center text-sm text-[#d8613b]">{listError}</div>
             )}
           </div>
 
-          <div className="flex items-center justify-between text-sm text-neutral-600">
+          <div className="flex items-center justify-between text-sm text-[var(--muted-foreground)]">
             <span>{proposals.length} proposals</span>
             <span>{visibleSelectionCount} selected</span>
           </div>
         </section>
 
         <section className="grid gap-5 lg:grid-cols-[2fr_1fr]">
-          <div className="rounded-lg border border-neutral-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-3 text-base font-semibold">Details</h2>
+          <div className="rounded-xl uctel-surface p-5">
+            <h2 className="mb-3 text-base font-semibold uctel-section-title">Proposal introduction</h2>
             {activeProposal ? (
-              <dl className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
-                <div>
-                  <dt className="text-neutral-500">Customer</dt>
-                  <dd className="font-medium text-neutral-900">{activeProposal.metadata?.customerName ?? "—"}</dd>
-                </div>
-                <div>
-                  <dt className="text-neutral-500">Slug</dt>
-                  <dd className="font-medium text-neutral-900">{activeProposal.slug}</dd>
-                </div>
-                <div>
-                  <dt className="text-neutral-500">Solution</dt>
-                  <dd className="font-medium text-neutral-900">{activeProposal.metadata?.solutionType ?? "—"}</dd>
-                </div>
-                <div>
-                  <dt className="text-neutral-500">Quote number</dt>
-                  <dd className="font-medium text-neutral-900">{activeProposal.metadata?.quoteNumber ?? "—"}</dd>
-                </div>
-                <div>
-                  <dt className="text-neutral-500">Support tier</dt>
-                  <dd className="font-medium text-neutral-900">{activeProposal.metadata?.supportTier ?? "—"}</dd>
-                </div>
-                <div>
-                  <dt className="text-neutral-500">Networks</dt>
-                  <dd className="font-medium text-neutral-900">{activeProposal.metadata?.numberOfNetworks ?? "—"}</dd>
-                </div>
-                <div>
-                  <dt className="text-neutral-500">PDF status</dt>
-                  <dd className="font-medium text-neutral-900">{activeProposal.pdf?.status ?? "not generated"}</dd>
-                </div>
-                <div>
-                  <dt className="text-neutral-500">Created</dt>
-                  <dd className="font-medium text-neutral-900">{formatDateTime(activeProposal.createdAt)}</dd>
-                </div>
-                <div>
-                  <dt className="text-neutral-500">Opens</dt>
-                  <dd className="font-medium text-neutral-900">{activeProposal.viewCount ?? 0}</dd>
-                </div>
-                <div>
-                  <dt className="text-neutral-500">Downloads</dt>
-                  <dd className="font-medium text-neutral-900">{activeProposal.downloadCount ?? 0}</dd>
-                </div>
-              </dl>
+              <div className="flex flex-col gap-3">
+                <textarea
+                  value={introductionDraft}
+                  onChange={(event) => {
+                    setIntroductionDraft(event.target.value);
+                    setDetailDirty(true);
+                  }}
+                  rows={8}
+                  className="rounded-lg border border-[#cad7df] px-3 py-3 text-sm text-[var(--foreground)] focus:border-[var(--uctel-teal)] focus:outline-none focus:ring-2 focus:ring-[rgba(28,139,157,0.25)]"
+                  placeholder="Appears in the Introduction section of the proposal"
+                />
+                <span className="text-xs text-[var(--muted-foreground)]">
+                  Basic HTML (e.g. &lt;strong&gt;) is supported. Limited to {INTRODUCTION_MAX_LENGTH} characters.
+                </span>
+              </div>
             ) : (
-              <p className="text-sm text-neutral-500">Select a proposal to view additional details.</p>
+              <p className="text-sm text-[var(--muted-foreground)]">Select a proposal to view and edit the introduction.</p>
             )}
           </div>
 
-          <div className="rounded-lg border border-neutral-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-3 text-base font-semibold">Notes & tags</h2>
+          <div className="rounded-xl uctel-surface p-5">
+            <h2 className="mb-3 text-base font-semibold uctel-section-title">Creator & expiry</h2>
             {activeProposal ? (
               <form
                 className="flex flex-col gap-3"
@@ -856,36 +865,17 @@ export default function Home() {
                 }}
               >
                 <label className="flex flex-col gap-1 text-sm">
-                  <span className="text-neutral-600">Internal notes</span>
-                  <textarea
-                    value={notesDraft}
-                    onChange={(event) => {
-                      setNotesDraft(event.target.value);
-                      setDetailDirty(true);
-                    }}
-                    rows={5}
-                    className="rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                    placeholder="Add context for sales or delivery teams"
-                  />
+                  <span className="text-[var(--muted-foreground)]">Creator</span>
+                  <div className="rounded-lg border border-[#e0d7d1] bg-[#f9f3ee] px-3 py-2 text-sm text-[var(--foreground)]">
+                    {creatorDisplayName || creatorEmail || "—"}
+                    {creatorDisplayName && creatorEmail && creatorDisplayName !== creatorEmail && (
+                      <span className="mt-0.5 block text-xs text-[var(--muted-foreground)]">{creatorEmail}</span>
+                    )}
+                  </div>
                 </label>
 
                 <label className="flex flex-col gap-1 text-sm">
-                  <span className="text-neutral-600">Tags (comma separated)</span>
-                  <input
-                    type="text"
-                    value={tagsDraft}
-                    onChange={(event) => {
-                      setTagsDraft(event.target.value);
-                      setDetailDirty(true);
-                    }}
-                    className="rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                    placeholder="e.g. priority, follow-up"
-                  />
-                  <span className="text-xs text-neutral-500">Up to 20 tags, {MAX_TAG_LENGTH} characters each.</span>
-                </label>
-
-                <label className="flex flex-col gap-1 text-sm">
-                  <span className="text-neutral-600">Expiry date (optional)</span>
+                  <span className="text-[var(--muted-foreground)]">Expiry date (optional)</span>
                   <input
                     type="date"
                     value={expiryDraft}
@@ -893,20 +883,20 @@ export default function Home() {
                       setExpiryDraft(event.target.value);
                       setDetailDirty(true);
                     }}
-                    className="rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    className="rounded-lg border border-[#cad7df] px-3 py-2 text-sm text-[var(--foreground)] focus:border-[var(--uctel-teal)] focus:outline-none focus:ring-2 focus:ring-[rgba(28,139,157,0.25)]"
                   />
                 </label>
 
                 <button
                   type="submit"
                   disabled={detailSaving || !detailDirty}
-                  className="mt-2 inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="uctel-primary mt-2 inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium shadow transition disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {detailSaving ? "Saving…" : "Save changes"}
                 </button>
               </form>
             ) : (
-              <p className="text-sm text-neutral-500">Choose a proposal to edit notes and tags.</p>
+              <p className="text-sm text-[var(--muted-foreground)]">Choose a proposal to view creator and expiry details.</p>
             )}
           </div>
         </section>

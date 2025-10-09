@@ -1,8 +1,16 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --uctel-orange: #df8846;
+  --uctel-teal: #1c8b9d;
+  --uctel-navy: #2f5f7a;
+  --uctel-cream: #f4ebe3;
+
+  --background: var(--uctel-cream);
+  --foreground: #1a2a36;
+  --muted-foreground: #4e6575;
+  --border-subtle: #d7cfc9;
+  --shadow-soft: 0 12px 24px rgba(47, 95, 122, 0.12);
 }
 
 @theme inline {
@@ -14,8 +22,11 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #101820;
+    --foreground: #f8f9fb;
+    --muted-foreground: #cdd4da;
+    --border-subtle: rgba(244, 235, 227, 0.3);
+    --shadow-soft: 0 12px 24px rgba(10, 24, 32, 0.4);
   }
 }
 
@@ -23,4 +34,65 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+.uctel-surface {
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-soft);
+}
+
+.uctel-primary {
+  background: var(--uctel-teal);
+  color: #ffffff;
+}
+
+.uctel-primary:hover {
+  background: var(--uctel-navy);
+}
+
+.uctel-outlined {
+  border: 1px solid color-mix(in srgb, var(--uctel-teal) 70%, #ffffff 30%);
+  color: var(--uctel-teal);
+  background: transparent;
+}
+
+.uctel-outlined:hover {
+  background: color-mix(in srgb, var(--uctel-teal) 12%, #ffffff 88%);
+}
+
+.uctel-text-muted {
+  color: var(--muted-foreground);
+}
+
+.uctel-section-title {
+  color: var(--uctel-navy);
+}
+
+.uctel-badge-accent {
+  background: color-mix(in srgb, var(--uctel-orange) 20%, #ffffff 80%);
+  color: var(--uctel-orange);
+}
+
+.uctel-table-row[data-selected="true"] {
+  background: color-mix(in srgb, var(--uctel-teal) 15%, #ffffff 85%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--uctel-teal) 60%, #ffffff 40%);
+}
+
+.uctel-table-row[data-active="true"] {
+  background: color-mix(in srgb, var(--uctel-orange) 12%, #ffffff 88%);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--uctel-orange) 45%, #ffffff 55%);
+}
+
+.uctel-table-header {
+  background: color-mix(in srgb, var(--uctel-navy) 10%, #ffffff 90%);
+  color: var(--uctel-navy);
+}
+
+.uctel-table-row {
+  transition: background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.uctel-table-row:hover {
+  background: color-mix(in srgb, var(--uctel-cream) 85%, #ffffff 15%);
 }

@@ -1,7 +1,7 @@
 import { FieldValue, type DocumentReference } from "firebase-admin/firestore";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { verifyFirebaseToken, resolveBearerToken } from "@/lib/auth";
+import { verifyFirebaseToken, resolveBearerToken, UnauthorizedDomainError } from "@/lib/auth";
 import { handleCorsPreflight, withCors } from "@/lib/cors";
 import { getAdminFirestore } from "@/lib/firebaseAdmin";
 
@@ -44,6 +44,15 @@ const ensureAuth = async (request: NextRequest, origin: string | null) => {
     const context = await verifyFirebaseToken(token);
     return { context };
   } catch (error) {
+    if (error instanceof UnauthorizedDomainError) {
+      console.warn("Unauthorized domain attempted to access bulk proposal endpoint", error.email);
+      return {
+        error: withCors(
+          NextResponse.json({ error: "Access restricted to uctel.co.uk accounts" }, { status: 403 }),
+          origin,
+        ),
+      };
+    }
     console.error("Failed to verify Firebase token", error);
     return { error: withCors(NextResponse.json({ error: "Invalid authentication token" }, { status: 401 }), origin) };
   }

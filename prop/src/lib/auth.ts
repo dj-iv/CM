@@ -1,5 +1,17 @@
 import type { NextRequest } from "next/server";
+import { isEmailAllowed } from "./accessControl";
 import { getAdminAuth } from "./firebaseAdmin";
+
+export class UnauthorizedDomainError extends Error {
+  public readonly email?: string;
+
+  constructor(email?: string) {
+    super("Unauthorized email domain");
+    this.name = "UnauthorizedDomainError";
+    this.email = email;
+  }
+}
+
 
 export interface AuthContext {
   uid: string;
@@ -34,6 +46,9 @@ export const resolveBearerToken = (request: NextRequest): string | null => {
 export const verifyFirebaseToken = async (token: string): Promise<AuthContext> => {
   const auth = getAdminAuth();
   const decoded = await auth.verifyIdToken(token, true);
+  if (!isEmailAllowed(decoded.email)) {
+    throw new UnauthorizedDomainError(decoded.email ?? undefined);
+  }
   return {
     uid: decoded.uid,
     email: decoded.email ?? undefined,
