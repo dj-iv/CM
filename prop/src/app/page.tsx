@@ -41,6 +41,8 @@ type Toast = {
   message: string;
 };
 
+const TOAST_DISMISS_MS = 4000;
+
 const formatCurrency = (value: number | null | undefined): string => {
   if (typeof value !== "number" || Number.isNaN(value)) {
     return "–";
