@@ -2,6 +2,88 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- MAKE.COM WEBHOOK ---
     const MAKE_WEBHOOK_URL = 'https://hook.eu1.make.com/chemsqrmifjs5lwbrquhh1bha0vo96k2';
     const PDF_MAKE_WEBHOOK_URL = 'https://hook.eu1.make.com/cfde3avwbdpr5y131ffkle13z40haem3'; 
+    const DEFAULT_PROPOSAL_APP_BASE_URL = 'https://prop.uctel.co.uk';
+    const LOCAL_PROPOSAL_APP_BASE_URL = 'http://localhost:3000';
+    const PROPOSAL_BASE_URL_STORAGE_KEY = 'calculator-proposal-base-url';
+
+    // Allow overriding the proposal app location via `?proposalBaseUrl=` or
+    // a remembered value in localStorage so developers can target staging/dev.
+
+    const sanitizeBaseUrl = (value) => {
+        if (!value || typeof value !== 'string') {
+            return null;
+        }
+
+        let candidate = value.trim();
+        if (!candidate) {
+            return null;
+        }
+
+        if (!/^https?:\/\//i.test(candidate)) {
+            candidate = `https://${candidate}`;
+        }
+
+        try {
+            const url = new URL(candidate);
+            const pathname = url.pathname.replace(/\/+$/, '');
+            return `${url.protocol}//${url.host}${pathname}`;
+        } catch (error) {
+            console.warn('Ignoring invalid proposal base URL override:', value, error);
+            return null;
+        }
+    };
+
+    const resolveProposalAppBaseUrl = () => {
+        let override = null;
+
+        try {
+            const searchParams = new URLSearchParams(window.location.search || '');
+            override = sanitizeBaseUrl(searchParams.get('proposalBaseUrl'));
+            if (override) {
+                try {
+                    localStorage.setItem(PROPOSAL_BASE_URL_STORAGE_KEY, override);
+                } catch (storageError) {
+                    console.debug('Unable to persist proposal base URL override:', storageError);
+                }
+                return override;
+            }
+        } catch (error) {
+            console.debug('Unable to read proposal base URL from query params:', error);
+        }
+
+        try {
+            override = sanitizeBaseUrl(localStorage.getItem(PROPOSAL_BASE_URL_STORAGE_KEY));
+            if (override) {
+                return override;
+            }
+        } catch (error) {
+            console.debug('Unable to read persisted proposal base URL override:', error);
+        }
+
+        const hostname = window.location.hostname || '';
+        const private172Range = /^172\.(1[6-9]|2\d|3[01])\./;
+        const isLikelyLocalHost = (
+            hostname === '' ||
+            hostname === 'localhost' ||
+            hostname === '127.0.0.1' ||
+            hostname === '0.0.0.0' ||
+            hostname.endsWith('.local') ||
+            hostname.startsWith('10.') ||
+            hostname.startsWith('192.168.') ||
+            private172Range.test(hostname)
+        );
+
+        if (isLikelyLocalHost) {
+            return LOCAL_PROPOSAL_APP_BASE_URL;
+        }
+
+        return DEFAULT_PROPOSAL_APP_BASE_URL;
+    };
+
+    const PROPOSAL_APP_BASE_URL = resolveProposalAppBaseUrl();
+    const PROPOSAL_API_BASE_URL = PROPOSAL_APP_BASE_URL;
+    console.info('Using proposal portal base URL:', PROPOSAL_APP_BASE_URL);
+    const LAST_SAVED_SLUG_KEY = 'calculator-last-proposal-slug';
     const SHARE_STATE_STORAGE_KEY = 'calculator-share-state';
     let pendingShareOverrides = null;
     let isApplyingShareState = false;
@@ -1186,6 +1268,18 @@ function setupScreenshotButton() {
     document.getElementById('support-preset-silver').addEventListener('click', () => setSupportPreset('silver'));
     document.getElementById('support-preset-gold').addEventListener('click', () => setSupportPreset('gold'));
     document.getElementById('generate-interactive-link-btn').addEventListener('click', generateInteractiveLink);
+    const savePortalButton = document.getElementById('save-proposal-btn');
+    if (savePortalButton) {
+        savePortalButton.addEventListener('click', (event) => {
+            event.preventDefault();
+            saveProposalToPortal({ button: event.currentTarget, openAfterSave: false }).catch(() => {});
+        });
+    }
+
+    document.getElementById('proposal-temp-btn').addEventListener('click', (event) => {
+        event.preventDefault();
+        openProposalTemp(event);
+    });
 
     const validatedFields = ['customer-name', 'survey-price', 'quote-number'];
     validatedFields.forEach(fieldId => {
@@ -1655,14 +1749,7 @@ async function generatePdf() {
     }
 }
   
- async function generateShareLink() {
-    const button = document.getElementById('generate-link-btn');
-    const originalText = button.innerHTML;
-
-    try {
-        button.disabled = true;
-        button.innerHTML = 'Generating...';
-
+    const buildShareStateSnapshot = () => {
         const mainContainer = document.getElementById('main-container');
         const activePresetButton = document.querySelector('.support-presets-main button.active-preset');
         const filteredSupportOverrides = Object.keys(supportPriceOverrides).reduce((acc, tier) => {
@@ -1699,20 +1786,22 @@ async function generatePdf() {
             overrides: {},
             support: {
                 activePreset: activePresetButton ? activePresetButton.id.replace('support-preset-', '') : null,
-                priceOverrides: filteredSupportOverrides
+                priceOverrides: filteredSupportOverrides,
             },
             pricing: {
-                useAltPricing
+                useAltPricing,
             },
             flags: {
                 showZeroQuantityItems,
-                viewMode: mainContainer && mainContainer.classList.contains('screenshot-mode') ? 'dashboard' : 'simple'
-            }
+                viewMode: mainContainer && mainContainer.classList.contains('screenshot-mode') ? 'dashboard' : 'simple',
+            },
         };
 
         for (const key in currentResults) {
-            if (currentResults[key].override !== null) {
-                state.overrides[key] = currentResults[key].override;
+            if (Object.prototype.hasOwnProperty.call(currentResults, key)) {
+                if (currentResults[key].override !== null) {
+                    state.overrides[key] = currentResults[key].override;
+                }
             }
         }
 
@@ -1724,6 +1813,283 @@ async function generatePdf() {
             binary += String.fromCharCode.apply(null, compressed.subarray(i, i + chunkSize));
         }
         const encodedState = btoa(binary);
+
+        return { state, encodedState };
+    };
+
+    const sanitizeSlugValue = (value) => value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/-{2,}/g, '-').replace(/^-+|-+$/g, '');
+
+    const normalizeComparisonValue = (value) => {
+        if (value === null || value === undefined) {
+            return '';
+        }
+        return sanitizeSlugValue(String(value));
+    };
+
+    const tryParseStoredProposalInfo = (rawValue) => {
+        if (!rawValue || typeof rawValue !== 'string') {
+            return null;
+        }
+
+        const trimmed = rawValue.trim();
+        if (!trimmed) {
+            return null;
+        }
+
+        try {
+            const parsed = JSON.parse(trimmed);
+            if (parsed && typeof parsed === 'object' && typeof parsed.slug === 'string') {
+                const sanitizedSlug = sanitizeSlugValue(parsed.slug);
+                if (!sanitizedSlug) {
+                    return null;
+                }
+
+                return {
+                    slug: sanitizedSlug,
+                    quoteNumber: typeof parsed.quoteNumber === 'string' && parsed.quoteNumber ? parsed.quoteNumber : null,
+                    customerName: typeof parsed.customerName === 'string' && parsed.customerName ? parsed.customerName : null,
+                    source: parsed.source === 'query' ? 'query' : 'auto',
+                    updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : Date.now(),
+                };
+            }
+        } catch (error) {
+            // Fall through to legacy handling below.
+        }
+
+        const sanitizedLegacySlug = sanitizeSlugValue(trimmed);
+        if (!sanitizedLegacySlug) {
+            return null;
+        }
+
+        return {
+            slug: sanitizedLegacySlug,
+            quoteNumber: null,
+            customerName: null,
+            source: 'legacy',
+            updatedAt: Date.now(),
+        };
+    };
+
+    const getStoredProposalInfo = () => {
+        try {
+            const sessionValue = sessionStorage.getItem(LAST_SAVED_SLUG_KEY);
+            const sessionInfo = tryParseStoredProposalInfo(sessionValue);
+            if (sessionInfo) {
+                return sessionInfo;
+            }
+        } catch (error) {
+            console.warn('Could not read slug info from sessionStorage:', error);
+        }
+
+        try {
+            const legacyValue = localStorage.getItem(LAST_SAVED_SLUG_KEY);
+            const legacyInfo = tryParseStoredProposalInfo(legacyValue);
+            if (legacyInfo) {
+                try {
+                    sessionStorage.setItem(LAST_SAVED_SLUG_KEY, JSON.stringify(legacyInfo));
+                } catch (sessionError) {
+                    console.warn('Could not migrate slug info to sessionStorage:', sessionError);
+                }
+                localStorage.removeItem(LAST_SAVED_SLUG_KEY);
+                return legacyInfo;
+            }
+        } catch (error) {
+            console.warn('Could not read slug info from localStorage:', error);
+        }
+
+        return null;
+    };
+
+    const persistStoredProposalInfo = ({ slug, quoteNumber = null, customerName = null, source = 'auto' }) => {
+        const sanitizedSlug = slug ? sanitizeSlugValue(String(slug)) : '';
+        if (!sanitizedSlug) {
+            return;
+        }
+
+        const payload = {
+            slug: sanitizedSlug,
+            quoteNumber: typeof quoteNumber === 'string' && quoteNumber ? quoteNumber : null,
+            customerName: typeof customerName === 'string' && customerName ? customerName : null,
+            source: source === 'query' ? 'query' : 'auto',
+            updatedAt: Date.now(),
+        };
+
+        try {
+            sessionStorage.setItem(LAST_SAVED_SLUG_KEY, JSON.stringify(payload));
+        } catch (error) {
+            console.warn('Could not persist slug info to sessionStorage:', error);
+        }
+
+        try {
+            localStorage.removeItem(LAST_SAVED_SLUG_KEY);
+        } catch (error) {
+            console.debug('Could not remove legacy slug from localStorage:', error);
+        }
+    };
+
+    const clearStoredProposalInfo = () => {
+        try {
+            sessionStorage.removeItem(LAST_SAVED_SLUG_KEY);
+        } catch (error) {
+            console.warn('Could not clear slug info from sessionStorage:', error);
+        }
+
+        try {
+            localStorage.removeItem(LAST_SAVED_SLUG_KEY);
+        } catch (error) {
+            console.debug('Could not clear legacy slug from localStorage:', error);
+        }
+    };
+
+    const shouldReuseStoredSlug = (storedInfo, { quoteNumber, customerName }) => {
+        if (!storedInfo || !storedInfo.slug) {
+            return false;
+        }
+
+        if (storedInfo.source === 'query') {
+            return true;
+        }
+
+        const storedQuote = normalizeComparisonValue(storedInfo.quoteNumber);
+        const currentQuote = normalizeComparisonValue(quoteNumber);
+        if (storedQuote && currentQuote && storedQuote === currentQuote) {
+            return true;
+        }
+
+        if (!storedQuote && !currentQuote) {
+            const storedCustomer = normalizeComparisonValue(storedInfo.customerName);
+            const currentCustomer = normalizeComparisonValue(customerName);
+            if (storedCustomer && currentCustomer && storedCustomer === currentCustomer) {
+                return true;
+            }
+        }
+
+        return false;
+    };
+
+    const deriveSlugCandidate = ({ quoteNumber, customerName }) => {
+        const candidates = [quoteNumber]
+            .map((value) => (value ? sanitizeSlugValue(String(value)) : ''))
+            .filter(Boolean);
+
+        if (candidates.length) {
+            return candidates[0];
+        }
+
+        const base = customerName ? sanitizeSlugValue(String(customerName)) : '';
+        const timestamp = Date.now().toString(36);
+        return base ? `${base}-${timestamp}` : `proposal-${timestamp}`;
+    };
+
+    const ensureAuthUser = () => {
+        if (!window.firebase || !firebase.auth) {
+            throw new Error('Firebase auth is not available.');
+        }
+        const authInstance = firebase.auth();
+        const user = authInstance.currentUser;
+        if (!user) {
+            throw new Error('Please sign in before saving proposals.');
+        }
+        return user;
+    };
+
+    async function saveProposalToPortal({ button = null, openAfterSave = false } = {}) {
+        if (!validateInputs(['customer-name', 'survey-price'])) {
+            return null;
+        }
+
+        const originalButtonText = button ? button.innerHTML : null;
+
+        try {
+            const user = ensureAuthUser();
+            const { encodedState } = buildShareStateSnapshot();
+            const proposal = getTemplateData();
+            const quoteNumberInput = document.getElementById('quote-number');
+            const quoteNumber = quoteNumberInput ? quoteNumberInput.value.trim() : '';
+            const storedInfo = getStoredProposalInfo();
+            const customerName = proposal.Account || document.getElementById('customer-name').value;
+            const reuseStoredSlug = shouldReuseStoredSlug(storedInfo, { quoteNumber, customerName });
+            const slugToUse = reuseStoredSlug && storedInfo ? storedInfo.slug : deriveSlugCandidate({ quoteNumber, customerName });
+
+            if (!reuseStoredSlug) {
+                clearStoredProposalInfo();
+            }
+
+            const requestBody = {
+                encodedState,
+                proposal,
+                overwrite: reuseStoredSlug,
+                slug: slugToUse,
+            };
+
+            if (button) {
+                button.innerHTML = openAfterSave ? 'Opening...' : 'Saving...';
+                button.disabled = true;
+            }
+
+            const token = await user.getIdToken(true);
+            const response = await fetch(`${PROPOSAL_API_BASE_URL}/api/proposals`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify(requestBody),
+            });
+
+            const payload = await response.json();
+            if (!response.ok) {
+                throw new Error(payload?.error || 'Failed to save proposal.');
+            }
+
+            if (payload?.slug) {
+                const persistSource = storedInfo?.source === 'query' && reuseStoredSlug ? 'query' : 'auto';
+                persistStoredProposalInfo({
+                    slug: payload.slug,
+                    customerName,
+                    quoteNumber,
+                    source: persistSource,
+                });
+            }
+
+            if (button) {
+                button.innerHTML = openAfterSave ? 'Opened! ✅' : 'Saved! ✅';
+            }
+
+            if (openAfterSave && payload?.slug) {
+                const url = `${PROPOSAL_APP_BASE_URL}/${payload.slug}`;
+                window.open(url, '_blank', 'noopener');
+            }
+
+            return payload;
+        } catch (error) {
+            console.error('Failed to save proposal to portal:', error);
+            if (button) {
+                button.innerHTML = 'Failed! ❌';
+            }
+            alert(error.message || 'Could not save the proposal. Please try again.');
+            throw error;
+        } finally {
+            if (button) {
+                const restore = () => {
+                    const fallbackLabel = openAfterSave ? 'Proposal Temp 🚀' : 'Save to Portal 💾';
+                    button.innerHTML = originalButtonText !== null ? originalButtonText : fallbackLabel;
+                    button.disabled = false;
+                };
+                setTimeout(restore, 3000);
+            }
+        }
+    }
+
+ async function generateShareLink() {
+    const button = document.getElementById('generate-link-btn');
+    const originalText = button.innerHTML;
+
+    try {
+        button.disabled = true;
+        button.innerHTML = 'Generating...';
+
+        const { encodedState } = buildShareStateSnapshot();
 
         try {
             sessionStorage.setItem(SHARE_STATE_STORAGE_KEY, encodedState);
@@ -1787,8 +2153,35 @@ async function generateInteractiveLink() {
         }, 3000);
     }
 }
+
+async function openProposalTemp(event) {
+    const button = event?.currentTarget || document.getElementById('proposal-temp-btn');
+    try {
+        await saveProposalToPortal({ button, openAfterSave: true });
+    } catch (error) {
+        // Error surface handled in saveProposalToPortal
+    }
+}
     
    function loadStateFromURL() {
+    const searchParams = new URLSearchParams(window.location.search);
+    const slugFromQuery = searchParams.get('slug');
+    if (slugFromQuery) {
+        const cleanedSlug = sanitizeSlugValue(slugFromQuery);
+        if (cleanedSlug) {
+            persistStoredProposalInfo({ slug: cleanedSlug, source: 'query' });
+        }
+
+        try {
+            searchParams.delete('slug');
+            const newSearch = searchParams.toString();
+            const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : '') + window.location.hash;
+            history.replaceState('', document.title, newUrl);
+        } catch (error) {
+            console.warn('Unable to clean slug query parameter:', error);
+        }
+    }
+
     let encodedState = window.location.hash.substring(1);
     if (encodedState) {
         try {

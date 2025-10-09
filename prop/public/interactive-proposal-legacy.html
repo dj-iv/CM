@@ -1,0 +1,2458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Proposal for {Account}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Montserrat:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>
+  /* --- CSS Variables for Your Brand Colors --- */
+    :root {
+        --color-primary-blue: #385A7C;
+        --color-secondary-teal: #1A8387;
+        --color-accent-orange: #D98236;
+        --color-neutral-beige: #EAE1D9;
+        --color-light-background: #fbf9f7;
+        --color-text-dark: #444; /* Softer text color */
+        --color-text-light: #ffffff;
+    }
+
+    body.pdf-export {
+        background-color: var(--color-light-background);
+    }
+
+    body.pdf-export .page {
+        position: relative !important;
+        width: 210mm !important;
+        height: 297mm !important;
+        padding: 8mm 20mm 25mm 20mm !important;
+        margin: 0 auto !important;
+        border: none !important;
+        background: var(--color-text-light) !important;
+        box-shadow: none !important;
+        box-sizing: border-box !important;
+        page-break-after: always !important;
+        overflow: hidden !important;
+    }
+
+    body.pdf-export .page:last-of-type {
+        page-break-after: auto !important;
+    }
+
+    body.pdf-export .page-body {
+        display: block !important;
+        min-height: 0 !important;
+        box-sizing: border-box !important;
+    }
+
+    body.pdf-export .header,
+    body.pdf-export .footer {
+        position: absolute !important;
+        left: 20mm !important;
+        right: 20mm !important;
+    }
+
+    body.pdf-export .header {
+        top: 4mm !important;
+        display: flex !important;
+        justify-content: flex-end !important;
+        align-items: center !important;
+    }
+
+    body.pdf-export .header img {
+        width: 80px !important;
+        height: auto !important;
+    }
+
+    body.pdf-export .footer {
+        bottom: 8mm !important;
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        gap: 12px !important;
+        font-size: 8.5pt !important;
+        color: var(--color-primary-blue) !important;
+    }
+
+    body.pdf-export .footer::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: -6px;
+        height: 2px;
+        background: linear-gradient(90deg, var(--color-secondary-teal), var(--color-primary-blue));
+        opacity: 0.6;
+    }
+
+    body.pdf-export .footer-info {
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+    }
+
+    body.pdf-export h2.force-page-break {
+        break-before: page !important;
+        page-break-before: always !important;
+        display: block !important;
+    }
+    
+    body.pdf-export h2.force-page-break::before {
+        content: "" !important;
+        display: block !important;
+        height: 1px !important;
+        page-break-before: always !important;
+        break-before: page !important;
+    }
+
+    /* Global page-break utility (works without JS/print mode) */
+    .force-page-break {
+        page-break-before: always !important;
+        break-before: page !important;
+    }
+
+    .page-break {
+        page-break-before: always !important;
+        break-before: page !important;
+    }
+
+    /* Ensure Section 2 (Proposed Solution) always starts a new page in PDF */
+    body.pdf-export h2.proposed-solution {
+        page-break-before: always !important;
+        break-before: page !important;
+    }
+
+    /* PDF-only spacer helper to push following content to next page when needed */
+    body.pdf-export .push-next-section {
+        display: block !important;
+        height: 50mm !important;
+        width: 100% !important;
+    }
+
+    /* Improve section breaks for major headings */
+    body.pdf-export h1,
+    body.pdf-export h2 {
+        page-break-inside: avoid !important;
+        page-break-after: avoid !important;
+    }
+
+    /* NOTE: Avoid forcing all H2s to new pages; use targeted breaks only via .force-page-break */
+    /* Previously: body.pdf-export h2:not(:first-child) { break-before: page; page-break-before: always } */
+
+    /* Force page breaks for page containers */
+    body.pdf-export .page {
+        break-before: page !important;
+        page-break-before: always !important;
+    }
+
+    /* First page should not have page break */
+    body.pdf-export .page:first-of-type {
+        break-before: auto !important;
+        page-break-before: auto !important;
+    }
+
+    /* Targeted footer protection */
+    body.pdf-export .footer {
+        margin-top: 8mm !important;
+    }
+
+    /* Add bottom padding to prevent content from entering footer area (slightly reduced to gain space) */
+    body.pdf-export .page {
+        padding-bottom: 26mm !important;
+    }
+
+    /* Avoid splitting key blocks across pages in PDF export */
+    body.pdf-export .component-layout,
+    body.pdf-export table,
+    body.pdf-export .embedded-video {
+        page-break-inside: avoid !important;
+        break-inside: avoid-page !important;
+    }
+
+    /* Prevent content overflow near footer */
+    body.pdf-export .page > *:last-child:not(.footer) {
+        margin-bottom: 5mm !important;
+    }
+
+    body.pdf-export .footer-logo {
+        width: 65px !important;
+        height: auto !important;
+    }
+
+    body.pdf-export .footer-text {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 2px !important;
+        line-height: 1.2 !important;
+    }
+
+    body.pdf-export .page-number {
+        font-weight: 600 !important;
+    }
+
+    body.pdf-export iframe {
+        display: block !important;
+    }
+
+    body.pdf-export .download-container {
+        display: none !important;
+    }
+
+    body.pdf-export .page .page-body > h1:first-of-type,
+    body.pdf-export .page .page-body > h2:first-of-type,
+    body.pdf-export .page .page-body > h3:first-of-type,
+    body.pdf-export .page .page-body > h4:first-of-type {
+        margin-top: 0 !important;
+    }
+
+    /* Tighten spacing immediately after H2 in PDF to avoid pushing content to next page */
+    body.pdf-export h2 { margin-bottom: 10px !important; }
+
+   /* --- General Body and Page Setup --- */
+body {
+    font-family: 'Lato', Arial, sans-serif;
+    font-size: 11pt;
+    line-height: 1.6;
+    background-color: var(--color-light-background);
+    margin: 0;
+    padding: 0;
+    color: var(--color-text-dark);
+}
+        p a {
+    color: var(--color-secondary-teal);
+    font-weight: bold;
+    text-decoration: none;
+}
+p a:hover {
+    text-decoration: underline;
+}
+
+    .page {
+        position: relative;
+        width: 210mm;
+        min-height: 297mm;
+    padding: 20mm 20mm 25mm 20mm;
+    margin: 10mm auto;
+        border: 1px solid #e0e0e0;
+        background: var(--color-text-light);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        box-sizing: border-box;
+    }
+
+/* --- Header & Footer --- */
+
+/* Shared Styles */
+.header, .footer {
+    position: absolute;
+    width: calc(100% - 40mm);
+    font-size: 9pt;
+    color: #888;
+}
+
+/* Header-Specific Position */
+.header {
+    top: 10mm;
+    left: 20mm;
+    right: 20mm;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.header img {
+    width: 95px;
+    margin: 0;
+}
+
+.page > h2:first-of-type {
+    margin-top: 24px;
+}
+
+/* Footer-Specific Position */
+.footer {
+    bottom: 8mm;
+    left: 20mm;
+    right: 20mm;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    font-size: 8.5pt;
+    color: var(--color-primary-blue);
+}
+
+.footer::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -6px;
+    height: 2px;
+    background: linear-gradient(90deg, var(--color-secondary-teal), var(--color-primary-blue));
+    opacity: 0.6;
+}
+
+.footer-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.footer-logo {
+    width: 65px;
+    height: auto;
+}
+
+.footer-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    line-height: 1.2;
+}
+
+.footer-text span {
+    display: block;
+}
+
+.page-number {
+    font-weight: 600;
+}
+
+    /* --- Typography & Headings --- */
+    h1, h2, h3, h4 {
+        font-family: 'Montserrat', Arial, sans-serif;
+        color: var(--color-primary-blue);
+        line-height: 1.3;
+        font-weight: 700;
+    }
+    h1 { font-size: 26pt; text-align: center; margin-top: 50px; }
+    h2 {
+        font-size: 20pt;
+        text-align: left;
+        border-bottom: 3px solid var(--color-secondary-teal);
+        padding-bottom: 10px;
+        margin-top: 60px; /* Increased spacing */
+        margin-bottom: 25px;
+        font-weight: 700;
+    }
+    h2 i { font-size: 0.9em; margin-right: 15px; color: var(--color-secondary-teal); } /* Icon styling */
+    h3 { font-size: 16pt; margin-top: 35px; margin-bottom: 15px; font-weight: 600; color: var(--color-primary-blue); }
+    h4 { font-size: 12pt; margin-top: 25px; margin-bottom: 10px; font-weight: 600; text-transform: uppercase; color: #555; }
+
+ p, li {
+    margin-bottom: 1.2em;
+    text-align: justify; /* Aligns text to both sides */
+    hyphens: auto;      /* Enables automatic hyphenation */
+    widows: 2;          /* Prevents single lines at the top of a page */
+    orphans: 2;         /* Prevents single lines at the bottom of a page */
+}
+
+ul {
+    padding-left: 25px;
+}
+
+ul li::marker {
+    color: var(--color-secondary-teal);
+    font-weight: bold;
+}
+
+    /* --- Modern Table Styling --- */
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 25px;
+        font-size: 10pt;
+        border-radius: 5px;
+        overflow: hidden;
+    }
+    th, td {
+        padding: 12px 15px;
+        text-align: left;
+        vertical-align: top;
+        border: none;
+        border-bottom: 1px solid #e0e0e0;
+    }
+    td i { margin-right: 8px; color: var(--color-secondary-teal); } /* Contact icon styling */
+    th {
+        background-color: var(--color-primary-blue);
+        color: var(--color-text-light);
+        font-weight: bold;
+        font-family: 'Montserrat', sans-serif;
+        text-transform: uppercase;
+        font-size: 9pt;
+        letter-spacing: 0.5px;
+    }
+    tbody tr:nth-of-type(even) {
+        background-color: var(--color-light-background);
+    }
+    .pricing-table td:nth-child(2),
+    .pricing-table td:nth-child(3),
+    .pricing-table td:nth-child(4) { text-align: right; }
+    .total-row { background-color: var(--color-neutral-beige); font-size: 11pt; }
+    .total-row td { font-weight: bold; color: var(--color-primary-blue); }
+
+    /* --- Images & Components --- */
+    img { max-width: 100%; height: auto; display: block; margin: 20px auto; }
+    .component-layout {
+        display: flex;
+        gap: 30px;
+        align-items: center;
+        margin-bottom: 40px;
+        padding: 20px;
+        border-radius: 8px;
+        transition: background-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    .component-layout:hover {
+        background-color: var(--color-light-background);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    }
+    .component-layout.reverse { flex-direction: row-reverse; }
+    .image-container { flex: 1; }
+    .text-container { flex: 2; }
+    .text-container h3 { margin-top: 0; }
+
+    .embedded-video {
+        margin: 20px 0;
+    }
+
+    .embedded-video iframe {
+        width: 100%;
+        height: 315px;
+        border: none;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .embedded-video .video-fallback {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 12px;
+        text-decoration: none;
+        color: var(--color-primary-blue);
+        font-weight: 600;
+    }
+
+    .embedded-video .video-fallback img {
+        max-width: 100%;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    body.pdf-export .embedded-video iframe {
+        display: none !important;
+    }
+
+    body.pdf-export .embedded-video .video-fallback {
+        display: flex !important;
+    }
+
+    /* PDF: ensure 2.1 architecture diagrams can fit below the list */
+    body.pdf-export img.arch-diagram {
+        max-height: 72mm !important;
+        width: 100% !important;
+        height: auto !important;
+        object-fit: contain !important;
+        margin-top: 6mm !important;
+        margin-bottom: 0 !important;
+    }
+    body.pdf-export ul + img.arch-diagram { margin-top: 4mm !important; }
+
+    /* Tighten spacing for paragraph and list under 2.1 */
+    body.pdf-export h3 + p { margin-bottom: 3mm !important; }
+    body.pdf-export p + ul { margin-top: 2mm !important; }
+    body.pdf-export ul { margin-bottom: 3mm !important; page-break-inside: avoid !important; break-inside: avoid-page !important; }
+    body.pdf-export li { margin-bottom: 1.5mm !important; }
+    body.pdf-export img.arch-diagram { page-break-inside: avoid !important; break-inside: avoid-page !important; }
+    body.pdf-export .arch-section { page-break-inside: avoid !important; break-inside: avoid-page !important; }
+
+    /* --- Cover Page Styling --- */
+    .cover-page {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        border: none;
+    }
+    .cover-logo { width: 450px; margin: 0 auto 20px; }
+    .cover-title {
+        text-align: center;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 36pt; /* Refined size */
+        font-weight: 700;
+        color: var(--color-primary-blue);
+        line-height: 1.5; /* Refined line height */
+        margin-top: 40px;
+    }
+    .cover-title-intro {
+        display: block;
+        font-size: 20pt;
+        font-weight: 600;
+        color: #888;
+        margin-bottom: 10px;
+    }
+        /* --- NEW: Benefits List Styling --- */
+.benefits-list {
+    list-style: none;
+    padding-left: 0;
+    margin-top: 30px;
+}
+.benefits-list li {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 1.5em;
+    text-align: left; /* Overrides justify for better list readability */
+    hyphens: none;
+}
+.benefits-list i {
+    font-size: 1.5em;
+    margin-right: 15px;
+    color: var(--color-secondary-teal);
+    width: 30px; /* Ensures consistent alignment */
+    text-align: center;
+    margin-top: 4px;
+}
+
+    /* --- Table of Contents (TOC) Styling --- */
+    .toc { list-style-type: none; padding-left: 0; border-left: 3px solid var(--color-neutral-beige); padding-left: 20px; }
+    .toc li { margin-bottom: 12px; }
+    body.pdf-export .toc-page .toc {
+        margin-bottom: 0 !important;
+    }
+    .toc li a {
+        text-decoration: none;
+        color: var(--color-text-dark);
+        display: flex;
+        justify-content: space-between;
+        transition: color 0.2s ease, transform 0.2s ease;
+        padding: 5px 0;
+    }
+    .toc li a:hover { color: var(--color-accent-orange); transform: translateX(5px); }
+    .toc-h2 { font-weight: bold; }
+    .toc-h3 { padding-left: 20px; font-size: 0.95em; }
+    .heading-number { margin-right: 8px; color: #888; }
+
+    /* --- Interactive Support Tiers --- */
+    .support-tier-option {
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border-left: 4px solid transparent;
+    }
+    .support-tier-option:hover {
+        background-color: #fffaf5;
+        border-left: 4px solid var(--color-accent-orange);
+    }
+    .support-tier-option.selected {
+        background-color: #f0f7f7;
+        font-weight: bold;
+        color: var(--color-primary-blue);
+        border-left: 4px solid var(--color-secondary-teal);
+    }
+    .support-details-table td {
+      text-align: center;
+    }
+    .support-details-table td:first-child,
+    .support-details-table td:nth-child(2) {
+      text-align: left;
+    }
+
+    .support-legend {
+        margin-top: 0.6em;
+        margin-bottom: 0;
+    }
+
+    body.pdf-export .support-legend {
+        margin-top: 4mm !important;
+        margin-bottom: 0 !important;
+        /* Keep legend with the table; do not force a new page */
+        page-break-inside: avoid !important;
+        break-inside: avoid-page !important;
+    }
+
+    body.pdf-export .support-details-table {
+        margin-bottom: 8mm !important;
+    }
+
+    /* Support Services structure: keep only heading + intro together; allow table to split */
+    .support-table-block { display: block; }
+    .support-table-core { display: block; }
+    body.pdf-export .support-table-core {
+        page-break-inside: avoid !important;
+        break-inside: avoid-page !important;
+    }
+    /* Allow the support table to break between rows if needed */
+    body.pdf-export table.support-details-table {
+        page-break-inside: auto !important;
+        break-inside: auto !important;
+    }
+    body.pdf-export .support-details-table tr {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+    /* Remove large top gap when first heading is wrapped */
+    body.pdf-export .page .page-body > *:first-child > h2:first-child { margin-top: 0 !important; }
+    body.pdf-export .page .page-body > *:first-child > h3:first-child { margin-top: 0 !important; }
+    /* Slightly tighter PDF padding for dense tables */
+    body.pdf-export .support-details-table th,
+    body.pdf-export .support-details-table td { padding: 9px 12px !important; }
+
+    /* Normalize top spacing for Support Services heading to match other pages */
+    body.pdf-export #section-cel-fi-support-services { margin-top: 0 !important; }
+    body.pdf-export #section-cel-fi-support-services .support-table-core > h2 { margin-top: 0 !important; }
+    
+    /* --- NEW: Survey Call-to-Action Block --- */
+    .survey-cta {
+        background-color: var(--color-light-background);
+        border: 2px dashed var(--color-secondary-teal);
+        border-radius: 8px;
+        padding: 25px;
+        margin-top: 40px;
+        text-align: center;
+    }
+    .survey-cta p {
+        margin-bottom: 0.5em;
+        font-size: 1.1em;
+    }
+    .survey-price {
+        font-size: 1.5em;
+        font-weight: 700;
+        color: var(--color-primary-blue);
+    }
+      /* --- NEW: Page Container Centering --- */
+    #proposal-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }   
+
+    /* --- Download Button Styling --- */
+    .download-container {
+        margin-top: 40px;
+        text-align: center;
+        padding: 30px;
+        background-color: var(--color-light-background);
+        border-radius: 12px;
+        border: 2px solid var(--color-secondary-teal);
+        max-width: 800px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .download-btn {
+        background: linear-gradient(135deg, var(--color-secondary-teal), var(--color-primary-blue));
+        color: var(--color-text-light);
+        border: none;
+        padding: 15px 30px;
+        font-size: 16pt;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(26, 131, 135, 0.3);
+        font-family: 'Montserrat', sans-serif;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .download-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 25px rgba(26, 131, 135, 0.4);
+        background: linear-gradient(135deg, var(--color-primary-blue), var(--color-secondary-teal));
+    }
+
+    .download-btn:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 10px rgba(26, 131, 135, 0.3);
+    }
+
+    .download-btn.is-loading,
+    .download-btn:disabled {
+        cursor: wait;
+        opacity: 0.7;
+        box-shadow: 0 2px 8px rgba(26, 131, 135, 0.2);
+        transform: none;
+    }
+
+    .download-btn i {
+        font-size: 1.2em;
+    }
+
+    .download-note {
+        margin-top: 15px;
+        color: #666;
+        font-size: 12pt;
+        font-style: italic;
+    }   
+/* --- FINAL PRINT STYLES --- */
+
+    @media print {
+        body {
+            background-color: #fff;
+            margin: 0; 
+        }
+
+        #proposal-container {
+            display: block;
+        }
+
+        /* Hide download button when printing */
+        .download-container {
+            display: none !important;
+        }
+
+        .page {
+            box-shadow: none;
+            border: none;
+            margin: 0;  /* Ensure no outer margin */
+            padding: 0; /* Ensure no inner padding */
+            width: 100%;
+            min-height: 1%; /* Allow content to dictate height */
+            
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            position: static;
+            flex-shrink: 0;
+            padding: 0 10mm; /* Add side padding for header content */
+        }
+
+        /* All main content needs some side padding now */
+        h2, h3, h4, p, ul, table, .survey-cta, .component-layout {
+            padding: 0 10mm;
+        }
+
+        h2 {
+            margin-top: 0.5em !important;
+        }
+
+        .footer {
+            display: none !important;
+        }
+        
+        /* Standard Page Break Rules */
+        .page:not(:first-child) {
+            page-break-before: always;
+        }
+        
+        .survey-cta, .component-layout, table {
+            page-break-inside: avoid;
+        }
+        
+        h2, h3, h4 {
+            page-break-after: avoid;
+        }
+
+        iframe {
+            display: none;
+        }
+        
+        a {
+            color: var(--color-secondary-teal) !important;
+            text-decoration: none;
+        }
+    }
+</style>
+</head>
+<body>
+
+<div id="proposal-container">
+    <div class="page cover-page">
+        <img class="cover-logo" src="images/uctel_logo.png" alt="UCtel Logo">
+       <div class="cover-title">
+    Budgetary CEL-FI {Solution}
+    <span class="cover-title-intro">proposal for</span>
+    {Account}
+</div>
+
+    </div> <div class="page toc-page">
+        <div class="header"><img src="images/uctel_logo.png" alt="UCtel Logo"></div>
+        <h2 class="no-number">CONTENTS</h2>
+        <ul class="toc" id="toc-list"></ul>
+        <div class="footer">
+            <div class="footer-info">
+                <img src="images/uctel_logo.png" alt="UCtel Logo" class="footer-logo">
+                <div class="footer-text">
+                    <span>CEL-FI {Solution} solution proposal for {Account}</span>
+                    <span>www.uctel.co.uk | sales@uctel.co.uk</span>
+                </div>
+            </div>
+            <div class="page-number"></div>
+        </div>
+    </div>
+
+    <div class="page">
+        <div class="header"><img src="images/uctel_logo.png" alt="UCtel Logo"></div>
+        <h2><i class="fa-solid fa-circle-info"></i> Introduction</h2>
+      <p>UCtel is pleased to present this proposal to provide a comprehensive mobile signal solution for <strong>{Account}</strong>, designed to deliver reliable, high-quality indoor coverage for your staff and visitors. Coverage is required over {NumberOfNetworks} of the UK Mobile Network Operators (MNOs) – EE, O2, Vodafone and Three (3). Based on the information provided, UCtel proposes the use of the CEL-FI {Solution} solution. This document sets out the details of the proposed solution, UCtel’s approach and budgetary pricing.</p>
+        <h3>About UCtel</h3>
+        <p>UCtel specialises in the design, installation and management of in-building mobile signal systems.</p>
+        <h4 class="no-number">Why UCtel:</h4>
+        <ul>
+            <li>We have been installing in building mobile signal systems since 2019 and have deployed over 300 systems in a wide range of buildings including private houses, offices, factories and hospitals</li>
+            <li>We only work with equipment that complies with Ofcom's UK Interface Requirement 2102</li>
+            <li>We have developed our own survey tools which are tailored to the specific requirements of in-building signal boosters. This allows us to see the important information about the signals that matter to ensure the best result from the installation.</li>
+            <li>We deploy 5G Stand Alone (Up to 4.0GHz) ready DAS solutions so that when 5G SA can be boosted, the DAS elements of the solution do not need to be upgraded.</li>
+            <li>We provide a range of tailored support packages from break/fix maintenance to fully managed systems with onsite engineering support.</li>
+        </ul>
+        <h3>Key Contacts</h3>
+        <p>The following team members are your <strong>primary points of contact</strong> for this proposal. We are here to answer any questions you may have.</p>
+        <table>
+            <tr><th>Name</th><th>Title</th><th>Contact Details</th></tr>
+            <tr><td>Ivor Nicholls</td><td>Sales Director</td><td>ivor.nicholls@uctel.co.uk</td></tr>
+            <tr><td>Ivan Romanov</td><td>Technical Director</td><td>ivan.romanov@uctel.co.uk</td></tr>
+        </table>
+        <h3 style="margin-top: 10mm !important;">Confidentiality</h3>
+       <p>This document contains proprietary information and solution designs developed by UCtel. We present it to you <strong>in confidence</strong> and appreciate your discretion in handling the details of our proposal.</p>
+        <div class="footer">
+            <div class="footer-info">
+                <img src="images/uctel_logo.png" alt="UCtel Logo" class="footer-logo">
+                <div class="footer-text">
+                    <span>CEL-FI {Solution} solution proposal for {Account}</span>
+                    <span>www.uctel.co.uk | sales@uctel.co.uk</span>
+                </div>
+            </div>
+            <div class="page-number"></div>
+        </div>
+    </div>
+
+    <div class="page">
+        <div class="header"><img src="images/uctel_logo.png" alt="UCtel Logo"></div>
+    <h2 class="proposed-solution"><i class="fa-solid fa-sitemap"></i> Proposed Solution</h2>
+        <div id="solution-architecture-section">
+            </div>
+        <div class="footer">
+            <div class="footer-info">
+                <img src="images/uctel_logo.png" alt="UCtel Logo" class="footer-logo">
+                <div class="footer-text">
+                    <span>CEL-FI {Solution} solution proposal for {Account}</span>
+                    <span>www.uctel.co.uk | sales@uctel.co.uk</span>
+                </div>
+            </div>
+            <div class="page-number"></div>
+        </div>
+    </div>
+
+<div class="page" id="components-page">
+        <div class="header"><img src="images/uctel_logo.png" alt="UCtel Logo"></div>
+        <h2>Solution Components</h2>
+        <div id="solution-components-section">
+             </div>
+        <div class="footer">
+            <div class="footer-info">
+                <img src="images/uctel_logo.png" alt="UCtel Logo" class="footer-logo">
+                <div class="footer-text">
+                    <span>CEL-FI {Solution} solution proposal for {Account}</span>
+                    <span>www.uctel.co.uk | sales@uctel.co.uk</span>
+                </div>
+            </div>
+            <div class="page-number"></div>
+        </div>
+    </div> 
+   
+       <div class="page">
+        <div class="header"><img src="images/uctel_logo.png" alt="UCtel Logo"></div>
+        <h2>5G Ready Infrastructure</h2>
+
+        <img src="images/5g_ready_graphic_wide.png" alt="5G Ready Future-Proof Infrastructure">
+
+        <div class="feature-box">
+            <h3><i class="fa-solid fa-gem"></i> Future-Proof Your Investment</h3>
+            <p>All passive components in our Distributed Antenna System (DAS)—including donor antennas, server antennas, cabling, and splitters—are specified to support frequencies up to 4.0GHz. This ensures they are fully compatible with the 3.5GHz to 3.7GHz range (Band n78) allocated for 5G services in the UK.</p>
+            <p>While current Ofcom regulations do not yet permit the boosting of these 5G frequencies, your infrastructure will be ready from day one. When the regulations are updated, the core DAS network we install will not need to be replaced, saving you significant future expense and disruption.</p>
+        </div>
+
+        <h3>Key Benefits at a Glance</h3>
+        <ul class="benefits-list">
+            <li><i class="fa-solid fa-shield-halved"></i> <strong>Investment Protection:</strong> Your in-building mobile infrastructure is future-proofed, ready for the next generation of mobile technology.</li>
+            <li><i class="fa-solid fa-piggy-bank"></i> <strong>Significant Cost Savings:</strong> Avoid the high cost and disruption of a "rip-and-replace" upgrade when 5G boosting is enabled.</li>
+            <li><i class="fa-solid fa-puzzle-piece"></i> <strong>Seamless Transition:</strong> Be ready to take immediate advantage of 5G's speed and capacity as soon as it's available for boosting, with no additional hardware installation required.</li>
+        </ul>
+
+        <div class="footer">
+            <div class="footer-info">
+                <img src="images/uctel_logo.png" alt="UCtel Logo" class="footer-logo">
+                <div class="footer-text">
+                    <span>CEL-FI {Solution} solution proposal for {Account}</span>
+                    <span>www.uctel.co.uk | sales@uctel.co.uk</span>
+                </div>
+            </div>
+            <div class="page-number"></div>
+        </div>
+    </div>
+   
+
+    <div class="page">
+        <div class="header"><img src="images/uctel_logo.png" alt="UCtel Logo"></div>
+        <h2><i class="fa-solid fa-gears"></i> Design and Installation Process</h2>
+        <h3>Site Survey</h3>
+        <p>In order to validate the assumptions in this proposal, a site survey is required. The survey will determine:</p>
+        <ul>
+            <li>Signal strength and quality inside the building to identify where coverage is needed.</li>
+            <li>Potential locations to install the donor antennas. In these locations, measurements will be taken of the signal strength, quality and available frequency bands.</li>
+            <li>The type and quantity of donor antennas required</li>
+            <li>Cable routes from the donor antenna to the Network Unit(s)</li>
+            <li>Cable routes from the boosters to the server antennas and/or coverage units</li>
+            <li>Power locations and quantities</li>
+            <li>Other factors associated with the installation such as access equipment required, risks and working hours.</li>
+            <li>Final solution and price</li>
+        </ul>
+        <h3>Report and Quotation</h3>
+        <p>Following the survey, a report will be provided which will include the results of the signal survey as well as details of the solution and proposed equipment locations. A formal quotation will be provided for the installation of the solution.</p>
+        <h3>Project Coordination</h3>
+        <p>Once the order for the solution has been received, UCtel will introduce a project coordinator to manage the installation process. The project coordinator will be responsible for communicating dates, arranging any required risk assessments, method statements and permits and ensuring the smooth delivery of the project.</p>
+        <h3>Documentation</h3>
+        <p>Once the installation is complete, the project coordinator will produce the final as-built documentation and post installation survey document. A project completion sign off will be requested to confirm acceptance of the installation and that all deliverables have been completed.</p>
+        
+        <!-- Force page break before Section 6 -->
+        <div style="page-break-after: always; break-after: page; height: 1px; overflow: hidden;">&nbsp;</div>
+        
+        <div class="footer">
+            <div class="footer-info">
+                <img src="images/uctel_logo.png" alt="UCtel Logo" class="footer-logo">
+                <div class="footer-text">
+                    <span>CEL-FI {Solution} solution proposal for {Account}</span>
+                    <span>www.uctel.co.uk | sales@uctel.co.uk</span>
+                </div>
+            </div>
+            <div class="page-number"></div>
+        </div>
+    </div>
+    
+    <div class="page">
+        <div class="header"><img src="images/uctel_logo.png" alt="UCtel Logo"></div>
+    <h2><i class="fa-solid fa-sterling-sign"></i> Proposed Pricing</h2>
+        <p>The following table provides indicative figures for the proposed solution.</p>
+        <table class="pricing-table">
+          <thead><tr><th>Description</th><th>Qty</th><th>Unit Price</th><th>Total Price</th></tr></thead>
+          <tbody>
+            <tr><td>{Description1}</td><td>{Qty1}</td><td>{UnitPrice1}</td><td>{TotalPrice1}</td></tr>
+            <tr><td>{Description2}</td><td>{Qty2}</td><td>{UnitPrice2}</td><td>{TotalPrice2}</td></tr>
+            <tr><td>{Description3}</td><td>{Qty3}</td><td>{UnitPrice3}</td><td>{TotalPrice3}</td></tr>
+            <tr id="support-row-initial"><td>{Description4}</td><td>{Qty4}</td><td>{UnitPrice4}</td><td>{TotalPrice4}</td></tr>
+            <tr class="total-row"><td colspan="3" style="text-align:right;">Total Price:</td><td id="grand-total-price">{TotalPrice}</td></tr>
+        </tbody>
+        </table>
+        <p>The following support options are available. Please see the <a href="#section-cel-fi-support-services">CEL-FI Support Services</a> section for more details.</p>
+        <table class="pricing-table">
+           <thead><tr><th>Support Option</th><th>Qty</th><th>Unit Price</th><th>Total Price</th></tr></thead>
+           <tbody id="support-options-body">
+            <tr class="support-tier-option" data-tier="bronze"><td>{Support1}</td><td>{SupportQty1}</td><td>{SupportUnitPrice1}</td><td>{SupportTotalPrice1}</td></tr>
+            <tr class="support-tier-option" data-tier="silver"><td>{Support2}</td><td>{SupportQty2}</td><td>{SupportUnitPrice2}</td><td>{SupportTotalPrice2}</td></tr>
+            <tr class="support-tier-option" data-tier="gold"><td>{Support3}</td><td>{SupportQty3}</td><td>{SupportUnitPrice3}</td><td>{SupportTotalPrice3}</td></tr>
+        </tbody>
+        </table>
+        <p>All figures shown are exclusive of VAT.</p>
+        <p><b>Terms:</b> Cel-Fi equipment to be paid on order. Other elements to be invoiced on completion and paid within 30 days.</p>
+        <h3>Survey</h3>
+      <div class="survey-cta">
+    <p>The next step is a comprehensive site survey, which will allow us to <strong>finalise the system design</strong> and provide you with a fixed, formal quotation. This ensures the proposed solution is perfectly tailored to your building's specific needs.</p>
+    <p>The price for the survey and report is <span class="survey-price">{SurveyPrice} + VAT</span></p>
+</div>
+        <div class="footer">
+            <div class="footer-info">
+                <img src="images/uctel_logo.png" alt="UCtel Logo" class="footer-logo">
+                <div class="footer-text">
+                    <span>CEL-FI {Solution} solution proposal for {Account}</span>
+                    <span>www.uctel.co.uk | sales@uctel.co.uk</span>
+                </div>
+            </div>
+            <div class="page-number"></div>
+        </div>
+    </div>
+
+    <div class="page">
+        <div class="header"><img src="images/uctel_logo.png" alt="UCtel Logo"></div>
+        <div id="section-cel-fi-support-services" class="support-table-block">
+        <div class="support-table-core">
+            <h2>CEL-FI Support Services</h2>
+            <p>The table below describes the available services that UCtel provides for the ongoing support of CEL-FI installations.</p>
+        </div>
+        <table class="support-details-table">
+             <thead><tr><th>Included Services</th><th>Description</th><th>Bronze</th><th>Silver</th><th>Gold</th></tr></thead>
+            <tbody>
+                <tr><td>Health check</td><td>Scheduled on-site health check</td><td>O</td><td>O</td><td>O</td></tr>
+                <tr><td>Remote Monitoring</td><td>Alerts and events captured on the management portal</td><td>☐</td><td>✅</td><td>✅</td></tr>
+                <tr><td>Reactive Support</td><td>Customer identifies issue and reports to UCtel</td><td>✅</td><td>✅</td><td>✅</td></tr>
+                <tr><td>Proactive Alerting</td><td>Events and alerts received from management portal proactively investigated by UCtel</td><td>☐</td><td>✅</td><td>✅</td></tr>
+                <tr><td>Incident Management</td><td>Incident managed by UCtel via Email</td><td>✅</td><td>✅</td><td>✅</td></tr>
+                <tr><td>Change Management *</td><td>Remote changes (eg change in network operator where antenna does not need to be adjusted)</td><td>☐</td><td>✅</td><td>✅</td></tr>
+                <tr><td>On-site support</td><td>Engineer to site for equipment relocation or antenna repositioning</td><td>☐</td><td>☐</td><td>✅</td></tr>
+                <tr><td>Service Reports</td><td>Quarterly service reporting</td><td>☐</td><td>☐</td><td>O</td></tr>
+                <tr><td>Service Review Meetings</td><td>Quarterly service review meetings</td><td>☐</td><td>☐</td><td>O</td></tr>
+                <tr><td>Maintenance (Parts only)</td><td>Break/Fix maintenance - parts to site</td><td>✅</td><td>✅</td><td>☐</td></tr>
+                <tr><td>Maintenance (with engineer)</td><td>Break / fix maintenance with engineer to site</td><td>☐</td><td>☐</td><td>✅</td></tr>
+            </tbody>
+        </table>
+    <p class="support-legend">✅ - included in service O – optional ☐ - not included * Up to 4 changes per year per system</p>
+        </div>
+        <p><b>Notes:</b><br>
+        The services apply to remotely manageable CEL-FI products<br>
+        Management connectivity is included via cellular connections and does not need to run over customer infrastructure<br>
+        Proactive Alerting, Incident Management and Change Management operate in normal working hours unless agreed otherwise.<br>
+        Services are subject to UCtel’s standard Terms and Conditions.
+        </p>
+        <div class="footer">
+            <div class="footer-info">
+                <img src="images/uctel_logo.png" alt="UCtel Logo" class="footer-logo">
+                <div class="footer-text">
+                    <span>CEL-FI {Solution} solution proposal for {Account}</span>
+                    <span>www.uctel.co.uk | sales@uctel.co.uk</span>
+                </div>
+            </div>
+            <div class="page-number"></div>
+        </div>
+    </div>
+    
+    <!-- Download Button Container -->
+    <div class="download-container">
+        <button id="download-pdf-btn" class="download-btn">
+            <i class="fa-solid fa-download"></i>
+            Download as PDF
+        </button>
+        <p class="download-note">Click to save this proposal as a PDF file</p>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<script>
+const VIDEO_ID = 'izDp2EcQOhs';
+const VIDEO_URL = `https://www.youtube.com/watch?v=${VIDEO_ID}`;
+const VIDEO_THUMBNAIL = `https://img.youtube.com/vi/${VIDEO_ID}/hqdefault.jpg`;
+const VIDEO_EMBED_HTML = `
+    <div class="embedded-video">
+        <iframe src="https://www.youtube.com/embed/${VIDEO_ID}" title="YouTube video player" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+        <a class="video-fallback" href="${VIDEO_URL}" target="_blank" rel="noopener">
+            <img src="${VIDEO_THUMBNAIL}" alt="Watch the CEL-FI overview video on YouTube">
+            <span>Watch this video on YouTube</span>
+        </a>
+    </div>`;
+
+const solutionSpecificData = {
+    'G41': {
+        architecture: `
+            <h3 class="no-number">CEL-FI</h3>
+            <p>UCtel proposes to deploy solutions from Nextivity. Nextivity manufactures the CEL-FI suite of cellular coverage solutions which are designed to optimise mobile signal coverage within buildings and vehicles. CEL-FI is unconditionally network safe, as it prevents interference with mobile operator networks and in the UK CEL-FI products are licence-exempt and fully comply with Ofcom’s UK Interface requirement 2102 (IR2102).</p>
+            ${VIDEO_EMBED_HTML}
+            <div class="force-page-break" style="page-break-before: always; break-before: page;"></div>
+            <h3>CEL-FI G41 System Architecture</h3>
+                        <div class="arch-section">
+                            <p>The CEL-FI solution needs to receive the best available donor signal from outside and transport the signal through low loss cable to the network repeaters that then distribute the signal through indoor antennas. A system comprises:</p>
+                            <ul>
+                                <li>Donor antenna installed where the best donor signal can be obtained</li>
+                                <li>Low loss cables</li>
+                                <li>Repeaters to receive donor signal and boost it</li>
+                                <li>Internal antennas to broadcast the boosted signal</li>
+                            </ul>
+                            <img class="arch-diagram" src="images/g41_diagrams.png" alt="G41 Installation Diagrams">
+                        </div>`,
+        components: `
+            <div class="component-layout"><div class="image-container"><img src="images/donor_antenna.png" alt="Donor Antenna"></div><div class="text-container"><h3>Donor Antenna</h3><p>One or more donor antennas will be installed on the roof (or other suitable location) to obtain the best signal for boosting. The type of donor antenna will be selected during the site survey. The image shows an example of a roof installation. Low loss coaxial cables will be run from the donor antennas to the boosters.</p></div></div>
+            <div class="component-layout reverse"><div class="image-container"><img src="images/g41_boosters.png" alt="G41 Boosters"></div><div class="text-container"><h3>G41 Booster</h3><p>CEL-FI Go G41 booster(s) will be installed in a suitable location and either wall or rack-mounted. Typical locations are comms rooms or riser cupboards. Power will be required for the booster(s) and management router if remote management is required.</p></div></div>
+            <div class="force-page-break" style="page-break-before: always; break-before: page;"></div>
+            <div class="component-layout"><div class="image-container"><img src="images/server_antennas.png" alt="Server Antennas"></div><div class="text-container"><h3>Server Antennas</h3><p>Depending on the environment the appropriate type of antenna will be installed. There are a range of ceiling and panel omni antennas available and the most appropriate antenna will be recommended following the survey.</p></div></div>
+            <div class="force-page-break" style="page-break-before: always; break-before: page;"></div>
+            <div class="component-layout reverse"><div class="image-container"><img src="images/cabling.png" alt="Cabling"></div><div class="text-container"><h3>Cabling</h3><p>Coaxial cable carries the analogue signal and is low-loss to ensure the maximum signal is delivered to antennas.</p></div></div>`
+    },
+    'G43': {
+        architecture: `
+            <h3 class="no-number">CEL-FI</h3>
+            <p>UCtel proposes to deploy solutions from Nextivity. Nextivity manufactures the CEL-FI suite of cellular coverage solutions which are designed to optimise mobile signal coverage within buildings and vehicles. CEL-FI is unconditionally network safe, as it prevents interference with mobile operator networks and in the UK CEL-FI products are licence-exempt and fully comply with Ofcom’s UK Interface requirement 2102 (IR2102).</p>
+            ${VIDEO_EMBED_HTML}
+            <div class="force-page-break" style="page-break-before: always; break-before: page;"></div>
+            <h3>CEL-FI G43 System Architecture</h3>
+                        <div class="arch-section">
+                            <p>The CEL-FI solution needs to receive the best available donor signal from outside and transport the signal through low loss cable to the network repeaters that then distribute the signal through indoor antennas. A system comprises:</p>
+                            <ul>
+                                <li>Donor antenna installed where the best donor signal can be obtained</li>
+                                <li>Low loss cables</li>
+                                <li>Repeaters to receive donor signal and boost it</li>
+                                <li>Internal antennas to broadcast the boosted signal</li>
+                            </ul>
+                            <img class="arch-diagram" src="images/g43_diagram.png" alt="G43 Installation Diagram">
+                        </div>`,
+        components: `
+            <div class="component-layout"><div class="image-container"><img src="images/donor_antenna.png" alt="Donor Antenna"></div><div class="text-container"><h3>Donor Antenna</h3><p>One or more donor antennas will be installed on the roof (or other suitable location) to obtain the best signal for boosting. The type of donor antenna will be selected during the site survey. The image shows an example of a roof installation. Low loss coaxial cables will be run from the donor antennas to the boosters.</p></div></div>
+            <div class="component-layout reverse"><div class="image-container"><img src="images/g43_booster.png" alt="G43 Booster"></div><div class="text-container"><h3>G43 Booster</h3><p>CEL-FI GO G43 booster(s) will be installed in a suitable location and either wall or rack-mounted. Typical locations are comms rooms or riser cupboards. Power will be required for the booster(s) and management router if remote management is required.</p></div></div>
+            <div class="force-page-break" style="page-break-before: always; break-before: page;"></div>
+            <div class="component-layout"><div class="image-container"><img src="images/server_antennas.png" alt="Server Antennas"></div><div class="text-container"><h3>Server Antennas</h3><p>Depending on the environment the appropriate type of antenna will be installed. There are a range of ceiling and panel omni antennas available and the most appropriate antenna will be recommended following the survey.</p></div></div>
+            <div class="force-page-break" style="page-break-before: always; break-before: page;"></div>
+            <div class="component-layout reverse"><div class="image-container"><img src="images/cabling.png" alt="Cabling"></div><div class="text-container"><h3>Cabling</h3><p>Coaxial cable carries the analogue signal and is low-loss to ensure the maximum signal is delivered to antennas.</p></div></div>`
+    },
+    'QUATRA': {
+        architecture: `
+            <h3 class="no-number">CEL-FI</h3>
+            <p>UCtel proposes to deploy solutions from Nextivity. Nextivity manufactures the CEL-FI suite of cellular coverage solutions which are designed to optimise mobile signal coverage within buildings and vehicles. CEL-FI is unconditionally network safe, as it prevents interference with mobile operator networks and in the UK, CEL-FI products are licence-exempt and fully comply with Ofcom’s UK Interface requirement 2102 (IR2102).</p>
+            ${VIDEO_EMBED_HTML}
+            <h3 class="force-page-break">CEL-FI QUATRA 4000e</h3>
+            <p>CEL-FI QUATRA is a distributed antenna system (DAS) hybrid solution that combines the strength of passive and active DAS technologies to deliver high-quality mobile signal in buildings. The QUATRA 4000e boosts up to 4 network operators in a single system and complies with recent changes to Ofcom’s regulations in this regard.</p>
+            <img src="images/quatra_diagram.png" alt="QUATRA 4000e Architecture Diagram">`,
+        components: `
+            <div class="component-layout"><div class="image-container"><img src="images/donor_antenna.png" alt="Donor Antenna"></div><div class="text-container"><h3>Donor Antenna</h3><p>Donor antennas will be installed on the roof (or other suitable location) to obtain the best signal for boosting. The type of donor antenna will be selected during the site survey. The image shows an example of a roof installation. Low loss coaxial cables will be run from the donor antennas to the QUATRA Network Unit.</p></div></div>
+            <div class="component-layout reverse"><div class="image-container"><img src="images/network_unit.png" alt="Network Unit"></div><div class="text-container"><h3>Network Unit</h3><p>CEL-FI QUATRA 4000e Network Units (NUs) will be installed in a suitable location and either wall or rack mounted. Typical locations are comms rooms or riser cupboard. Power will be required for the NU. An NU can support up to 6 CUs. A fibre hub can be added to expand the capacity to 12 CUs.</p></div></div>
+            <div class="component-layout"><div class="image-container"><img src="images/coverage_unit.png" alt="Coverage Unit"></div><div class="text-container"><h3>Coverage Unit</h3><p>Coverage Units are installed on the wall or ceiling in each of the areas that require coverage. Two CAT6 cables connect each CU to the NU providing power over PoE. A server antenna or segments of passive DAS will be connected to each CU to distribute the signal across the required area.</p></div></div>
+            <div class="component-layout reverse"><div class="image-container"><img src="images/server_antennas.png" alt="Server Antennas"></div><div class="text-container"><h3 class="force-page-break">Server Antennas</h3><p>Depending on the environment the appropriate type of antenna will be installed. There are a range of ceiling and panel omni antennas available and the most appropriate antenna will be recommended following the survey.</p></div></div>
+            <div class="component-layout"><div class="image-container"><img src="images/cabling_quatra.png" alt="Quatra Cabling"></div><div class="text-container"><h3>Cabling</h3><p>Structured cabling will be used to connect active components together and coaxial cabling to connect antennas. Some installations involve fibre optic cable to maximise the distance between NU and CU, but will require a dedicated power at the other end.</p></div></div>`
+    },
+    'QUATRA_EVO': {
+        architecture: `
+            <h3 class="no-number">CEL-FI</h3>
+            <p>UCtel proposes to deploy solutions from Nextivity. Nextivity manufactures the CEL-FI suite of cellular coverage solutions which are designed to optimise mobile signal coverage within buildings and vehicles. CEL-FI is unconditionally network safe, as it prevents interference with mobile operator networks and in the UK, CEL-FI products are licence-exempt and fully comply with Ofcom’s UK Interface requirement 2102 (IR2102).</p>
+            ${VIDEO_EMBED_HTML}
+            <h3 class="force-page-break">CEL-FI QUATRA EVO</h3>
+            <p>CEL-FI QUATRA is a distributed antenna system (DAS) hybrid solution that combines the strength of passive and active DAS technologies to deliver high-quality mobile signal in buildings. The QUATRA EVO can boost two network operators in a single system and complies with recent changes to Ofcom’s regulations in this regard.</p>
+            <img src="images/evo_diagram.png" alt="QUATRA EVO Architecture Diagram">`,
+        components: `
+            <div class="component-layout"><div class="image-container"><img src="images/donor_antenna.png" alt="Donor Antenna"></div><div class="text-container"><h3>Donor Antenna</h3><p>Donor antennas will be installed on the roof (or other suitable location) to obtain the best signal for boosting. The type of donor antenna will be selected during the site survey. The image shows an example of a roof installation. Low loss coaxial cables will be run from the donor antennas to the QUATRA Network Unit.</p></div></div>
+            <div class="component-layout reverse"><div class="image-container"><img src="images/network_unit_evo.png" alt="EVO Network Unit"></div><div class="text-container"><h3>Network Unit</h3><p>CEL-FI QUATRA EVO Network Units (NUs) will be installed in a suitable location and either wall or rack mounted. Typical locations are comms rooms or riser cupboard. Power will be required for the NU. An NU can support up to 6 CUs. A fibre hub can be added to expand the capacity to 12 CUs.</p></div></div>
+            <div class="component-layout"><div class="image-container"><img src="images/coverage_unit.png" alt="Coverage Unit"></div><div class="text-container"><h3>Coverage Unit</h3><p>Coverage Units are installed on the wall or ceiling in each of the areas that require coverage. Two CAT6 cables connect each CU to the NU providing power over PoE. A server antenna or segments of passive DAS will be connected to each CU to distribute the signal across the required area.</p></div></div>
+            <div class="component-layout reverse"><div class="image-container"><img src="images/server_antennas.png" alt="Server Antennas"></div><div class="text-container"><h3 class="force-page-break">Server Antennas</h3><p>Depending on the environment the appropriate type of antenna will be installed. There are a range of ceiling and panel omni antennas available and the most appropriate antenna will be recommended following the survey.</p></div></div>
+            <div class="component-layout"><div class="image-container"><img src="images/cabling_quatra.png" alt="Quatra Cabling"></div><div class="text-container"><h3>Cabling</h3><p>Structured cabling will be used to connect active components together and coaxial cabling to connect antennas. Some installations involve fibre optic cable to maximise the distance between NU and CU, but will require a dedicated power at the other end.</p></div></div>`
+    }
+};
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- 1. LOAD AND DECODE DATA ---
+        const proposalData = (function loadProposalData() {
+            if (!window.location.hash) return null;
+            try {
+                const encodedState = window.location.hash.substring(1);
+                const compressedString = atob(encodedState);
+                const compressed = new Uint8Array(compressedString.length);
+                for (let i = 0; i < compressedString.length; i++) { compressed[i] = compressedString.charCodeAt(i); }
+                const jsonString = pako.inflate(compressed, { to: 'string' });
+                return JSON.parse(jsonString);
+            } catch (error) {
+                console.error("Failed to load proposal data:", error);
+                document.body.innerHTML = '<h1>Error: Could not load proposal data.</h1>';
+                return null;
+            }
+        })();
+
+        if (!proposalData) {
+            document.body.innerHTML = '<h1>No proposal data found. Please generate a link from the calculator.</h1>';
+            return;
+        };
+        // Function to format the date as DDMonYYYY
+function getFormattedDate() {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const date = new Date();
+    const day = date.getDate();
+    const month = months[date.getMonth()];
+    const year = date.getFullYear();
+    return `${day}${month}${year}`;
+}
+
+// 1. Get the necessary data from the proposalData object
+const solution = proposalData.Solution.replace(/ /g, '_'); // Replace spaces with underscores
+const networks = proposalData.NumberOfNetworks;
+const account = proposalData.Account.replace(/ /g, '_'); // Replace spaces with underscores
+const dateStr = getFormattedDate();
+
+// 2. Build the new filename string
+const newFilename = `UCtel_Proposal_${solution}_${networks}_Networks_for_${account}_${dateStr}`;
+
+// 3. Set the document title
+document.title = newFilename;
+        
+        // --- 2. POPULATE GENERAL PLACEHOLDERS (SAFE METHOD) ---
+        (function populatePlaceholders(data) {
+            const container = document.getElementById('proposal-container');
+            const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+            let node;
+            while (node = walker.nextNode()) {
+                let text = node.nodeValue;
+                for (const key in data) {
+                    text = text.replace(new RegExp(`{${key}}`, 'g'), data[key]);
+                }
+                node.nodeValue = text;
+            }
+        })(proposalData);
+
+        // --- 3. INJECT DYNAMIC SOLUTION-SPECIFIC HTML ---
+        (function populateDynamicContent(data) {
+            if (!data || !data.systemType) return;
+            const systemKey = data.systemType.replace('_DAS', '');
+            const content = solutionSpecificData[systemKey];
+            if (content) {
+                document.getElementById('solution-architecture-section').innerHTML = content.architecture;
+                document.getElementById('solution-components-section').innerHTML = content.components;
+            }
+        })(proposalData);
+
+        // --- 4. ADD INTERACTIVITY FOR PRICING TABLE ---
+        (function addInteractivity(data) {
+            const supportOptions = document.querySelectorAll('.support-tier-option');
+            const grandTotalElem = document.getElementById('grand-total-price');
+            const supportRow = document.getElementById('support-row-initial');
+            if(!grandTotalElem || !supportRow) return;
+
+            const initialData = {
+                desc: supportRow.cells[0].textContent,
+                qty: supportRow.cells[1].textContent,
+                unit: supportRow.cells[2].textContent,
+                total: supportRow.cells[3].textContent
+            };
+
+            const parsePrice = (priceString) => parseFloat(String(priceString).replace(/[£,]/g, ''));
+            const baseTotal = parsePrice(data.TotalPrice) - parsePrice(initialData.total || '£0.00');
+            const tierPrices = { bronze: parsePrice(data.SupportTotalPrice1), silver: parsePrice(data.SupportTotalPrice2), gold: parsePrice(data.SupportTotalPrice3) };
+            
+            supportOptions.forEach(option => {
+                option.addEventListener('click', () => {
+                    const isAlreadySelected = option.classList.contains('selected');
+                    if (isAlreadySelected) {
+                        option.classList.remove('selected');
+                        supportRow.cells[0].textContent = initialData.desc;
+                        supportRow.cells[1].textContent = initialData.qty;
+                        supportRow.cells[2].textContent = initialData.unit;
+                        supportRow.cells[3].textContent = initialData.total;
+                        grandTotalElem.textContent = `£${(baseTotal + parsePrice(initialData.total || '£0.00')).toLocaleString('en-GB', {minimumFractionDigits: 2})}`;
+                    } else {
+                        supportOptions.forEach(opt => opt.classList.remove('selected'));
+                        option.classList.add('selected');
+                        const tier = option.dataset.tier;
+                        const tierPrice = tierPrices[tier];
+                        const newGrandTotal = baseTotal + tierPrice;
+                        supportRow.cells[0].textContent = `Annual ${tier.charAt(0).toUpperCase() + tier.slice(1)} Support Package`;
+                        supportRow.cells[1].textContent = '1';
+                        supportRow.cells[2].textContent = `£${tierPrice.toLocaleString('en-GB', {minimumFractionDigits: 2})}`;
+                        supportRow.cells[3].textContent = `£${tierPrice.toLocaleString('en-GB', {minimumFractionDigits: 2})}`;
+                        grandTotalElem.textContent = `£${newGrandTotal.toLocaleString('en-GB', {minimumFractionDigits: 2})}`;
+                    }
+                });
+            });
+        })(proposalData);
+
+        // --- 5. ADD PAGE NUMBERS, HEADINGS, AND TOC (ROBUST VERSION) ---
+        (function finalizeDocument() {
+            // Add page numbers
+            const pages = document.querySelectorAll('.page:not(.cover-page)');
+            pages.forEach((page, index) => {
+                const pageNumElem = page.querySelector('.footer .page-number');
+                if(pageNumElem) pageNumElem.textContent = index + 2;
+            });
+
+            // Add heading numbers and generate ToC
+            const tocList = document.getElementById('toc-list');
+            tocList.innerHTML = '';
+            const headings = document.querySelectorAll('.page:not(.cover-page, .toc-page) h2:not(.no-number), .page:not(.cover-page, .toc-page) h3:not(.no-number)');
+            
+            let sectionCounter = 0;
+            let subsectionCounter = 0;
+
+            headings.forEach((heading) => {
+                const slug = 'section-' + heading.textContent.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                heading.id = slug;
+                
+                let displayNumber;
+                let numberSpan = document.createElement('span');
+                numberSpan.className = 'heading-number';
+
+                if (heading.tagName === 'H2') {
+                    sectionCounter++;
+                    subsectionCounter = 0;
+                    displayNumber = `${sectionCounter}`;
+                    numberSpan.textContent = `${displayNumber} `;
+                } else { // H3
+                    subsectionCounter++;
+                    displayNumber = `${sectionCounter}.${subsectionCounter}`;
+                    numberSpan.textContent = `${displayNumber} `;
+                }
+                
+                // Prepend the number span to the heading
+                heading.prepend(numberSpan);
+
+                // Create ToC entry
+                const li = document.createElement('li');
+                const a = document.createElement('a');
+                a.href = '#' + slug;
+                const pageNumber = heading.closest('.page')?.querySelector('.footer .page-number')?.textContent || '';
+                a.innerHTML = `<span>${displayNumber} ${heading.textContent.replace(numberSpan.textContent, '').trim()}</span><span>${pageNumber}</span>`;
+                li.className = heading.tagName === 'H2' ? 'toc-h2' : 'toc-h3';
+                li.appendChild(a);
+                tocList.appendChild(li);
+            });
+        })();
+
+        // --- 6. ADD DOWNLOAD FUNCTIONALITY ---
+        (function addDownloadFunctionality() {
+            const downloadBtn = document.getElementById('download-pdf-btn');
+            const downloadNote = document.querySelector('.download-note');
+            if (!downloadBtn) return;
+
+            const originalButtonContent = downloadBtn.innerHTML;
+
+            const setLoadingState = (isLoading, noteText) => {
+                if (isLoading) {
+                    downloadBtn.disabled = true;
+                    downloadBtn.classList.add('is-loading');
+                    downloadBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating PDF...';
+                    if (downloadNote && noteText) {
+                        downloadNote.textContent = noteText;
+                    }
+                } else {
+                    downloadBtn.disabled = false;
+                    downloadBtn.classList.remove('is-loading');
+                    downloadBtn.innerHTML = originalButtonContent;
+                    if (downloadNote && noteText) {
+                        downloadNote.textContent = noteText;
+                    }
+                }
+            };
+
+            const blobToDataUrl = (blob) => new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+
+            const compressImageBlobToDataUrl = async (blob) => {
+                // Premium tier allows original image sizes; keep native data for best fidelity.
+                return blobToDataUrl(blob);
+            };
+
+            const waitForImages = async (root) => {
+                const images = Array.from(root.querySelectorAll('img'));
+                await Promise.all(images.map((img) => {
+                    if (img.complete) {
+                        return Promise.resolve();
+                    }
+                    return new Promise((resolve) => {
+                        img.onload = img.onerror = () => resolve();
+                    });
+                }));
+            };
+
+            const MM_TO_PX = 96 / 25.4;
+            const mmToPx = (mm) => mm * MM_TO_PX;
+            const PAGINATION_TOLERANCE = 2;
+            const FOOTER_BUFFER = mmToPx(8);
+
+            const createPageShell = (doc, templatePage, header, footer) => {
+                const newPage = templatePage.cloneNode(false);
+                newPage.removeAttribute('id');
+
+                const headerClone = header ? header.cloneNode(true) : null;
+                const footerClone = footer ? footer.cloneNode(true) : null;
+                const pageBody = doc.createElement('div');
+                pageBody.className = 'page-body';
+
+                if (headerClone) {
+                    newPage.appendChild(headerClone);
+                }
+
+                newPage.appendChild(pageBody);
+
+                if (footerClone) {
+                    newPage.appendChild(footerClone);
+                }
+
+                return { page: newPage, body: pageBody };
+            };
+
+            const ensurePageBody = (doc, page, header, footer) => {
+                let body = page.querySelector('.page-body');
+                if (body) {
+                    return body;
+                }
+
+                body = doc.createElement('div');
+                body.className = 'page-body';
+
+                const children = Array.from(page.children);
+                children.forEach((child) => {
+                    if (child === header || child === footer) {
+                        return;
+                    }
+                    body.appendChild(child);
+                });
+
+                if (footer) {
+                    page.insertBefore(body, footer);
+                } else {
+                    page.appendChild(body);
+                }
+
+                return body;
+            };
+
+            const applyInsetsToBody = (body, topInset, bottomInset) => {
+                if (!body) {
+                    return;
+                }
+                body.style.paddingTop = `${topInset || 0}px`;
+                body.style.paddingBottom = `${bottomInset || 0}px`;
+            };
+
+            const getContentHeight = (body) => {
+                if (!body) {
+                    return 0;
+                }
+                const paddingTop = parseFloat(body.style.paddingTop) || 0;
+                const paddingBottom = parseFloat(body.style.paddingBottom) || 0;
+                return Math.max(0, body.scrollHeight - paddingTop - paddingBottom);
+            };
+
+            const computeMetrics = (view, page, header, footer) => {
+                if (!view || !page) {
+                    return null;
+                }
+
+                const pageRect = page.getBoundingClientRect();
+                const headerRect = header ? header.getBoundingClientRect() : null;
+                const footerRect = footer ? footer.getBoundingClientRect() : null;
+                const pageStyle = view.getComputedStyle(page);
+                const paddingTop = parseFloat(pageStyle.paddingTop) || 0;
+                const paddingBottom = parseFloat(pageStyle.paddingBottom) || 0;
+
+                const topInset = headerRect ? Math.max(paddingTop, headerRect.bottom - pageRect.top) : paddingTop;
+                const bottomInsetRaw = footerRect ? Math.max(paddingBottom, pageRect.bottom - footerRect.top) : paddingBottom;
+                const bottomInset = bottomInsetRaw + FOOTER_BUFFER;
+                const availableHeight = Math.max(0, pageRect.height - topInset - bottomInset);
+
+                return { pageRect, topInset, bottomInset, availableHeight };
+            };
+
+            const paginatePages = (doc) => {
+                const pages = Array.from(doc.querySelectorAll('.page'));
+                const view = doc.defaultView;
+                if (!view) {
+                    return false;
+                }
+
+                const queue = [];
+                const processedCounts = new WeakMap();
+                const MAX_QUEUE_STEPS = 2000; // slightly higher cap to let final splits happen
+                let queueSteps = 0;
+                let didModify = false;
+
+                    const splitElementToFit = (element, availableHeight) => {
+                    if (!element || element.nodeType !== 1) {
+                        return null;
+                    }
+
+                    if (!element.childNodes || !element.childNodes.length) {
+                        return null;
+                    }
+
+                    const UNSPLITTABLE_TAGS = new Set(['LI', 'P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'IMG', 'UL', 'OL', 'TABLE', 'TR', 'THEAD', 'TBODY', 'TFOOT']);
+                    if (UNSPLITTABLE_TAGS.has(element.tagName)) {
+                        return null;
+                    }
+
+                    // Treat blocks marked as break-inside avoid as unsplittable (e.g., component-layout, arch-section)
+                    try {
+                        const cs = view.getComputedStyle(element);
+                        const breakInside = (cs.getPropertyValue('break-inside') || cs.getPropertyValue('page-break-inside') || '').toLowerCase();
+                        const isAvoid = breakInside.includes('avoid');
+                        const isKnownBlock = element.classList.contains('component-layout') || element.classList.contains('arch-section') || element.classList.contains('support-table-core');
+                        if (isAvoid || isKnownBlock) {
+                            return null;
+                        }
+                    } catch (_) { /* ignore */ }
+
+                    const initialStyle = view.getComputedStyle(element);
+                    const initialMarginTop = parseFloat(initialStyle.marginTop) || 0;
+                    const initialMarginBottom = parseFloat(initialStyle.marginBottom) || 0;
+                    const initialHeight = element.getBoundingClientRect().height + initialMarginTop + initialMarginBottom;
+                    if (initialHeight <= availableHeight + PAGINATION_TOLERANCE) {
+                        return null;
+                    }
+
+                    const clone = element.cloneNode(false);
+                    const originalId = clone.id;
+                    if (originalId) {
+                        clone.removeAttribute('id');
+                    }
+
+                    const isWhitespace = (node) => node.nodeType === Node.TEXT_NODE && !node.textContent.trim();
+                    const remeasure = () => {
+                        if (!element.childNodes.length) {
+                            return 0;
+                        }
+                        const currentStyle = view.getComputedStyle(element);
+                        const marginTop = parseFloat(currentStyle.marginTop) || 0;
+                        const marginBottom = parseFloat(currentStyle.marginBottom) || 0;
+                        return element.getBoundingClientRect().height + marginTop + marginBottom;
+                    };
+
+                    let movedAny = false;
+
+                    while (element.childNodes.length) {
+                        let nodeToMove = element.lastChild;
+                        while (nodeToMove && isWhitespace(nodeToMove)) {
+                            element.removeChild(nodeToMove);
+                            nodeToMove = element.lastChild;
+                        }
+
+                        if (!nodeToMove) {
+                            break;
+                        }
+
+                        const movedNode = element.removeChild(nodeToMove);
+                        clone.insertBefore(movedNode, clone.firstChild);
+                        movedAny = true;
+
+                        const updatedHeight = remeasure();
+                        if (updatedHeight <= availableHeight + PAGINATION_TOLERANCE) {
+                            break;
+                        }
+                    }
+
+                    if (!movedAny || !clone.childNodes.length) {
+                        return null;
+                    }
+
+                    let originalRemoved = false;
+                    if (!element.childNodes.length) {
+                        if (element.parentNode) {
+                            element.parentNode.removeChild(element);
+                        }
+                        originalRemoved = true;
+                    }
+
+                    if (originalRemoved && originalId) {
+                        clone.id = originalId;
+                    }
+
+                    return { fragment: clone, originalRemoved };
+                };
+
+                pages.forEach((page) => {
+                    if (page.classList.contains('cover-page')) {
+                        return;
+                    }
+
+                    const header = page.querySelector('.header');
+                    const footer = page.querySelector('.footer');
+                    const body = ensurePageBody(doc, page, header, footer);
+                    queue.push({ page, body, header, footer });
+                });
+
+                while (queue.length) {
+                    const ctx = queue.shift();
+                    const { page, header, footer } = ctx;
+                    const body = ensurePageBody(doc, page, header, footer);
+
+                    if (!body || !body.children.length) {
+                        if (page.parentNode) {
+                            page.parentNode.removeChild(page);
+                            didModify = true;
+                        }
+                        continue;
+                    }
+
+                    const attempts = processedCounts.get(page) || 0;
+                    if (attempts > 50) { // lower cap to avoid excessive churn
+                        continue;
+                    }
+                    processedCounts.set(page, attempts + 1);
+
+                    const metrics = computeMetrics(view, page, header, footer);
+                    if (!metrics) {
+                        continue;
+                    }
+                    applyInsetsToBody(body, metrics.topInset, metrics.bottomInset);
+
+                    const children = Array.from(body.children);
+                    if (!children.length) {
+                        if (page.parentNode) {
+                            page.parentNode.removeChild(page);
+                            didModify = true;
+                        }
+                        continue;
+                    }
+
+                    let splitNode = null;
+                    const forcedBreakNode = children.find((child, index) => {
+                        if (child.nodeType !== 1) {
+                            return false;
+                        }
+                        if (!child.classList.contains('force-page-break')) {
+                            return false;
+                        }
+                        // Only break if there are actually previous elements
+                        return index > 0;
+                    });
+
+                    if (!forcedBreakNode && getContentHeight(body) <= metrics.availableHeight + PAGINATION_TOLERANCE) {
+                        continue;
+                    }
+
+                    if (forcedBreakNode) {
+                        splitNode = forcedBreakNode;
+                    }
+
+                    const contentBottom = metrics.pageRect.bottom - metrics.bottomInset;
+                    const firstElementChild = children.find((node) => node && node.nodeType === 1) || null;
+                    if (!splitNode) {
+                        for (let i = 0; i < children.length; i++) {
+                            const child = children[i];
+                            if (child.nodeType !== 1) {
+                                continue;
+                            }
+
+                            const childRect = child.getBoundingClientRect();
+                            const style = view.getComputedStyle(child);
+                            const marginBottom = parseFloat(style.marginBottom) || 0;
+                            const childBottom = childRect.bottom + marginBottom;
+
+                            if (childBottom <= contentBottom + PAGINATION_TOLERANCE) {
+                                continue;
+                            }
+
+                            const prev = child.previousElementSibling;
+                            if (prev && /^H[1-6]$/i.test(prev.tagName)) {
+                                // If the first content block after a first-on-page heading overflows,
+                                // move the heading together with its first block to the next page.
+                                const isPrevFirst = firstElementChild && prev === firstElementChild;
+                                if (prev.textContent && prev.textContent.includes('Proposed Pricing')) {
+                                    // Skip this split point for pricing section
+                                    continue;
+                                }
+                                if (isPrevFirst) {
+                                    // Split at the heading, but carry the following block as well by avoiding immediate orphaning later
+                                    splitNode = prev;
+                                } else {
+                                    splitNode = prev;
+                                }
+                            } else {
+                                splitNode = child;
+                            }
+                            break;
+                        }
+                    }
+
+                    if (!splitNode || !splitNode.parentNode) {
+                        continue;
+                    }
+
+                    const firstChild = children.find((node) => node.nodeType === 1) || null;
+                    
+                    if (splitNode === firstChild) {
+                        // If we decided to split at a heading to carry it with its content,
+                        // don't override by shifting to the next sibling.
+                        const isHeading = splitNode.tagName && /^H[1-6]$/i.test(splitNode.tagName);
+                        if (isHeading) {
+                            // Keep split at heading so heading + following content move together.
+                        } else {
+                        const style = view.getComputedStyle(splitNode);
+                        const totalHeight = splitNode.getBoundingClientRect().height + (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0);
+                        const elementCount = children.filter((node) => node.nodeType === 1).length;
+                        if (totalHeight > metrics.availableHeight + PAGINATION_TOLERANCE || elementCount === 1) {
+                            // Move this first child (a large block) to the next page instead of bailing
+                            // Keep splitNode as-is so it will be moved below.
+                        } else {
+                            // Prefer moving the next sibling to avoid empty-page scenarios when possible
+                            splitNode = splitNode.nextElementSibling;
+                            while (splitNode && splitNode.nodeType !== 1) {
+                                splitNode = splitNode.nextElementSibling;
+                            }
+                            if (!splitNode) {
+                                continue;
+                            }
+                        }
+                        }
+                    }
+
+                    const { page: newPage, body: newBody } = createPageShell(doc, page, header, footer);
+                    const originalNextSibling = splitNode.nextSibling;
+                    let moveSplitNode = true;
+
+                    if (splitNode.nodeType === 1) {
+                        const overflowResult = splitElementToFit(splitNode, metrics.availableHeight);
+                        if (overflowResult && overflowResult.fragment) {
+                            newBody.appendChild(overflowResult.fragment);
+                            moveSplitNode = false;
+                        }
+                    }
+
+                    let cursor = moveSplitNode ? splitNode : (splitNode.isConnected ? splitNode.nextSibling : originalNextSibling);
+                    const nodesToMove = [];
+                    while (cursor) {
+                        const next = cursor.nextSibling;
+                        nodesToMove.push(cursor);
+                        cursor = next;
+                    }
+                    nodesToMove.forEach((node) => newBody.appendChild(node));
+
+                    if (page.parentNode) {
+                        page.parentNode.insertBefore(newPage, page.nextSibling);
+                        didModify = true;
+                    }
+
+                    const newHeader = newPage.querySelector('.header');
+                    const newFooter = newPage.querySelector('.footer');
+                    const newMetrics = computeMetrics(view, newPage, newHeader, newFooter);
+                    if (newMetrics) {
+                        applyInsetsToBody(newBody, newMetrics.topInset, newMetrics.bottomInset);
+                    }
+
+                    queue.push({ page: newPage, body: newBody, header: newHeader, footer: newFooter });
+
+                    if (!body.children.length) {
+                        if (page.parentNode) {
+                            page.parentNode.removeChild(page);
+                            didModify = true;
+                        }
+                    } else if (getContentHeight(body) > metrics.availableHeight + PAGINATION_TOLERANCE) {
+                        queue.push({ page, body, header, footer });
+                    }
+                    queueSteps++;
+                    if (queueSteps > MAX_QUEUE_STEPS) {
+                        // Bail out to keep the UI responsive; we'll clean up on the next pass.
+                        break;
+                    }
+                }
+
+                if (enforceManualPageBreaks(doc)) {
+                    didModify = true;
+                }
+
+                return didModify;
+            };
+
+            const hasOverflow = (doc) => {
+                const pages = Array.from(doc.querySelectorAll('.page'));
+                const view = doc.defaultView;
+                if (!view) {
+                    return false;
+                }
+
+                return pages.some((page) => {
+                    if (page.classList.contains('cover-page')) {
+                        return false;
+                    }
+
+                    const header = page.querySelector('.header');
+                    const footer = page.querySelector('.footer');
+                    const body = ensurePageBody(doc, page, header, footer);
+                    if (!body) {
+                        return false;
+                    }
+
+                    const metrics = computeMetrics(view, page, header, footer);
+                    if (!metrics) {
+                        return false;
+                    }
+
+                    applyInsetsToBody(body, metrics.topInset, metrics.bottomInset);
+
+                    // Primary check: exact last element position vs usable bottom (handles collapsed margins)
+                    const usableBottom = metrics.pageRect.bottom - metrics.bottomInset;
+                    const elements = Array.from(body.children).filter((n) => n.nodeType === 1);
+                    if (!elements.length) {
+                        return false;
+                    }
+                    const last = elements[elements.length - 1];
+                    const rect = last.getBoundingClientRect();
+                    const style = view.getComputedStyle(last);
+                    const marginBottom = parseFloat(style.marginBottom) || 0;
+                    const lastBottom = rect.bottom + marginBottom;
+                    if (lastBottom > usableBottom + PAGINATION_TOLERANCE) {
+                        return true;
+                    }
+
+                    // Fallback: total content height vs available height
+                    const contentHeight = getContentHeight(body);
+                    return contentHeight > metrics.availableHeight + PAGINATION_TOLERANCE;
+                });
+            };
+
+            const cleanupLonelyHeadings = (doc) => {
+                // Disabled to avoid moving content across section boundaries (e.g., pushing
+                // CEL-FI content before the "Proposed Solution" heading). Keeping pages as-paginated.
+                return;
+            };
+
+                    const enforceManualPageBreaks = (doc) => {
+                const view = doc.defaultView;
+                if (!view) {
+                    return false;
+                }
+
+                let modified = false;
+                const pages = Array.from(doc.querySelectorAll('.page'));
+
+                    for (const page of pages) {
+                    if (page.classList.contains('cover-page')) {
+                        continue;
+                    }
+
+                    const header = page.querySelector('.header');
+                    const footer = page.querySelector('.footer');
+                    const body = ensurePageBody(doc, page, header, footer);
+                    if (!body) {
+                        continue;
+                    }
+
+                    const metrics = computeMetrics(view, page, header, footer);
+                    const elements = Array.from(body.children).filter((node) => node.nodeType === 1);
+
+                    // Find the first element that either is a manual break marker (.force-page-break or .page-break) OR contains one anywhere inside
+                    let breakIndex = -1;
+                    let breakElement = null; // top-level child of body
+                    let nestedBreakNode = null; // the actual nested .force-page-break inside breakElement
+                    for (let i = 0; i < elements.length; i++) {
+                        const element = elements[i];
+                        const hasDirectBreak = element.classList && (element.classList.contains('force-page-break') || element.classList.contains('page-break'));
+                        if (hasDirectBreak) {
+                            breakIndex = i;
+                            breakElement = element;
+                            nestedBreakNode = element; // treat as direct
+                            break;
+                        }
+                        const nested = element.querySelector('.force-page-break, .page-break');
+                        if (nested) {
+                            breakIndex = i;
+                            breakElement = element;
+                            nestedBreakNode = nested;
+                            break;
+                        }
+                    }
+
+                    if (breakIndex !== -1 && breakElement) {
+
+                        const hasPreviousElements = elements.slice(0, breakIndex).some((node) => Boolean(node));
+                        let hasContentAbove = false;
+
+                        if (metrics) {
+                            const elementRect = breakElement.getBoundingClientRect();
+                            const desiredTop = metrics.pageRect.top + metrics.topInset;
+                            hasContentAbove = elementRect.top - desiredTop > PAGINATION_TOLERANCE;
+                        }
+
+                        if (!hasPreviousElements && !hasContentAbove) {
+                            continue;
+                        }
+
+                        const { page: newPage, body: newBody } = createPageShell(doc, page, header, footer);
+                        const newHeader = newPage.querySelector('.header');
+                        const newFooter = newPage.querySelector('.footer');
+
+                        if (nestedBreakNode && nestedBreakNode !== breakElement) {
+                            // Split inside the container at the nested break node boundary
+                            // Find the direct child of breakElement that contains the nestedBreakNode
+                            let splitChild = nestedBreakNode;
+                            while (splitChild && splitChild.parentNode !== breakElement) {
+                                splitChild = splitChild.parentNode;
+                            }
+
+                            // Create a shallow clone of the container to hold the tail content
+                            const containerClone = breakElement.cloneNode(false);
+                            if (containerClone.id) {
+                                containerClone.removeAttribute('id');
+                            }
+
+                            // Move from splitChild to the end into the clone
+                            let ptr = splitChild;
+                            while (ptr) {
+                                const next = ptr.nextSibling;
+                                containerClone.appendChild(ptr);
+                                ptr = next;
+                            }
+
+                            // Normalize any break markers in the cloned tail: remove class on contentful nodes, drop empty markers
+                            Array.from(containerClone.querySelectorAll('.force-page-break')).forEach((el) => {
+                                const isMarkerOnly = !el.textContent.trim() && el.children.length === 0;
+                                if (isMarkerOnly) {
+                                    el.parentNode && el.parentNode.removeChild(el);
+                                } else {
+                                    el.classList.remove('force-page-break');
+                                }
+                            });
+
+                            // Append the cleaned cloned tail to the new page body
+                            newBody.appendChild(containerClone);
+
+                            // Now move following siblings after the container itself to the new page
+                            let sib = breakElement.nextSibling;
+                            while (sib) {
+                                const next = sib.nextSibling;
+                                newBody.appendChild(sib);
+                                sib = next;
+                            }
+
+                            // If the original container became empty, remove it
+                            if (!breakElement.firstChild) {
+                                breakElement.parentNode && breakElement.parentNode.removeChild(breakElement);
+                            }
+                        } else {
+                            // Direct break marker: if contentful, move it to the new page; if empty, drop it
+                            const isMarkerOnly = !breakElement.textContent.trim() && breakElement.children.length === 0;
+                            if (!isMarkerOnly) {
+                                newBody.appendChild(breakElement);
+                            } else if (breakElement.parentNode) {
+                                breakElement.parentNode.removeChild(breakElement);
+                            }
+                            let cursor = (isMarkerOnly ? (breakElement.nextSibling) : breakElement.nextSibling);
+                            while (cursor) {
+                                const next = cursor.nextSibling;
+                                newBody.appendChild(cursor);
+                                cursor = next;
+                            }
+                        }
+
+                        if (page.parentNode) {
+                            page.parentNode.insertBefore(newPage, page.nextSibling);
+                        }
+
+                        const originalMetrics = metrics;
+                        if (originalMetrics) {
+                            applyInsetsToBody(body, originalMetrics.topInset, originalMetrics.bottomInset);
+                        }
+
+                        const newMetrics = computeMetrics(view, newPage, newHeader, newFooter);
+                        if (newMetrics) {
+                            applyInsetsToBody(newBody, newMetrics.topInset, newMetrics.bottomInset);
+                        }
+
+                        if (!body.children.length && page.parentNode) {
+                            page.parentNode.removeChild(page);
+                        }
+
+                        modified = true;
+                        break;
+                    }
+
+                    if (modified) {
+                        break;
+                    }
+                }
+
+                return modified;
+            };
+
+            const reflowTocPages = (doc, tocEntries) => {
+                const view = doc.defaultView;
+                if (!view) {
+                    return [];
+                }
+                const tocPages = Array.from(doc.querySelectorAll('.page.toc-page'));
+                if (!tocPages.length) {
+                    return [];
+                }
+
+                const templatePage = tocPages[0];
+                const templateHeader = templatePage.querySelector('.header');
+                const templateFooter = templatePage.querySelector('.footer');
+                const templateBody = ensurePageBody(doc, templatePage, templateHeader, templateFooter);
+                if (!templateBody) {
+                    return [];
+                }
+
+                const headingTemplate = templateBody.querySelector('h2');
+                const tocList = templateBody.querySelector('ul.toc');
+                if (!tocList) {
+                    return [];
+                }
+
+                for (let i = 1; i < tocPages.length; i++) {
+                    const page = tocPages[i];
+                    if (page.parentNode) {
+                        page.parentNode.removeChild(page);
+                    }
+                }
+
+                tocList.innerHTML = '';
+
+                const entryNodes = [];
+                if (!tocEntries.length) {
+                    return entryNodes;
+                }
+
+                const headingBaseText = headingTemplate ? headingTemplate.textContent.trim() : '';
+                const continuationHeadingText = headingBaseText ? `${headingBaseText} (CONTINUED)` : '';
+
+                let currentPage = templatePage;
+                let currentBody = templateBody;
+                let currentHeader = templateHeader;
+                let currentFooter = templateFooter;
+                let currentList = tocList;
+                let metrics = computeMetrics(view, currentPage, currentHeader, currentFooter);
+                if (metrics) {
+                    applyInsetsToBody(currentBody, metrics.topInset, metrics.bottomInset);
+                }
+
+                const createContinuationPage = () => {
+                    const { page: newPage, body: newBody } = createPageShell(doc, templatePage, templateHeader, templateFooter);
+                    const newHeader = newPage.querySelector('.header');
+                    const newFooter = newPage.querySelector('.footer');
+
+                    if (headingTemplate && continuationHeadingText) {
+                        const headingClone = headingTemplate.cloneNode(true);
+                        headingClone.textContent = continuationHeadingText;
+                        newBody.appendChild(headingClone);
+                    }
+
+                    const newList = tocList.cloneNode(false);
+                    newList.removeAttribute('id');
+                    newBody.appendChild(newList);
+
+                    currentPage.parentNode.insertBefore(newPage, currentPage.nextSibling);
+
+                    const newMetrics = computeMetrics(view, newPage, newHeader, newFooter);
+                    if (newMetrics) {
+                        applyInsetsToBody(newBody, newMetrics.topInset, newMetrics.bottomInset);
+                    }
+
+                    return { newPage, newBody, newHeader, newFooter, newList, newMetrics };
+                };
+
+                tocEntries.forEach((entry) => {
+                    const li = doc.createElement('li');
+                    li.className = entry.level === 'H2' ? 'toc-h2' : 'toc-h3';
+
+                    const link = doc.createElement('a');
+                    link.href = `#${entry.slug}`;
+
+                    const titleSpan = doc.createElement('span');
+                    titleSpan.textContent = `${entry.displayNumber} ${entry.text}`;
+
+                    const pageSpan = doc.createElement('span');
+                    pageSpan.className = 'toc-page-number';
+                    pageSpan.textContent = '';
+
+                    link.appendChild(titleSpan);
+                    link.appendChild(pageSpan);
+                    li.appendChild(link);
+
+                    currentList.appendChild(li);
+
+                    if (metrics && getContentHeight(currentBody) > metrics.availableHeight + PAGINATION_TOLERANCE) {
+                        currentList.removeChild(li);
+
+                        if (!currentList.children.length) {
+                            currentList.appendChild(li);
+                        } else {
+                            const created = createContinuationPage();
+                            currentPage = created.newPage;
+                            currentBody = created.newBody;
+                            currentHeader = created.newHeader;
+                            currentFooter = created.newFooter;
+                            currentList = created.newList;
+                            metrics = created.newMetrics;
+                            if (!metrics) {
+                                metrics = computeMetrics(view, currentPage, currentHeader, currentFooter);
+                                if (metrics) {
+                                    applyInsetsToBody(currentBody, metrics.topInset, metrics.bottomInset);
+                                }
+                            }
+
+                            currentList.appendChild(li);
+                        }
+                    }
+
+                    entryNodes.push({ entry, pageNumberNode: pageSpan });
+                });
+
+                const extraPages = Array.from(doc.querySelectorAll('.page.toc-page')).slice(1);
+                extraPages.forEach((page) => {
+                    const header = page.querySelector('.header');
+                    const footer = page.querySelector('.footer');
+                    const body = ensurePageBody(doc, page, header, footer);
+                    const list = body ? body.querySelector('ul.toc') : null;
+                    if (!list || !list.children.length) {
+                        if (page.parentNode) {
+                            page.parentNode.removeChild(page);
+                        }
+                    }
+                });
+
+                return entryNodes;
+            };
+
+            const refreshPageMetadata = (doc) => {
+                    const assignPageNumbers = () => {
+                        const pages = Array.from(doc.querySelectorAll('.page:not(.cover-page)'));
+                        const hasCover = Boolean(doc.querySelector('.page.cover-page'));
+                        const baseNumber = hasCover ? 2 : 1;
+
+                        pages.forEach((page, index) => {
+                            const pageNumElem = page.querySelector('.footer .page-number');
+                            if (pageNumElem) {
+                                pageNumElem.textContent = index + baseNumber;
+                            }
+                        });
+
+                        return { pages, baseNumber };
+                    };
+
+                    doc.querySelectorAll('.heading-number').forEach((span) => span.remove());
+
+                    let { pages, baseNumber } = assignPageNumbers();
+
+                    const headings = doc.querySelectorAll('.page:not(.cover-page, .toc-page) h2:not(.no-number), .page:not(.cover-page, .toc-page) h3:not(.no-number)');
+
+                    const tocEntries = [];
+                    let sectionCounter = 0;
+                    let subsectionCounter = 0;
+
+                    headings.forEach((heading) => {
+                        const headingText = heading.textContent.trim();
+                        const slug = 'section-' + headingText.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                        heading.id = slug;
+
+                        let displayNumber;
+                        const numberSpan = doc.createElement('span');
+                        numberSpan.className = 'heading-number';
+
+                        if (heading.tagName === 'H2') {
+                            sectionCounter++;
+                            subsectionCounter = 0;
+                            displayNumber = `${sectionCounter}`;
+                        } else {
+                            subsectionCounter++;
+                            displayNumber = `${sectionCounter}.${subsectionCounter}`;
+                        }
+
+                        numberSpan.textContent = `${displayNumber} `;
+                        heading.prepend(numberSpan);
+
+                        tocEntries.push({
+                            displayNumber,
+                            text: headingText,
+                            slug,
+                            level: heading.tagName,
+                            pageElement: heading.closest('.page')
+                        });
+                    });
+
+                    const tocNodes = reflowTocPages(doc, tocEntries);
+
+                    ({ pages, baseNumber } = assignPageNumbers());
+
+                    tocNodes.forEach(({ entry, pageNumberNode }) => {
+                        if (!pageNumberNode) {
+                            return;
+                        }
+                        const pageNumber = entry.pageElement?.querySelector('.footer .page-number')?.textContent || '';
+                        pageNumberNode.textContent = pageNumber;
+                    });
+                };
+
+            const uint8ToBase64 = (bytes) => {
+                if (!(bytes instanceof Uint8Array)) {
+                    throw new TypeError('Expected Uint8Array for base64 conversion.');
+                }
+                let binary = '';
+                const chunk = 0x8000;
+                for (let i = 0; i < bytes.length; i += chunk) {
+                    const segment = bytes.subarray(i, i + chunk);
+                    binary += String.fromCharCode.apply(null, segment);
+                }
+                return btoa(binary);
+            };
+
+            const compressHtmlToBase64 = (htmlString) => {
+                if (typeof pako === 'undefined' || !pako.gzip) {
+                    throw new Error('pako.gzip is unavailable for compression.');
+                }
+                const compressed = pako.gzip(htmlString, { level: 6 });
+                return {
+                    base64: uint8ToBase64(compressed),
+                    byteLength: compressed.length,
+                };
+            };
+
+            const inlineImages = async (root) => {
+                const imageElements = Array.from(root.querySelectorAll('img'));
+                for (const img of imageElements) {
+                    const src = img.getAttribute('src');
+                    if (!src || src.startsWith('data:') || src.startsWith('http')) {
+                        continue;
+                    }
+
+                    try {
+                        // Use browser-resolved absolute URL to handle nested paths (e.g., /public on Vercel)
+                        const absoluteUrl = img.src;
+                        const response = await fetch(absoluteUrl);
+                        if (!response.ok) {
+                            console.warn(`Failed to inline image: ${src}`);
+                            continue;
+                        }
+
+                        const blob = await response.blob();
+                        const optimizedDataUrl = await compressImageBlobToDataUrl(blob);
+                        img.setAttribute('src', optimizedDataUrl);
+                    } catch (error) {
+                        console.warn('Error inlining image', src, error);
+                    }
+                }
+            };
+
+            const prepareHtmlForExport = async () => {
+                const iframe = document.createElement('iframe');
+                const pageWidthPx = mmToPx(210);
+                const pageHeightPx = mmToPx(297);
+                iframe.style.position = 'fixed';
+                iframe.style.left = '-9999px';
+                iframe.style.top = '0';
+                iframe.style.width = `${pageWidthPx}px`;
+                iframe.style.height = `${pageHeightPx}px`;
+                iframe.style.opacity = '0';
+                iframe.style.pointerEvents = 'none';
+                iframe.setAttribute('aria-hidden', 'true');
+                document.body.appendChild(iframe);
+
+                try {
+                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+
+                    const clonedRoot = document.documentElement.cloneNode(true);
+
+                    const clonedBody = clonedRoot.querySelector('body');
+                    if (clonedBody) {
+                        clonedBody.classList.add('pdf-export');
+                        clonedBody.setAttribute('data-export-mode', 'pdfshift');
+                    }
+
+                    const downloadContainer = clonedRoot.querySelector('.download-container');
+                    if (downloadContainer) {
+                        downloadContainer.remove();
+                    }
+
+                    // Remove YouTube iframes to prevent hanging during PDF generation
+                    clonedRoot.querySelectorAll('iframe[src*="youtube.com"], iframe[src*="youtu.be"]').forEach((iframe) => {
+                        iframe.remove();
+                    });
+
+                    clonedRoot.querySelectorAll('script').forEach((script) => script.remove());
+
+                    iframeDoc.open();
+                    iframeDoc.write('<!DOCTYPE html>' + clonedRoot.outerHTML);
+                    iframeDoc.close();
+
+                    await waitForImages(iframeDoc);
+
+                    const balancePagination = async () => {
+                        const MAX_PASSES = 7;
+                        const MAX_MS = 5000; // 5s time budget to finish cleanly
+                        const start = (iframe.contentWindow && iframe.contentWindow.performance)
+                            ? iframe.contentWindow.performance.now()
+                            : Date.now();
+
+                        for (let pass = 0; pass < MAX_PASSES; pass++) {
+                            const modified = paginatePages(iframeDoc);
+                            cleanupLonelyHeadings(iframeDoc);
+                            refreshPageMetadata(iframeDoc);
+
+                            const elapsed = (iframe.contentWindow && iframe.contentWindow.performance)
+                                ? iframe.contentWindow.performance.now() - start
+                                : Date.now() - start;
+                            if (elapsed > MAX_MS) {
+                                break;
+                            }
+
+                            if (!modified && !hasOverflow(iframeDoc)) {
+                                break;
+                            }
+
+                            // Yield to the browser between passes to keep the page responsive
+                            await new Promise((resolve) =>
+                                (iframe.contentWindow && iframe.contentWindow.requestAnimationFrame)
+                                    ? iframe.contentWindow.requestAnimationFrame(() => resolve())
+                                    : setTimeout(resolve, 0)
+                            );
+                        }
+
+                        refreshPageMetadata(iframeDoc);
+
+                        // Final safety: if any page still overflows, force-move trailing blocks
+                        const ensureNoOverflow = async () => {
+                            const pages = Array.from(iframeDoc.querySelectorAll('.page'));
+                            const view = iframeDoc.defaultView;
+                            if (!view) return;
+
+                            const MAX_FORCED_MOVES = 12; // global safety
+                            let moves = 0;
+
+                            for (const page of pages) {
+                                if (moves >= MAX_FORCED_MOVES) break;
+                                if (page.classList.contains('cover-page')) continue;
+                                const header = page.querySelector('.header');
+                                const footer = page.querySelector('.footer');
+                                const body = ensurePageBody(iframeDoc, page, header, footer);
+                                if (!body) continue;
+
+                                const metrics = computeMetrics(view, page, header, footer);
+                                if (!metrics) continue;
+                                applyInsetsToBody(body, metrics.topInset, metrics.bottomInset);
+
+                                const fits = getContentHeight(body) <= metrics.availableHeight + PAGINATION_TOLERANCE;
+                                if (fits) continue;
+
+                                // Identify first overflowing element
+                                const children = Array.from(body.children).filter((el) => el && el.nodeType === 1);
+                                const contentBottom = metrics.pageRect.bottom - metrics.bottomInset;
+                                let splitStart = null;
+                                for (let i = 0; i < children.length; i++) {
+                                    const child = children[i];
+                                    const rect = child.getBoundingClientRect();
+                                    const style = view.getComputedStyle(child);
+                                    const marginBottom = parseFloat(style.marginBottom) || 0;
+                                    const childBottom = rect.bottom + marginBottom;
+                                    if (childBottom > contentBottom + PAGINATION_TOLERANCE) {
+                                        splitStart = child;
+                                        // If a heading precedes and it's the first element, carry it too to avoid orphaning
+                                        const prev = child.previousElementSibling;
+                                        const firstEl = children[0];
+                                        if (prev && /^H[1-6]$/i.test(prev.tagName) && prev === firstEl) {
+                                            splitStart = prev;
+                                        }
+                                        break;
+                                    }
+                                }
+
+                                if (!splitStart) {
+                                    // Fallback: move the last non-footer element
+                                    splitStart = children[children.length - 1] || null;
+                                    if (splitStart && splitStart.classList.contains('footer')) {
+                                        splitStart = splitStart.previousElementSibling;
+                                    }
+                                }
+
+                                if (!splitStart) continue;
+
+                                // Create a new page and move from splitStart onward
+                                const { page: newPage, body: newBody } = createPageShell(iframeDoc, page, header, footer);
+                                const newHeader = newPage.querySelector('.header');
+                                const newFooter = newPage.querySelector('.footer');
+
+                                let node = splitStart;
+                                while (node) {
+                                    const next = node.nextSibling;
+                                    newBody.appendChild(node);
+                                    node = next;
+                                }
+
+                                moves++;
+
+                                if (page.parentNode) {
+                                    page.parentNode.insertBefore(newPage, page.nextSibling);
+                                }
+
+                                const m1 = computeMetrics(view, page, header, footer);
+                                if (m1) applyInsetsToBody(body, m1.topInset, m1.bottomInset);
+                                const m2 = computeMetrics(view, newPage, newHeader, newFooter);
+                                if (m2) applyInsetsToBody(newBody, m2.topInset, m2.bottomInset);
+
+                                // If the original page body ended up empty, remove that page
+                                if (!body.children.length && page.parentNode) {
+                                    page.parentNode.removeChild(page);
+                                }
+
+                                // Yield a bit to keep UI responsive
+                                await new Promise((resolve) =>
+                                    (iframe.contentWindow && iframe.contentWindow.requestAnimationFrame)
+                                        ? iframe.contentWindow.requestAnimationFrame(() => resolve())
+                                        : setTimeout(resolve, 0)
+                                );
+
+                                if (moves >= MAX_FORCED_MOVES) break;
+                            }
+                        };
+
+                        if (hasOverflow(iframeDoc)) {
+                            await ensureNoOverflow();
+                            refreshPageMetadata(iframeDoc);
+                        }
+                    };
+
+                    await balancePagination();
+
+                    const serializedHtml = '<!DOCTYPE html>' + iframeDoc.documentElement.outerHTML;
+                    return serializedHtml;
+                } finally {
+                    document.body.removeChild(iframe);
+                }
+            };
+
+            downloadBtn.addEventListener('click', async () => {
+                try {
+                    setLoadingState(true, 'Generating PDF. This may take a few moments...');
+
+                    const html = await prepareHtmlForExport();
+                    const filename = (document.title || 'UCtel_Proposal').replace(/[^a-z0-9_-]+/gi, '_');
+
+                    const rawByteLength = new TextEncoder().encode(html).length;
+                    console.info('PDF export raw payload size (bytes):', rawByteLength);
+
+                    let requestBody;
+                    try {
+                        const { base64, byteLength } = compressHtmlToBase64(html);
+                        console.info('PDF export compressed payload size (bytes):', byteLength);
+                        requestBody = {
+                            encoding: 'gzip-base64',
+                            data: base64,
+                            filename,
+                            origin: window.location.origin,
+                            options: {
+                                page_size: 'a4',
+                                use_print: false,
+                                margin: {
+                                    top: '0mm',
+                                    right: '0mm',
+                                    bottom: '0mm',
+                                    left: '0mm',
+                                },
+                                wait: 1,
+                            },
+                            diagnostics: {
+                                rawBytes: rawByteLength,
+                                compressedBytes: byteLength,
+                            },
+                        };
+                    } catch (compressionError) {
+                        console.error('Failed to compress HTML before sending to PDF service.', compressionError);
+                        throw new Error('Unable to compress proposal for PDF generation. Please refresh and try again.');
+                    }
+
+                    const response = await fetch('/api/convert-to-pdf', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(requestBody),
+                    });
+
+                    if (!response.ok) {
+                        let errorMessage = 'Failed to generate PDF via PDFShift.';
+                        try {
+                            const errorPayload = await response.json();
+                            if (errorPayload && errorPayload.error) {
+                                errorMessage = errorPayload.error;
+                            }
+                        } catch (parseError) {
+                            // ignore parse errors and use generic message
+                        }
+                        throw new Error(errorMessage);
+                    }
+
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `${filename}.pdf`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+
+                    setLoadingState(false, 'PDF downloaded successfully.');
+                } catch (error) {
+                    console.error('PDF download failed', error);
+                    setLoadingState(false, 'Failed to generate PDF. Please try again or contact support.');
+                }
+            });
+        })();
+    });
+</script>
+</body>
+</html>

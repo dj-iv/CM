@@ -4,10 +4,18 @@ node_modules/
 
 # Env / secrets
 .env
+prop/.env.local
+prop/.env
+prop/proposal-*-firebase-adminsdk-*.json
 
 # Local artifacts
 UCtel_Proposal.pdf
 transformed.html
+prop/.next/
+prop/.vercel
+
+# Additional build outputs
+prop/out/
 
 # Logs
 npm-debug.log*
