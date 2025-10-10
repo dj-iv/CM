@@ -515,14 +515,14 @@ export default function ProposalClient({ slug, proposal, introduction, error }: 
                 <>
                   <p className="text-lg font-medium text-red-600">{error}</p>
                   <p className="mt-2 text-sm text-slate-600">
-                    Ensure the proposal was generated from the Cost Model using the “Proposal Temp” button.
+                    Ensure the proposal was saved from the Cost Model using the “Save Proposal” action.
                   </p>
                 </>
               ) : (
                 <>
                   <p className="text-lg font-medium text-slate-700">Proposal data not found.</p>
                   <p className="mt-2 text-sm text-slate-600">
-                    Generate a new proposal from the Cost Model using the “Proposal Temp” button.
+                    Save a new proposal from the Cost Model using the “Save Proposal” action.
                   </p>
                 </>
               )}

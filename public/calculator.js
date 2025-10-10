@@ -144,6 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let subTotalsForProposal = {};
     let supportPriceOverrides = { bronze: null, silver: null, gold: null };
     let isDataInitialized = false;
+    let saveStatusMessageTimeout = null;
 
     const updateAltPricingIndicator = () => {
         const indicator = document.getElementById('alt-pricing-indicator');
@@ -1101,14 +1102,16 @@ function updateDOM() {
 }
 async function generateDocument() {
     const button = document.getElementById('generate-document-btn');
-    const originalText = button.innerHTML;
-    
+    const originalText = button ? button.innerHTML : null;
+
     if (!validateInputs(['customer-name', 'survey-price'])) {
         return; // Stop if validation fails
     }
 
-    button.innerHTML = 'Generating...';
-    button.disabled = true;
+    if (button) {
+        button.innerHTML = 'Generating...';
+        button.disabled = true;
+    }
 
     try {
         const systemType = document.getElementById('system-type').value;
@@ -1147,17 +1150,23 @@ async function generateDocument() {
         link.click();
         document.body.removeChild(link);
         
-        button.innerHTML = 'Downloaded! ✅';
+        if (button) {
+            button.innerHTML = 'Downloaded! ✅';
+        }
 
     } catch (error) {
         console.error('Error generating document:', error);
         alert('Could not generate the document. Please check the console for errors.');
-        button.innerHTML = 'Failed! ❌';
+        if (button) {
+            button.innerHTML = 'Failed! ❌';
+        }
     } finally {
-        setTimeout(() => {
-            button.innerHTML = 'Proposal DOC 📄';
-            button.disabled = false;
-        }, 3000);
+        if (button) {
+            setTimeout(() => {
+                button.innerHTML = originalText ?? 'Proposal DOC 📄';
+                button.disabled = false;
+            }, 3000);
+        }
     }
 }
 // In calculator.js, paste this entire function
@@ -1259,15 +1268,24 @@ function setupScreenshotButton() {
             applyViewMode(currentViewMode);
         });
     }
-    document.getElementById('generate-pdf-btn').addEventListener('click', generatePdf);
-    document.getElementById('generate-document-btn').addEventListener('click', generateDocument);
+    const generatePdfBtn = document.getElementById('generate-pdf-btn');
+    if (generatePdfBtn) {
+        generatePdfBtn.addEventListener('click', generatePdf);
+    }
+    const generateDocumentBtn = document.getElementById('generate-document-btn');
+    if (generateDocumentBtn) {
+        generateDocumentBtn.addEventListener('click', generateDocument);
+    }
     document.getElementById('quote-to-monday-btn').addEventListener('click', () => sendDataToMake('quote'));
     document.getElementById('generate-link-btn').addEventListener('click', generateShareLink);
     document.getElementById('support-preset-none').addEventListener('click', () => setSupportPreset('none'));
     document.getElementById('support-preset-bronze').addEventListener('click', () => setSupportPreset('bronze'));
     document.getElementById('support-preset-silver').addEventListener('click', () => setSupportPreset('silver'));
     document.getElementById('support-preset-gold').addEventListener('click', () => setSupportPreset('gold'));
-    document.getElementById('generate-interactive-link-btn').addEventListener('click', generateInteractiveLink);
+    const generateInteractiveLinkBtn = document.getElementById('generate-interactive-link-btn');
+    if (generateInteractiveLinkBtn) {
+        generateInteractiveLinkBtn.addEventListener('click', generateInteractiveLink);
+    }
     const savePortalButton = document.getElementById('save-proposal-btn');
     if (savePortalButton) {
         savePortalButton.addEventListener('click', (event) => {
@@ -1276,10 +1294,13 @@ function setupScreenshotButton() {
         });
     }
 
-    document.getElementById('proposal-temp-btn').addEventListener('click', (event) => {
-        event.preventDefault();
-        openProposalTemp(event);
-    });
+    const proposalTempBtn = document.getElementById('proposal-temp-btn');
+    if (proposalTempBtn) {
+        proposalTempBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            openProposalTemp(event);
+        });
+    }
 
     const validatedFields = ['customer-name', 'survey-price', 'quote-number'];
     validatedFields.forEach(fieldId => {
@@ -1676,11 +1697,13 @@ function getTemplateData() {
 }
 async function generatePdf() {
     const button = document.getElementById('generate-pdf-btn');
-    const originalText = button.innerHTML;
+    const originalText = button ? button.innerHTML : null;
     if (!validateInputs(['customer-name', 'survey-price'])) return;
 
-    button.innerHTML = 'Preparing...';
-    button.disabled = true;
+    if (button) {
+        button.innerHTML = 'Preparing...';
+        button.disabled = true;
+    }
 
     try {
         // 1. Get the correct DOCX template
@@ -1735,17 +1758,23 @@ async function generatePdf() {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(downloadUrl);
         
-        button.innerHTML = 'Downloaded! ✅';
+        if (button) {
+            button.innerHTML = 'Downloaded! ✅';
+        }
 
     } catch (error) {
         console.error('Error generating PDF:', error);
         alert('Could not generate the PDF. Please check the console for errors.');
-        button.innerHTML = 'Failed! ❌';
+        if (button) {
+            button.innerHTML = 'Failed! ❌';
+        }
     } finally {
-        setTimeout(() => {
-            button.innerHTML = originalText;
-            button.disabled = false;
-        }, 3000);
+        if (button) {
+            setTimeout(() => {
+                button.innerHTML = originalText ?? 'Proposal PDF 📄';
+                button.disabled = false;
+            }, 3000);
+        }
     }
 }
   
@@ -2056,6 +2085,18 @@ async function generatePdf() {
                 button.innerHTML = openAfterSave ? 'Opened! ✅' : 'Saved! ✅';
             }
 
+            const statusMessage = document.getElementById('save-status-message');
+            if (statusMessage) {
+                statusMessage.textContent = 'Saved to Proposal Management Portal';
+                statusMessage.classList.remove('hidden');
+                if (saveStatusMessageTimeout) {
+                    clearTimeout(saveStatusMessageTimeout);
+                }
+                saveStatusMessageTimeout = window.setTimeout(() => {
+                    statusMessage.classList.add('hidden');
+                }, 4000);
+            }
+
             if (openAfterSave && payload?.slug) {
                 const url = `${PROPOSAL_APP_BASE_URL}/${payload.slug}`;
                 window.open(url, '_blank', 'noopener');
@@ -2072,7 +2113,7 @@ async function generatePdf() {
         } finally {
             if (button) {
                 const restore = () => {
-                    const fallbackLabel = openAfterSave ? 'Proposal Temp 🚀' : 'Save to Portal 💾';
+                    const fallbackLabel = openAfterSave ? 'Open Proposal 🚀' : 'Save Proposal 💾';
                     button.innerHTML = originalButtonText !== null ? originalButtonText : fallbackLabel;
                     button.disabled = false;
                 };
@@ -2113,9 +2154,11 @@ async function generatePdf() {
 }
 async function generateInteractiveLink() {
     const button = document.getElementById('generate-interactive-link-btn');
-    const originalText = button.innerHTML;
-    button.innerHTML = 'Generating...';
-    button.disabled = true;
+    const originalText = button ? button.innerHTML : null;
+    if (button) {
+        button.innerHTML = 'Generating...';
+        button.disabled = true;
+    }
 
     try {
         const templateData = getTemplateData();
@@ -2141,16 +2184,22 @@ async function generateInteractiveLink() {
         const shareUrl = `${window.location.origin}${window.location.pathname.replace('index.html', '')}interactive-proposal.html#${encodedState}`;
 
         await navigator.clipboard.writeText(shareUrl);
-        button.innerHTML = 'Link Copied! ✅';
+        if (button) {
+            button.innerHTML = 'Link Copied! ✅';
+        }
         
     } catch (error) {
         console.error("Failed to generate interactive link:", error);
-        button.innerHTML = 'Failed! ❌';
+        if (button) {
+            button.innerHTML = 'Failed! ❌';
+        }
     } finally {
-        setTimeout(() => {
-            button.innerHTML = 'Interactive Proposal 🌐';
-            button.disabled = false;
-        }, 3000);
+        if (button) {
+            setTimeout(() => {
+                button.innerHTML = originalText ?? 'Interactive Proposal 🌐';
+                button.disabled = false;
+            }, 3000);
+        }
     }
 }
 

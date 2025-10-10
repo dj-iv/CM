@@ -70,7 +70,7 @@ The existing `/api/convert-to-pdf` helper from the legacy stack will be ported t
 
 ## Cost Model integration
 
-- New "Save to Portal" button gathers `encodedState` + computed `proposal` and calls `/api/proposals`.
+- New "Save Proposal" button gathers `encodedState` + computed `proposal` and calls `/api/proposals`.
 - Slugs default to the sanitized quote number; fallback uses customer name + timestamp.
 - Successful saves cache the returned slug locally so subsequent saves automatically update the same record.
 - Loading an existing proposal (from portal link) continues to use the hash-based state restore which already works today.

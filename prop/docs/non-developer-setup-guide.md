@@ -153,12 +153,12 @@ Follow this quick checklist after the servers start:
 
 2. **Save a proposal to the portal**
    - Fill in the basic customer details (customer name, survey price, etc.).
-   - Click the “Save to Portal 💾” button.
-   - Look for a confirmation message.
+   - Click the “Save Proposal 💾” button.
+   - Confirm the temporary banner reads “Saved to Proposal Management Portal”.
 
-3. **Open the interactive proposal**
-   - Click “Proposal Temp 🚀”.
-   - A new browser tab should open `http://localhost:3000/<slug>` showing the interactive document.
+3. **Review the proposal in the portal**
+   - Open `http://localhost:3000/<slug>` in a new tab, replacing `<slug>` with the last saved slug (see browser DevTools → Application → Local Storage → `calculator-last-proposal-slug`) or use the portal UI if available.
+   - Verify the interactive proposal renders correctly.
 
 4. **Download a PDF**
    - In the proposal tab, press “Download as PDF”.

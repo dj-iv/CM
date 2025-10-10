@@ -94,7 +94,7 @@
             display: flex;
             gap: 10px;
         }
-        #reset-overrides, #settings-btn, #toggle-zero-qty-btn, #generate-link-btn, #generate-proposal-btn, #quote-to-monday-btn, #generate-document-btn, #generate-pdf-btn {
+        #reset-overrides, #settings-btn, #toggle-zero-qty-btn, #generate-link-btn, #generate-proposal-btn, #quote-to-monday-btn {
             padding: 8px 12px;
             border: 1px solid var(--uctel-blue);
             background-color: rgba(232, 226, 212, 0.5);
@@ -105,7 +105,7 @@
             font-size: 13px;
             transition: all 0.2s ease;
         }
-        #reset-overrides:hover, #settings-btn:hover, #toggle-zero-qty-btn:hover, #generate-link-btn:hover, #generate-proposal-btn:hover, #quote-to-monday-btn:hover, #generate-document-btn:hover, #generate-pdf-btn:hover {
+        #reset-overrides:hover, #settings-btn:hover, #toggle-zero-qty-btn:hover, #generate-link-btn:hover, #generate-proposal-btn:hover, #quote-to-monday-btn:hover {
             background-color: var(--uctel-teal);
             color: white;
             border-color: var(--uctel-teal);
@@ -113,16 +113,11 @@
         #generate-link-btn { background-color: #d1ecf1; border-color: #bee5eb;}
         #generate-proposal-btn { background-color: #d4edda; border-color: #28a745;}
         #quote-to-monday-btn { background-color: #d6d8db; border-color: #6c757d;}
-        #generate-document-btn { background-color: #cce5ff; border-color: #b8daff;}
-        #generate-pdf-btn { background-color: #f5c6cb; border-color: #f5c6cb;}
-        #generate-interactive-link-btn { 
-            background-color: rgba(56, 163, 165, 0.1); 
-            border-color: var(--uctel-teal);
+        .save-status {
+            align-self: center;
+            font-size: 13px;
+            font-weight: 600;
             color: var(--uctel-teal);
-        }
-        #generate-interactive-link-btn:hover {
-            background-color: var(--uctel-teal);
-            color: white;
         }
         
         /* Financial Summary Box */
@@ -532,16 +527,13 @@
         <div class="results-header">
             <div class="header-buttons">
                 <button id="screenshot-btn">Screenshot 📸</button>
-                <button id="generate-pdf-btn">Proposal PDF 📄</button>
-                <button id="generate-document-btn">Proposal DOC 📄</button>
-                 <button id="generate-interactive-link-btn">Interactive Proposal 🌐</button>
                 <button id="quote-to-monday-btn">Quote to Monday</button>
                 <button id="generate-link-btn">Generate Link 🔗</button>
                 <button id="toggle-zero-qty-btn">Show All Items</button>
                 <button id="settings-btn">Settings ⚙️</button>
                 <button id="reset-overrides">Reset Overrides</button>
-                <button id="save-proposal-btn">Save to Portal 💾</button>
-                    <button id="proposal-temp-btn">Proposal Temp 🚀</button>
+                <button id="save-proposal-btn">Save Proposal 💾</button>
+                <span id="save-status-message" class="save-status hidden">Saved to Proposal Management Portal</span>
             </div>
             <button id="logout-button">Sign Out</button>
         </div>
