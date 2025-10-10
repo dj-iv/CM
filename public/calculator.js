@@ -1,4 +1,44 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const PROPOSAL_FIREBASE_APP_NAME = window.PROPOSAL_FIREBASE_APP_NAME || 'proposalPortalApp';
+    const PROPOSAL_ALLOWED_DOMAIN = 'uctel.co.uk';
+
+    if (window.firebase && firebase.apps) {
+        const primaryApp = firebase.apps[0];
+        if (primaryApp && primaryApp.options) {
+            console.info('Connected Firebase project:', primaryApp.options.projectId);
+        } else if (!firebase.apps.length) {
+            console.warn('Firebase app is not initialized yet.');
+        }
+    }
+
+    const getProposalFirebaseAuth = () => {
+        if (!window.firebase || !firebase.apps) {
+            return null;
+        }
+        try {
+            return firebase.app(PROPOSAL_FIREBASE_APP_NAME).auth();
+        } catch (error) {
+            return null;
+        }
+    };
+
+    const ensureProposalPortalAuthUser = async () => {
+        const proposalAuth = getProposalFirebaseAuth();
+        if (!proposalAuth) {
+            throw new Error('Proposal portal authentication is not available yet. Please refresh the page or sign in again.');
+        }
+        if (proposalAuth.currentUser) {
+            return proposalAuth.currentUser;
+        }
+
+        const provider = new firebase.auth.GoogleAuthProvider();
+        provider.setCustomParameters({ hd: PROPOSAL_ALLOWED_DOMAIN });
+        const result = await proposalAuth.signInWithPopup(provider);
+        if (!result.user) {
+            throw new Error('Proposal portal sign-in was cancelled.');
+        }
+        return result.user;
+    };
     // --- MAKE.COM WEBHOOK ---
     const MAKE_WEBHOOK_URL = 'https://hook.eu1.make.com/chemsqrmifjs5lwbrquhh1bha0vo96k2';
     const PDF_MAKE_WEBHOOK_URL = 'https://hook.eu1.make.com/cfde3avwbdpr5y131ffkle13z40haem3'; 
@@ -115,6 +155,42 @@ document.addEventListener('DOMContentLoaded', () => {
         'support_package': {label: "Annual Support Package", cost: 0, margin: 0},
 'survey_price_item': {label: "Site Survey", cost: 0, margin: 0}
     };    
+    const alternativePriceOverrides = {
+        G41: { cost: 915, margin: 0.15 },
+        QUATRA_NU: { cost: 6802.49, margin: 0.15 },
+        QUATRA_CU: { cost: 4080.89, margin: 0.15 },
+        QUATRA_HUB: { cost: 5063.69, margin: 0.15 },
+        extender_cat6: { cost: 891.28, margin: 0.15 },
+        extender_fibre_cu: { cost: 1051.04, margin: 0.15 },
+        extender_fibre_nu: { cost: 882.04, margin: 0.15 },
+        QUATRA_EVO_NU: { cost: 3194.56, margin: 0.15 },
+        QUATRA_EVO_CU: { cost: 1858.56, margin: 0.15 },
+        QUATRA_EVO_HUB: { cost: 2663.20, margin: 0.15 },
+        install_internal: { cost: 137.5, margin: 3.0 }
+    };
+
+    const defaultAltPriceData = JSON.parse(JSON.stringify(defaultPriceData));
+    const applyAlternativeOverrides = (target) => {
+        Object.entries(alternativePriceOverrides).forEach(([key, override]) => {
+            const defaultItem = defaultPriceData[key];
+            const existing = target[key];
+            const noExisting = !existing;
+            const matchesDefault = !!(existing && defaultItem &&
+                Math.abs((existing.cost ?? defaultItem.cost) - defaultItem.cost) < 0.01 &&
+                Math.abs((existing.margin ?? defaultItem.margin) - defaultItem.margin) < 0.0001);
+
+            if (noExisting || matchesDefault) {
+                target[key] = {
+                    label: existing?.label || defaultItem?.label || key,
+                    cost: override.cost,
+                    margin: override.margin
+                };
+            } else if (existing && !existing.label && defaultItem?.label) {
+                existing.label = defaultItem.label;
+            }
+        });
+    };
+    applyAlternativeOverrides(defaultAltPriceData);
     const supportData = {
         'remote_monitoring': { label: 'Remote Monitoring', description: 'Alerts and events captured on the management portal', dpm: 0.005, tiers: ['silver', 'gold'], type: 'per_system' },
         'reactive_support': { label: 'Reactive Support', description: 'Customer identifies issue and reports to UCtel', dpm: 0.005, tiers: ['bronze', 'silver', 'gold'], type: 'per_system' },
@@ -490,10 +566,21 @@ async function loadPrices() {
         const altDoc = await altPricesDocRef.get();
         if (altDoc.exists) {
             console.log("Alternative prices loaded from Firestore.");
-            altPriceData = altDoc.data();
+            const firestoreAltPrices = altDoc.data() || {};
+            const mergedAltPrices = JSON.parse(JSON.stringify(defaultAltPriceData));
+            Object.keys(firestoreAltPrices).forEach((key) => {
+                mergedAltPrices[key] = {
+                    ...mergedAltPrices[key],
+                    ...firestoreAltPrices[key]
+                };
+            });
+            applyAlternativeOverrides(mergedAltPrices);
+            altPriceData = mergedAltPrices;
         } else {
             console.log("No alternative prices document, initializing with default data.");
-            altPriceData = JSON.parse(JSON.stringify(defaultPriceData));
+            const altDefaults = JSON.parse(JSON.stringify(defaultAltPriceData));
+            applyAlternativeOverrides(altDefaults);
+            altPriceData = altDefaults;
         }
 
         // Load settings (including useAltPricing flag)
@@ -507,8 +594,9 @@ async function loadPrices() {
         
     } catch (e) {
         console.error("Could not load pricing data from Firestore, using default data.", e);
-        priceData = JSON.parse(JSON.stringify(defaultPriceData));
-        altPriceData = JSON.parse(JSON.stringify(defaultPriceData));
+    priceData = JSON.parse(JSON.stringify(defaultPriceData));
+    altPriceData = JSON.parse(JSON.stringify(defaultAltPriceData));
+    applyAlternativeOverrides(altPriceData);
         useAltPricing = false;
         updateAltPricingIndicator();
     }
@@ -740,18 +828,27 @@ function runFullCalculation() {
         const networksInput = document.getElementById('number-of-networks');
         if (systemType.includes('EVO') && parseInt(networksInput.value) > 2) { networksInput.value = '2'; }
 
-        let serviceAntennaCount = parseInt(document.getElementById('total-service-antennas').value) || 0;
-        const isNonDasQuatra = systemType === 'QUATRA' || systemType === 'QUATRA_EVO';
-        
-        if (isNonDasQuatra) {
-            const cuKey = systemType === 'QUATRA' ? 'QUATRA_CU' : 'QUATRA_EVO_CU';
-            if (currentResults[cuKey] && currentResults[cuKey].override !== null) {
-                serviceAntennaCount = currentResults[cuKey].override;
+        const baseServiceAntennaInput = parseInt(document.getElementById('total-service-antennas').value, 10) || 0;
+        let serviceAntennaCount = baseServiceAntennaInput;
+        const isQuatraVariant = ['QUATRA', 'QUATRA_DAS', 'QUATRA_EVO', 'QUATRA_EVO_DAS'].includes(systemType);
+        let preserveDisplayedServiceAntennas = false;
+
+        if (isQuatraVariant) {
+            const cuKey = systemType.includes('EVO') ? 'QUATRA_EVO_CU' : 'QUATRA_CU';
+            const cuEntry = currentResults[cuKey];
+            if (cuEntry && cuEntry.override !== null && !Number.isNaN(cuEntry.override)) {
+                const cuOverride = Number(cuEntry.override);
+                if (systemType.includes('DAS')) {
+                    preserveDisplayedServiceAntennas = true;
+                } else {
+                    serviceAntennaCount = cuOverride;
+                }
             }
-        } else {
-            if (currentResults['service_antennas'] && currentResults['service_antennas'].override !== null) {
-                serviceAntennaCount = currentResults['service_antennas'].override;
-            }
+        }
+
+        if (currentResults['service_antennas'] && currentResults['service_antennas'].override !== null) {
+            serviceAntennaCount = currentResults['service_antennas'].override;
+            preserveDisplayedServiceAntennas = false;
         }
 
         let donorAntennaCount = (parseInt(networksInput.value) || 0) > 1 ? 2 : (parseInt(networksInput.value) || 0);
@@ -779,8 +876,55 @@ function runFullCalculation() {
                 currentResults[key] = { calculated: calculatedValues[key], override: null, decimals: 0, unit: { coax_half: ' (m)', coax_lmr400: ' (m)', cable_cat: ' (m)', install_internal: ' (Days)', install_external: ' (Days)' }[key] || '' };
             }
         }
-        if(!currentResults['service_antennas']) { currentResults['service_antennas'] = { calculated: 0, override: null, decimals: 0, unit: '' }; }
-        currentResults['service_antennas'].calculated = params.B_SA;
+    if(!currentResults['service_antennas']) { currentResults['service_antennas'] = { calculated: 0, override: null, decimals: 0, unit: '' }; }
+    currentResults['service_antennas'].calculated = preserveDisplayedServiceAntennas ? baseServiceAntennaInput : params.B_SA;
+        if (['QUATRA', 'QUATRA_DAS', 'QUATRA_EVO', 'QUATRA_EVO_DAS'].includes(systemType)) {
+            const cuKey = systemType.includes('EVO') ? 'QUATRA_EVO_CU' : 'QUATRA_CU';
+            const cuEntry = currentResults[cuKey];
+            if (cuEntry) {
+                const effectiveCuCount = Number(cuEntry.override ?? cuEntry.calculated ?? 0);
+                if (Number.isFinite(effectiveCuCount)) {
+                    const normalizedCuCount = Math.max(0, effectiveCuCount);
+                    if (currentResults['cable_cat']) {
+                        currentResults['cable_cat'].calculated = normalizedCuCount * 200;
+                    }
+                    if (currentResults['connectors_rg45']) {
+                        currentResults['connectors_rg45'].calculated = normalizedCuCount * 4;
+                    }
+
+                    if (systemType.includes('DAS')) {
+                        const nuKey = systemType.includes('EVO') ? 'QUATRA_EVO_NU' : 'QUATRA_NU';
+                        const hubKey = systemType.includes('EVO') ? 'QUATRA_EVO_HUB' : 'QUATRA_HUB';
+
+                        const fullNuSets = Math.floor(normalizedCuCount / 12);
+                        const remainingCus = normalizedCuCount % 12;
+                        const derivedNuCount = fullNuSets + (remainingCus > 0 ? 1 : 0);
+                        const derivedHubCount = fullNuSets + (remainingCus > 6 ? 1 : 0);
+
+                        if (!currentResults[nuKey]) {
+                            currentResults[nuKey] = { calculated: 0, override: null, decimals: 0, unit: '' };
+                        }
+                        currentResults[nuKey].calculated = derivedNuCount;
+
+                        if (!currentResults[hubKey]) {
+                            currentResults[hubKey] = { calculated: 0, override: null, decimals: 0, unit: '' };
+                        }
+                        currentResults[hubKey].calculated = derivedHubCount;
+
+                        const baseBsaTerm = (baseServiceAntennaInput || 0) / 3;
+                        const donorTerm = (donorAntennaCount || 0) / 2;
+                        const cuTerm = normalizedCuCount / 2;
+                        const nuTerm = derivedNuCount / 7;
+                        const derivedInstallDays = Math.ceil(baseBsaTerm + cuTerm + donorTerm + nuTerm + 1);
+
+                        if (!currentResults['install_internal']) {
+                            currentResults['install_internal'] = { calculated: 0, override: null, decimals: 0, unit: ' (Days)' };
+                        }
+                        currentResults['install_internal'].calculated = derivedInstallDays;
+                    }
+                }
+            }
+        }
         const internal_days = currentResults['install_internal']?.override ?? currentResults['install_internal']?.calculated ?? 0;
         if(currentResults['travel_expenses']) { currentResults['travel_expenses'].calculated = internal_days; } else { currentResults['travel_expenses'] = { calculated: internal_days, override: null, decimals: 0, unit: ' (Days)'}; }
         
@@ -2031,6 +2175,7 @@ async function generatePdf() {
 
         try {
             const user = ensureAuthUser();
+            const proposalAuthUser = await ensureProposalPortalAuthUser();
             const { encodedState } = buildShareStateSnapshot();
             const proposal = getTemplateData();
             const quoteNumberInput = document.getElementById('quote-number');
@@ -2056,7 +2201,7 @@ async function generatePdf() {
                 button.disabled = true;
             }
 
-            const token = await user.getIdToken(true);
+            const token = await proposalAuthUser.getIdToken(true);
             const response = await fetch(`${PROPOSAL_API_BASE_URL}/api/proposals`, {
                 method: 'POST',
                 headers: {

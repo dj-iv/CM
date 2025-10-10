@@ -779,25 +779,60 @@
    <script src="https://cdn.jsdelivr.net/npm/pizzip@3.1.5/dist/pizzip.min.js"></script>
    <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.47.1/docxtemplater.js"></script>
    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-   
+   <script src="./firebase-config.js"></script>
    <script src="./calculator.js"></script>
      <script>
-    // ============== START: PASTE YOUR FIREBASE CONFIG HERE ==============
-   // Your web app's Firebase configuration
-const firebaseConfig = {
-    apiKey: "AIzaSyDaBGV7IUOHBOsAottmzeMnTrufok5cpHQ",
-    authDomain: "proposal-5823c.firebaseapp.com",
-    projectId: "proposal-5823c",
-    storageBucket: "proposal-5823c.firebasestorage.app",
-    messagingSenderId: "956269534357",
-    appId: "1:956269534357:web:388517aa4cf0b836b08f9c"
-};
-    // ============== END: PASTE YOUR FIREBASE CONFIG HERE ==============
+    const firebaseConfigs = window.FIREBASE_CONFIGS;
+    const proposalAppName = window.PROPOSAL_FIREBASE_APP_NAME || 'proposalPortalApp';
 
-    // Initialize Firebase
-    firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
+    if (!firebaseConfigs || !firebaseConfigs.costModel || !firebaseConfigs.proposalPortal) {
+        throw new Error('Missing Firebase configuration for one or more projects.');
+    }
+
+    const costModelApp = (firebase.apps && firebase.apps.length)
+        ? firebase.app()
+        : firebase.initializeApp(firebaseConfigs.costModel);
+
+    let proposalApp;
+    try {
+        proposalApp = firebase.app(proposalAppName);
+    } catch (error) {
+        proposalApp = firebase.initializeApp(firebaseConfigs.proposalPortal, proposalAppName);
+    }
+
+    if (!proposalApp || !proposalApp.options) {
+        throw new Error('Failed to initialize proposal Firebase app.');
+    }
+
+    console.info('Connected Firebase projects:', {
+        costModel: costModelApp.options?.projectId,
+        proposal: proposalApp.options?.projectId,
+    });
+
+    const auth = costModelApp.auth();
+    const proposalAuth = proposalApp.auth();
     const provider = new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({ hd: 'uctel.co.uk' });
+
+    const ensureProposalPortalSignIn = async (credential = null) => {
+        if (proposalAuth.currentUser) {
+            return proposalAuth.currentUser;
+        }
+
+        if (credential) {
+            try {
+                const result = await proposalAuth.signInWithCredential(credential);
+                return result.user;
+            } catch (credentialError) {
+                console.warn('Could not reuse Google credential for proposal portal sign-in:', credentialError);
+            }
+        }
+
+        const interactiveResult = await proposalAuth.signInWithPopup(provider);
+        return interactiveResult.user;
+    };
+
+    window.PROPOSAL_AUTH = proposalAuth;
 
     // DOM Elements
     const loginContainer = document.getElementById('login-container');
@@ -810,17 +845,31 @@ const firebaseConfig = {
 
     // Sign in function
     loginButton.onclick = () => {
-        auth.signInWithPopup(provider).catch(error => {
-            console.error("Login failed:", error);
-            errorMessage.textContent = "Login failed. Please try again.";
-        });
+        auth.signInWithPopup(provider)
+            .then(async (result) => {
+                const credential = firebase.auth.GoogleAuthProvider.credentialFromResult(result);
+                try {
+                    await ensureProposalPortalSignIn(credential);
+                } catch (proposalError) {
+                    console.warn('Secondary proposal auth failed during login:', proposalError);
+                }
+            })
+            .catch(error => {
+                console.error("Login failed:", error);
+                errorMessage.textContent = "Login failed. Please try again.";
+            });
     };
 
     // Sign out function
-    logoutButton.onclick = () => auth.signOut();
+    logoutButton.onclick = async () => {
+        await Promise.allSettled([
+            auth.signOut(),
+            proposalAuth.signOut().catch(() => null),
+        ]);
+    };
 
     // Authentication state listener
-    auth.onAuthStateChanged(user => {
+    auth.onAuthStateChanged(async user => {
         if (user) {
             const userDomain = user.email.split('@')[1];
             if (userDomain === ALLOWED_DOMAIN) {
@@ -828,15 +877,26 @@ const firebaseConfig = {
                 loginContainer.classList.add('hidden');
                 appContainer.classList.remove('hidden');
                 errorMessage.textContent = "";
+                if (!proposalAuth.currentUser) {
+                    try {
+                        await ensureProposalPortalSignIn();
+                    } catch (proposalError) {
+                        console.warn('Proposal portal authentication pending user action:', proposalError);
+                    }
+                }
             } else {
                 // User is from the wrong domain, sign them out
                 errorMessage.textContent = `Access denied. Please use an @${ALLOWED_DOMAIN} account.`;
-                auth.signOut();
+                await Promise.allSettled([
+                    auth.signOut(),
+                    proposalAuth.signOut().catch(() => null),
+                ]);
             }
         } else {
             // No user is signed in, show the login page
             loginContainer.classList.remove('hidden');
             appContainer.classList.add('hidden');
+            proposalAuth.signOut().catch(() => null);
         }
     });
 </script>   
