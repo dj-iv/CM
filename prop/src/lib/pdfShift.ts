@@ -1,6 +1,7 @@
 import { gunzipSync } from "node:zlib";
 
 const INLINE_IMAGE_REGEX = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+const MAX_INLINE_IMAGE_BYTES = 250_000;
 
 const guessMimeType = (urlPath: string, fallback = "application/octet-stream") => {
   if (!urlPath) {
@@ -84,6 +85,9 @@ const inlineRemoteImages = async (html: string, origin?: string) => {
         return;
       }
 
+      // Ensure relative paths are converted to absolute URLs even if we decide not to inline
+      replacements.set(src, absoluteUrl);
+
       try {
         const response = await fetch(absoluteUrl);
         if (!response.ok) {
@@ -92,8 +96,16 @@ const inlineRemoteImages = async (html: string, origin?: string) => {
         const arrayBuffer = await response.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
         const contentType = response.headers.get("content-type") || guessMimeType(absoluteUrl);
-        const dataUri = `data:${contentType};base64,${buffer.toString("base64")}`;
-        replacements.set(src, dataUri);
+        if (buffer.byteLength <= MAX_INLINE_IMAGE_BYTES) {
+          const dataUri = `data:${contentType};base64,${buffer.toString("base64")}`;
+          replacements.set(src, dataUri);
+        } else if (process.env.NODE_ENV !== "production") {
+          console.info(
+            "[pdfShift] Skipping inline of large image",
+            src,
+            `${(buffer.byteLength / 1024).toFixed(1)}KB`,
+          );
+        }
       } catch (fetchError) {
         if (process.env.NODE_ENV !== "production") {
           console.warn("[pdfShift] Failed to inline image", absoluteUrl, fetchError);
