@@ -7,10 +7,12 @@ import {
   signOut,
 } from "firebase/auth";
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getFirebaseAuth } from "@/lib/firebaseClient";
 import { ALLOWED_EMAIL_DOMAINS, isEmailAllowed } from "@/lib/accessControl";
 import { INTRODUCTION_MAX_LENGTH } from "@/lib/proposalCopy";
+import type { AntennaPlacementSnapshot } from "@/types/antennaPlacement";
+import type { FloorSummary, ProjectSummary } from "@/lib/antennaProjects";
 
 type ProposalMetadata = {
   customerName?: string;
@@ -33,6 +35,7 @@ type ProposalListItem = {
   downloadCount?: number;
   createdBy?: { firstName?: string | null; displayName: string | null; email: string | null } | null;
   introduction?: string | null;
+  antennaPlacement?: AntennaPlacementSnapshot | null;
 };
 
 type Toast = {
@@ -130,6 +133,19 @@ export default function Home() {
   const [detailSaving, setDetailSaving] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
 
+  const [projectList, setProjectList] = useState<ProjectSummary[]>([]);
+  const [projectListLoading, setProjectListLoading] = useState(false);
+  const [projectSearchInput, setProjectSearchInput] = useState("");
+  const [projectSearchQuery, setProjectSearchQuery] = useState("");
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [projectFloors, setProjectFloors] = useState<FloorSummary[]>([]);
+  const [projectFloorsLoading, setProjectFloorsLoading] = useState(false);
+  const [selectedFloorIds, setSelectedFloorIds] = useState<Set<string>>(new Set());
+  const [placementNotes, setPlacementNotes] = useState("");
+  const [placementSaving, setPlacementSaving] = useState(false);
+  const [placementError, setPlacementError] = useState<string | null>(null);
+  const [placementDirty, setPlacementDirty] = useState(false);
+
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -222,6 +238,13 @@ export default function Home() {
     return () => window.clearTimeout(handle);
   }, [searchInput]);
 
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setProjectSearchQuery(projectSearchInput);
+    }, 300);
+    return () => window.clearTimeout(handle);
+  }, [projectSearchInput]);
+
   const loadProposals = useCallback(async (token: string, search: string, signal?: AbortSignal) => {
     setListLoading(true);
     setListError(null);
@@ -273,6 +296,64 @@ export default function Home() {
     }
   }, []);
 
+  const loadProjectList = useCallback(async (token: string, search?: string) => {
+    setProjectListLoading(true);
+    try {
+      const params = search && search.trim() ? `?search=${encodeURIComponent(search.trim())}` : "";
+      const response = await fetch(`/api/antenna-projects${params}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        const errorMessage = await readErrorMessage(response);
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      const items: ProjectSummary[] = Array.isArray(data?.items) ? data.items : [];
+      setProjectList(items);
+    } catch (error) {
+      console.error("Failed to load antenna projects", error);
+      pushToast({ type: "error", message: (error as Error).message || "Unable to load projects" });
+      if ((error as { status?: number }).status === 401 || (error as { status?: number }).status === 403) {
+        setAuthError((error as Error).message || "Authentication error");
+      }
+    } finally {
+      setProjectListLoading(false);
+    }
+  }, [pushToast, setAuthError]);
+
+  const loadProjectFloors = useCallback(async (token: string, projectId: string) => {
+    setProjectFloorsLoading(true);
+    try {
+      const response = await fetch(`/api/antenna-projects/${projectId}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        const errorMessage = await readErrorMessage(response);
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      const floors: FloorSummary[] = Array.isArray(data?.floors) ? data.floors : [];
+      setProjectFloors(floors);
+    } catch (error) {
+      console.error("Failed to load project floors", error);
+      pushToast({ type: "error", message: (error as Error).message || "Unable to load floors" });
+    } finally {
+      setProjectFloorsLoading(false);
+    }
+  }, [pushToast]);
+
   useEffect(() => {
     if (!authToken) {
       return;
@@ -281,6 +362,53 @@ export default function Home() {
     loadProposals(authToken, debouncedSearch, controller.signal);
     return () => controller.abort();
   }, [authToken, debouncedSearch, loadProposals]);
+
+  useEffect(() => {
+    if (!authToken) {
+      return;
+    }
+    void loadProjectList(authToken, projectSearchQuery);
+  }, [authToken, projectSearchQuery, loadProjectList]);
+
+  useEffect(() => {
+    if (!authToken) {
+      return;
+    }
+    if (!selectedProjectId) {
+      setProjectFloors([]);
+      return;
+    }
+    void loadProjectFloors(authToken, selectedProjectId);
+  }, [authToken, selectedProjectId, loadProjectFloors]);
+
+  const previousDetailSlugRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!detailSlug) {
+      previousDetailSlugRef.current = null;
+      setSelectedProjectId(null);
+      setSelectedFloorIds(new Set());
+      setPlacementNotes("");
+      setPlacementDirty(false);
+      return;
+    }
+
+    if (previousDetailSlugRef.current === detailSlug) {
+      return;
+    }
+
+    previousDetailSlugRef.current = detailSlug;
+    const placement = proposals.find((item) => item.slug === detailSlug)?.antennaPlacement ?? null;
+    if (placement) {
+      setSelectedProjectId(placement.projectId);
+      setSelectedFloorIds(new Set(placement.floors.map((floor) => floor.floorId)));
+      setPlacementNotes(placement.notes ?? "");
+    } else {
+      setSelectedProjectId(null);
+      setSelectedFloorIds(new Set());
+      setPlacementNotes("");
+    }
+    setPlacementDirty(false);
+  }, [detailSlug, proposals]);
 
   useEffect(() => {
     setSelected((current) => {
@@ -532,9 +660,102 @@ export default function Home() {
     }
   };
 
+  const handleSavePlacement = async () => {
+    if (!authToken || !detailSlug) {
+      return;
+    }
+
+    if (!selectedProjectId) {
+      setPlacementError("Select a project to attach");
+      return;
+    }
+
+    const floorIds = Array.from(selectedFloorIds);
+    if (floorIds.length === 0) {
+      setPlacementError("Select at least one floor");
+      return;
+    }
+
+    setPlacementSaving(true);
+    setPlacementError(null);
+    try {
+      const response = await fetch(`/api/proposals/${detailSlug}/antenna-placement`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          projectId: selectedProjectId,
+          floorIds,
+          notes: placementNotes.trim() ? placementNotes.trim() : undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorMessage = await readErrorMessage(response);
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      const placement: AntennaPlacementSnapshot | null = data?.antennaPlacement ?? null;
+      setProposals((current) => current.map((proposal) => (proposal.slug === detailSlug ? { ...proposal, antennaPlacement: placement } : proposal)));
+      setPlacementDirty(false);
+      pushToast({ type: "success", message: "Provisional antenna placement updated" });
+    } catch (error) {
+      console.error("Failed to update antenna placement", error);
+      const message = (error as Error).message || "Failed to update antenna placement";
+      setPlacementError(message);
+      pushToast({ type: "error", message });
+    } finally {
+      setPlacementSaving(false);
+    }
+  };
+
+  const handleRemovePlacement = async () => {
+    if (!authToken || !detailSlug) {
+      return;
+    }
+
+    setPlacementSaving(true);
+    setPlacementError(null);
+    try {
+      const response = await fetch(`/api/proposals/${detailSlug}/antenna-placement`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorMessage = await readErrorMessage(response);
+        throw new Error(errorMessage);
+      }
+
+      setProposals((current) => current.map((proposal) => (proposal.slug === detailSlug ? { ...proposal, antennaPlacement: null } : proposal)));
+      setSelectedFloorIds(new Set());
+      setSelectedProjectId(null);
+      setPlacementNotes("");
+      setPlacementDirty(false);
+      pushToast({ type: "success", message: "Provisional antenna placement removed" });
+    } catch (error) {
+      console.error("Failed to remove antenna placement", error);
+      const message = (error as Error).message || "Failed to remove placement";
+      setPlacementError(message);
+      pushToast({ type: "error", message });
+    } finally {
+      setPlacementSaving(false);
+    }
+  };
+
   const activeProposal = detailSlug ? proposals.find((item) => item.slug === detailSlug) : null;
   const creatorDisplayName = activeProposal?.createdBy?.displayName?.trim() || null;
   const creatorEmail = activeProposal?.createdBy?.email?.trim() || null;
+  const currentPlacement = activeProposal?.antennaPlacement ?? null;
+  const selectedProject = selectedProjectId
+    ? projectList.find((project) => project.id === selectedProjectId) ?? null
+    : null;
+  const selectedFloorsCount = selectedFloorIds.size;
 
   const renderAuthGate = () => {
     if (!authReady) {
@@ -901,6 +1122,245 @@ export default function Home() {
               <p className="text-sm text-[var(--muted-foreground)]">Choose a proposal to view creator and expiry details.</p>
             )}
           </div>
+        </section>
+
+        <section className="rounded-xl uctel-surface p-5">
+          <h2 className="mb-3 text-base font-semibold uctel-section-title">Provisional Antenna Placement</h2>
+          {activeProposal ? (
+            <div className="flex flex-col gap-5">
+              <div className="rounded-lg border border-[#cad7df] bg-white/60 p-4 text-sm text-[var(--foreground)]">
+                {currentPlacement ? (
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-[var(--uctel-navy)]">{currentPlacement.projectName}</p>
+                        <p className="text-xs text-[var(--muted-foreground)]">Project ID: {currentPlacement.projectId}</p>
+                      </div>
+                      <div className="text-xs text-[var(--muted-foreground)]">
+                        Generated {formatDateTime(currentPlacement.generatedAt)}
+                      </div>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <div className="rounded-md bg-[var(--background)] px-3 py-2">
+                        <div className="text-[11px] uppercase tracking-wide text-[var(--muted-foreground)]">Floors</div>
+                        <div className="text-base font-semibold text-[var(--uctel-navy)]">{currentPlacement.summary.floorCount}</div>
+                      </div>
+                      <div className="rounded-md bg-[var(--background)] px-3 py-2">
+                        <div className="text-[11px] uppercase tracking-wide text-[var(--muted-foreground)]">Antennas</div>
+                        <div className="text-base font-semibold text-[var(--uctel-navy)]">
+                          {currentPlacement.summary.antennaCount}
+                          {currentPlacement.summary.pulsingAntennaCount > 0 && (
+                            <span className="ml-2 text-xs font-medium text-[#d8613b]">
+                              {currentPlacement.summary.pulsingAntennaCount} pulsing
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="rounded-md bg-[var(--background)] px-3 py-2">
+                        <div className="text-[11px] uppercase tracking-wide text-[var(--muted-foreground)]">Measured area</div>
+                        <div className="text-base font-semibold text-[var(--uctel-navy)]">
+                          {currentPlacement.summary.totalArea.toFixed(1)} {currentPlacement.summary.units === "feet" ? "ft²" : "m²"}
+                        </div>
+                      </div>
+                    </div>
+                    <ul className="space-y-1 text-sm text-[var(--muted-foreground)]">
+                      {currentPlacement.floors.map((floor) => (
+                        <li key={floor.floorId}>
+                          <span className="font-medium text-[var(--uctel-navy)]">{floor.floorName}</span>
+                          {" – "}
+                          {floor.stats.antennaCount} antenna{floor.stats.antennaCount === 1 ? "" : "s"}, {floor.stats.totalArea.toFixed(1)} {floor.stats.units === "feet" ? "ft²" : "m²"}
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="flex flex-wrap items-center gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={handleRemovePlacement}
+                        disabled={placementSaving}
+                        className="rounded-lg border border-[#f3c4aa] px-3 py-1.5 text-xs font-medium text-[#d8613b] transition hover:bg-[#fef0e6] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Remove section
+                      </button>
+                      {currentPlacement.notes && (
+                        <span className="rounded-full bg-[#f0f7f9] px-3 py-1 text-xs text-[var(--uctel-navy)]">
+                          {currentPlacement.notes}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-[var(--muted-foreground)]">No antenna placement attached yet.</p>
+                )}
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-[2fr_3fr]">
+                <div className="space-y-3">
+                  <label className="flex flex-col gap-1 text-sm">
+                    <span className="text-[var(--muted-foreground)]">Search projects</span>
+                    <div className="flex gap-2">
+                      <input
+                        type="search"
+                        value={projectSearchInput}
+                        onChange={(event) => setProjectSearchInput(event.target.value)}
+                        placeholder="Project name or ID"
+                        className="flex-1 rounded-lg border border-[#cad7df] px-3 py-2 text-sm text-[var(--foreground)] focus:border-[var(--uctel-teal)] focus:outline-none focus:ring-2 focus:ring-[rgba(28,139,157,0.25)]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (authToken) {
+                            void loadProjectList(authToken, projectSearchInput);
+                          }
+                        }}
+                        className="rounded-lg border border-[#cad7df] px-3 py-2 text-sm font-medium text-[var(--uctel-navy)] transition hover:bg-[#f0f7f9]"
+                      >
+                        Refresh
+                      </button>
+                    </div>
+                  </label>
+
+                  <div className="max-h-56 overflow-y-auto rounded-lg border border-[#cad7df] bg-white/70">
+                    {projectListLoading ? (
+                      <div className="p-3 text-sm text-[var(--muted-foreground)]">Loading projects…</div>
+                    ) : projectList.length ? (
+                      <ul className="divide-y divide-[#e4edf1]">
+                        {projectList.map((project) => {
+                          const isSelected = project.id === selectedProjectId;
+                          return (
+                            <li key={project.id}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPlacementError(null);
+                                  setSelectedProjectId(project.id);
+                                  if (currentPlacement?.projectId === project.id) {
+                                    setSelectedFloorIds(new Set(currentPlacement.floors.map((floor) => floor.floorId)));
+                                    setPlacementNotes(currentPlacement.notes ?? "");
+                                    setPlacementDirty(false);
+                                  } else {
+                                    setSelectedFloorIds(new Set());
+                                    setPlacementNotes("");
+                                    setPlacementDirty(true);
+                                  }
+                                }}
+                                className={`flex w-full items-start justify-between gap-3 px-3 py-2 text-left transition ${
+                                  isSelected ? "bg-[#f0f7f9]" : "hover:bg-[#f6fbfd]"
+                                }`}
+                              >
+                                <div>
+                                  <p className="font-medium text-[var(--uctel-navy)]">{project.name}</p>
+                                  <p className="text-xs text-[var(--muted-foreground)]">{project.floorCount} floor{project.floorCount === 1 ? "" : "s"}</p>
+                                </div>
+                                {isSelected && (
+                                  <span className="rounded-full bg-[var(--uctel-teal)]/10 px-2 py-0.5 text-xs font-semibold text-[var(--uctel-teal)]">Selected</span>
+                                )}
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ) : (
+                      <div className="p-3 text-sm text-[var(--muted-foreground)]">No projects found.</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-[var(--uctel-navy)]">Select floors</span>
+                    {selectedProject && (
+                      <span className="text-xs text-[var(--muted-foreground)]">
+                        {selectedFloorsCount} selected · {projectFloors.length} available
+                      </span>
+                    )}
+                  </div>
+                  <div className="max-h-64 overflow-y-auto rounded-lg border border-[#cad7df] bg-white/70">
+                    {!selectedProjectId ? (
+                      <div className="p-3 text-sm text-[var(--muted-foreground)]">Select a project to see its floors.</div>
+                    ) : projectFloorsLoading ? (
+                      <div className="p-3 text-sm text-[var(--muted-foreground)]">Loading floors…</div>
+                    ) : projectFloors.length ? (
+                      <ul className="divide-y divide-[#e4edf1]">
+                        {projectFloors.map((floor) => {
+                          const checked = selectedFloorIds.has(floor.floorId);
+                          return (
+                            <li key={floor.floorId}>
+                              <label className="flex cursor-pointer items-start justify-between gap-3 px-3 py-2">
+                                <div className="flex items-start gap-3">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => {
+                                      setPlacementError(null);
+                                      setSelectedFloorIds((current) => {
+                                        const next = new Set(current);
+                                        if (next.has(floor.floorId)) {
+                                          next.delete(floor.floorId);
+                                        } else {
+                                          next.add(floor.floorId);
+                                        }
+                                        return next;
+                                      });
+                                      setPlacementDirty(true);
+                                    }}
+                                  />
+                                  <div>
+                                    <p className="font-medium text-[var(--uctel-navy)]">{floor.name}</p>
+                                    <p className="text-xs text-[var(--muted-foreground)]">
+                                      {floor.antennaCount} antenna{floor.antennaCount === 1 ? "" : "s"} · {floor.totalArea.toFixed(1)} {floor.units === "feet" ? "ft²" : "m²"}
+                                    </p>
+                                  </div>
+                                </div>
+                                {checked && (
+                                  <span className="rounded-full bg-[#f0f7f9] px-2 py-0.5 text-[10px] font-semibold text-[var(--uctel-teal)]">Included</span>
+                                )}
+                              </label>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ) : (
+                      <div className="p-3 text-sm text-[var(--muted-foreground)]">No floors available for this project.</div>
+                    )}
+                  </div>
+
+                  <label className="flex flex-col gap-1 text-sm">
+                    <span className="text-[var(--muted-foreground)]">Notes (optional)</span>
+                    <textarea
+                      value={placementNotes}
+                      onChange={(event) => {
+                        setPlacementNotes(event.target.value);
+                        setPlacementDirty(true);
+                      }}
+                      rows={3}
+                      className="rounded-lg border border-[#cad7df] px-3 py-2 text-sm text-[var(--foreground)] focus:border-[var(--uctel-teal)] focus:outline-none focus:ring-2 focus:ring-[rgba(28,139,157,0.25)]"
+                      placeholder="Internal note for this attachment"
+                    />
+                  </label>
+
+                  {placementError && (
+                    <div className="rounded-md border border-[#f3c4aa] bg-[#fef0e6] px-3 py-2 text-sm text-[#d8613b]">{placementError}</div>
+                  )}
+
+                  <div className="flex flex-wrap gap-3 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleSavePlacement}
+                      disabled={placementSaving || !selectedProjectId || selectedFloorIds.size === 0}
+                      className="uctel-primary inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium shadow transition disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {placementSaving ? "Saving…" : "Attach to proposal"}
+                    </button>
+                    {placementDirty && (
+                      <span className="rounded-full bg-[#fef0e6] px-3 py-1 text-xs font-medium text-[#d8613b]">Unsaved changes</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-[var(--muted-foreground)]">Select a proposal to manage provisional antenna placement.</p>
+          )}
         </section>
       </main>
     </div>

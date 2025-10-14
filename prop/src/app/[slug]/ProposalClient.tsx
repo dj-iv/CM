@@ -4,11 +4,18 @@
 /* eslint-disable @next/next/no-img-element */
 
 import Head from "next/head";
-import { useEffect, useMemo, useState } from "react";
+import { CSSProperties, useEffect, useMemo, useState } from "react";
 import { createPdfDownloadHandler } from "./pdfExport";
 import type { DecodedProposal } from "./page";
 import "./proposal.css";
 import { buildDefaultIntroduction } from "@/lib/proposalCopy";
+import type {
+  AntennaPlacementAntenna,
+  AntennaPlacementCoveragePolygon,
+  AntennaPlacementFloorSnapshot,
+  AntennaPlacementSnapshot,
+  LengthUnit,
+} from "@/types/antennaPlacement";
 
 type SupportTier = "bronze" | "silver" | "gold";
 
@@ -17,6 +24,7 @@ interface ProposalClientProps {
   proposal: DecodedProposal | null;
   introduction: string | null;
   error: string | null;
+  antennaPlacement: AntennaPlacementSnapshot | null;
 }
 
 interface SolutionContent {
@@ -167,6 +175,277 @@ const deriveSolutionKey = (proposal: DecodedProposal | null): keyof typeof solut
   return null;
 };
 
+const clamp = (value: number, min: number, max: number): number => Math.min(Math.max(value, min), max);
+
+type CoverageBounds = NonNullable<AntennaPlacementFloorSnapshot["coverageBounds"]>;
+
+const isFiniteNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+
+const isValidCoverageBounds = (
+  bounds: AntennaPlacementFloorSnapshot["coverageBounds"],
+): bounds is CoverageBounds => {
+  if (!bounds) {
+    return false;
+  }
+  const { minX, minY, maxX, maxY } = bounds;
+  return (
+    isFiniteNumber(minX) &&
+    isFiniteNumber(minY) &&
+    isFiniteNumber(maxX) &&
+    isFiniteNumber(maxY) &&
+    maxX > minX &&
+    maxY > minY
+  );
+};
+
+const coveragePolygonToPath = (points: AntennaPlacementCoveragePolygon["points"]): string => {
+  if (!Array.isArray(points) || points.length < 3) {
+    return "";
+  }
+
+  const segments: string[] = [];
+  points.forEach((point, index) => {
+    if (!point || !isFiniteNumber(point.x) || !isFiniteNumber(point.y)) {
+      return;
+    }
+    const x = clamp(point.x, 0, 1).toFixed(6);
+    const y = clamp(point.y, 0, 1).toFixed(6);
+    segments.push(`${index === 0 ? "M" : "L"} ${x} ${y}`);
+  });
+
+  if (segments.length < 3) {
+    return "";
+  }
+
+  segments.push("Z");
+  return segments.join(" ");
+};
+
+const computeCoverageBoundsFromPolygons = (
+  polygons: AntennaPlacementCoveragePolygon[],
+): CoverageBounds | null => {
+  if (!Array.isArray(polygons) || !polygons.length) {
+    return null;
+  }
+
+  const xs: number[] = [];
+  const ys: number[] = [];
+
+  polygons.forEach((polygon) => {
+    polygon.points.forEach((point) => {
+      if (!point || !isFiniteNumber(point.x) || !isFiniteNumber(point.y)) {
+        return;
+      }
+      xs.push(clamp(point.x, 0, 1));
+      ys.push(clamp(point.y, 0, 1));
+    });
+  });
+
+  if (!xs.length || !ys.length) {
+    return null;
+  }
+
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+
+  if (maxX <= minX || maxY <= minY) {
+    return null;
+  }
+
+  return { minX, minY, maxX, maxY };
+};
+
+const isPointOnSegment = (
+  point: { x: number; y: number },
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+  tolerance = 1e-6,
+): boolean => {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSq = dx * dx + dy * dy;
+
+  if (lengthSq <= tolerance) {
+    const distance = Math.hypot(point.x - start.x, point.y - start.y);
+    return distance <= tolerance;
+  }
+
+  const cross = (point.x - start.x) * dy - (point.y - start.y) * dx;
+  if (Math.abs(cross) > tolerance) {
+    return false;
+  }
+
+  const dot = (point.x - start.x) * dx + (point.y - start.y) * dy;
+  return dot >= -tolerance && dot <= lengthSq + tolerance;
+};
+
+const isPointInPolygon = (
+  point: { x: number; y: number },
+  polygon: AntennaPlacementCoveragePolygon["points"],
+): boolean => {
+  if (!Array.isArray(polygon) || polygon.length < 3) {
+    return false;
+  }
+
+  const target = {
+    x: clamp(point.x, 0, 1),
+    y: clamp(point.y, 0, 1),
+  };
+
+  let inside = false;
+
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const current = polygon[i];
+    const previous = polygon[j];
+
+    if (
+      !current ||
+      !previous ||
+      !isFiniteNumber(current.x) ||
+      !isFiniteNumber(current.y) ||
+      !isFiniteNumber(previous.x) ||
+      !isFiniteNumber(previous.y)
+    ) {
+      continue;
+    }
+
+    const currentPoint = { x: clamp(current.x, 0, 1), y: clamp(current.y, 0, 1) };
+    const previousPoint = { x: clamp(previous.x, 0, 1), y: clamp(previous.y, 0, 1) };
+
+    if (isPointOnSegment(target, previousPoint, currentPoint)) {
+      return true;
+    }
+
+    const intersects =
+      (currentPoint.y > target.y) !== (previousPoint.y > target.y) &&
+      target.x <
+        ((previousPoint.x - currentPoint.x) * (target.y - currentPoint.y)) /
+          ((previousPoint.y - currentPoint.y) || Number.EPSILON) +
+          currentPoint.x;
+
+    if (intersects) {
+      inside = !inside;
+    }
+  }
+
+  return inside;
+};
+
+const isPointInsideCoverage = (
+  point: { x: number; y: number },
+  polygons: AntennaPlacementCoveragePolygon[],
+): boolean => {
+  if (!Array.isArray(polygons) || !polygons.length) {
+    return true;
+  }
+
+  const candidate = {
+    x: clamp(point.x, 0, 1),
+    y: clamp(point.y, 0, 1),
+  };
+
+  return polygons.some((polygon) => isPointInPolygon(candidate, polygon.points));
+};
+
+const computeFloorplanZoomStyle = (
+  antennas: AntennaPlacementAntenna[],
+  coverageBounds?: AntennaPlacementFloorSnapshot["coverageBounds"],
+): CSSProperties | undefined => {
+  const validCoverageBounds = isValidCoverageBounds(coverageBounds);
+
+  const validPoints = Array.isArray(antennas)
+    ? antennas.filter(
+        (antenna): antenna is AntennaPlacementAntenna =>
+          Boolean(antenna) && isFiniteNumber(antenna.x) && isFiniteNumber(antenna.y)
+      )
+    : [];
+
+  if (!validCoverageBounds && !validPoints.length) {
+    return undefined;
+  }
+
+  const BOUNDS_PADDING = 0.05;
+  const ANTENNA_PADDING = 0.08;
+  const MIN_VIEWPORT = 0.4;
+  const MIN_SCALE = 1.15;
+  const MAX_SCALE = 1 / MIN_VIEWPORT;
+
+  let minX = 1;
+  let minY = 1;
+  let maxX = 0;
+  let maxY = 0;
+
+  if (validCoverageBounds) {
+    minX = clamp(coverageBounds!.minX - BOUNDS_PADDING, 0, 1);
+    maxX = clamp(coverageBounds!.maxX + BOUNDS_PADDING, 0, 1);
+    minY = clamp(coverageBounds!.minY - BOUNDS_PADDING, 0, 1);
+    maxY = clamp(coverageBounds!.maxY + BOUNDS_PADDING, 0, 1);
+  } else {
+    for (const { x, y } of validPoints) {
+      minX = x < minX ? x : minX;
+      maxX = x > maxX ? x : maxX;
+      minY = y < minY ? y : minY;
+      maxY = y > maxY ? y : maxY;
+    }
+
+    const padding = ANTENNA_PADDING;
+    minX = clamp(minX - padding, 0, 1);
+    maxX = clamp(maxX + padding, 0, 1);
+    minY = clamp(minY - padding, 0, 1);
+    maxY = clamp(maxY + padding, 0, 1);
+  }
+
+  const width = Math.max(maxX - minX, 0.05);
+  const height = Math.max(maxY - minY, 0.05);
+
+  let scale = Math.min(1 / width, 1 / height);
+  scale = clamp(scale, 1, MAX_SCALE);
+
+  if (!validCoverageBounds && scale <= MIN_SCALE) {
+    return undefined;
+  }
+
+  const viewWidth = 1 / scale;
+  const viewHeight = 1 / scale;
+
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+
+  const desiredOffsetX = centerX - viewWidth / 2;
+  const desiredOffsetY = centerY - viewHeight / 2;
+
+  const maxOffsetX = Math.max(0, 1 - viewWidth);
+  const maxOffsetY = Math.max(0, 1 - viewHeight);
+
+  let offsetX = desiredOffsetX;
+  let offsetY = desiredOffsetY;
+
+  if (!validCoverageBounds) {
+    offsetX = clamp(offsetX, 0, maxOffsetX);
+    offsetY = clamp(offsetY, 0, maxOffsetY);
+  }
+
+  if (!Number.isFinite(offsetX) || !Number.isFinite(offsetY)) {
+    return undefined;
+  }
+
+  let translateX = (offsetX * 100) / scale;
+  let translateY = (offsetY * 100) / scale;
+
+  if (validCoverageBounds) {
+    const COVERAGE_SHIFT_PERCENT = 1.5;
+    translateX += COVERAGE_SHIFT_PERCENT;
+    translateY += COVERAGE_SHIFT_PERCENT;
+  }
+
+  return {
+    transform: `scale(${scale.toFixed(4)}) translate(${-translateX.toFixed(4)}%, ${-translateY.toFixed(4)}%)`,
+    willChange: "transform",
+  } as CSSProperties;
+};
+
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function getFormattedDate(): string {
@@ -208,6 +487,59 @@ function formatCurrency(value: number): string {
     maximumFractionDigits: 2,
   })}`;
 }
+
+const AREA_SUFFIX: Record<LengthUnit, string> = {
+  meters: "m²",
+  feet: "ft²",
+  cm: "cm²",
+  mm: "mm²",
+};
+
+const LENGTH_SUFFIX: Record<LengthUnit, string> = {
+  meters: "m",
+  feet: "ft",
+  cm: "cm",
+  mm: "mm",
+};
+
+const formatCount = (value: number): string => {
+  if (!Number.isFinite(value)) {
+    return "0";
+  }
+  return Math.round(value).toLocaleString("en-GB");
+};
+
+const formatAreaValue = (value: number, unit: LengthUnit, maximumFractionDigits = 1): string => {
+  const safeValue = Number.isFinite(value) ? value : 0;
+  const formatted = safeValue.toLocaleString("en-GB", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits,
+  });
+  return `${formatted} ${AREA_SUFFIX[unit] ?? "m²"}`;
+};
+
+const formatLengthValue = (value: number, unit: LengthUnit): string => {
+  const safeValue = Number.isFinite(value) ? value : 0;
+  const formatted = safeValue.toLocaleString("en-GB", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  });
+  return `${formatted} ${LENGTH_SUFFIX[unit] ?? "m"}`;
+};
+
+const formatIsoDateTime = (value: string | null | undefined): string | null => {
+  if (!value) {
+    return null;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return date.toLocaleString("en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+};
 
 const PAGE_SELECTOR = ".page:not(.cover-page)";
 const HEADING_SELECTOR =
@@ -265,12 +597,12 @@ const updateProposalOutline = (container: HTMLElement, tocList: HTMLElement): vo
     const slug = `section-${slugBase}`;
     heading.id = slug;
 
-  heading.setAttribute(HEADING_NUMBER_ATTRIBUTE, displayNumber);
+    heading.setAttribute(HEADING_NUMBER_ATTRIBUTE, displayNumber);
 
-  const pageNumberText = heading.closest(".page")?.querySelector(".footer .page-number")?.textContent ?? "";
+    const pageNumberText = heading.closest(".page")?.querySelector(".footer .page-number")?.textContent ?? "";
 
-  const doc = heading.ownerDocument;
-  const listItem = doc.createElement("li");
+    const doc = heading.ownerDocument;
+    const listItem = doc.createElement("li");
     listItem.className = isSection ? "toc-h2" : "toc-h3";
 
     const anchor = doc.createElement("a");
@@ -288,10 +620,71 @@ const updateProposalOutline = (container: HTMLElement, tocList: HTMLElement): vo
   });
 };
 
-export default function ProposalClient({ slug, proposal, introduction, error }: ProposalClientProps) {
+export default function ProposalClient({ slug, proposal, introduction, error, antennaPlacement }: ProposalClientProps) {
   const [selectedTier, setSelectedTier] = useState<SupportTier | null>(null);
   const supportRowClass = (tier: SupportTier) =>
     selectedTier === tier ? "support-tier-option selected" : "support-tier-option";
+
+  const placementFloors = useMemo<AntennaPlacementSnapshot["floors"]>(() => {
+    if (!antennaPlacement?.floors || !antennaPlacement.floors.length) {
+      return [] as AntennaPlacementSnapshot["floors"];
+    }
+    const floors = [...antennaPlacement.floors];
+    floors.sort((a, b) => {
+      if (a.orderIndex !== b.orderIndex) {
+        return a.orderIndex - b.orderIndex;
+      }
+      return a.floorName.localeCompare(b.floorName);
+    });
+    return floors;
+  }, [antennaPlacement]);
+
+  const hasAntennaPlacement = placementFloors.length > 0;
+  const placementSummary = antennaPlacement?.summary ?? null;
+  const placementNotes = antennaPlacement?.notes?.trim() || "";
+  const placementGeneratedAt = formatIsoDateTime(antennaPlacement?.generatedAt);
+  const placementProjectUpdatedAt = formatIsoDateTime(antennaPlacement?.projectUpdatedAt);
+  const placementGeneratedBy = antennaPlacement?.generatedBy?.displayName
+    || antennaPlacement?.generatedBy?.email
+    || null;
+
+  const aggregatePlacementSummary = useMemo(() => {
+    if (!hasAntennaPlacement) {
+      return null as null | {
+        floorCount: number;
+        antennaCount: number;
+        totalAreaLabel: string;
+        units: LengthUnit;
+      };
+    }
+
+    if (placementSummary) {
+      return {
+        floorCount: placementSummary.floorCount,
+        antennaCount: placementSummary.antennaCount,
+        totalAreaLabel: formatAreaValue(placementSummary.totalArea, placementSummary.units),
+        units: placementSummary.units,
+      };
+    }
+
+    const derivedUnits: LengthUnit = placementFloors[0]?.stats.units ?? "meters";
+    const totalArea = placementFloors.reduce((sum, floor) => {
+      const area = Number.isFinite(floor.stats.totalArea) ? floor.stats.totalArea : 0;
+      return sum + area;
+    }, 0);
+    const antennaCount = placementFloors.reduce((sum, floor) => sum + floor.stats.antennaCount, 0);
+    return {
+      floorCount: placementFloors.length,
+      antennaCount,
+      totalAreaLabel: formatAreaValue(totalArea, derivedUnits),
+      units: derivedUnits,
+    };
+  }, [hasAntennaPlacement, placementSummary, placementFloors]);
+
+  const placementFloorCount = aggregatePlacementSummary?.floorCount ?? placementFloors.length;
+  const placementAntennaCount = aggregatePlacementSummary?.antennaCount ?? 0;
+  const placementAreaLabel = aggregatePlacementSummary?.totalAreaLabel ?? "—";
+  const hasPlacementNotes = Boolean(placementNotes);
 
   useEffect(() => {
     document.body.classList.add("proposal-body");
@@ -442,7 +835,7 @@ export default function ProposalClient({ slug, proposal, introduction, error }: 
     return () => {
       window.cancelAnimationFrame(frame);
     };
-  }, [proposal, architectureHtml, componentsHtml]);
+  }, [proposal, architectureHtml, componentsHtml, antennaPlacement]);
 
   useEffect(() => {
     if (!proposal) {
@@ -635,6 +1028,232 @@ export default function ProposalClient({ slug, proposal, introduction, error }: 
                 <div className="page-number"></div>
               </div>
             </div>
+
+            {hasAntennaPlacement && (
+              <div className="page antenna-page">
+                <div className="header">
+                  <img src="/images/uctel_logo.png" alt="UCtel Logo" />
+                </div>
+                <h2>
+                  <i className="fa-solid fa-tower-cell" /> Provisional Antenna Placement
+                </h2>
+                <p>
+                  This snapshot highlights the provisional antenna layout captured for {" "}
+                  {antennaPlacement?.projectName ? <strong>{antennaPlacement.projectName}</strong> : "this project"}. It currently covers {formatCount(placementFloorCount)} {" "}
+                  {placementFloorCount === 1 ? "floor" : "floors"} with {formatCount(placementAntennaCount)} antennas positioned across the building.
+                </p>
+                <div className="antenna-summary-grid">
+                  <div className="antenna-summary-card">
+                    <span className="antenna-summary-label">Source Project</span>
+                    <span className="antenna-summary-value">{antennaPlacement?.projectName ?? "—"}</span>
+                    {placementProjectUpdatedAt ? (
+                      <span className="antenna-summary-sub">Updated {placementProjectUpdatedAt}</span>
+                    ) : null}
+                  </div>
+                  <div className="antenna-summary-card">
+                    <span className="antenna-summary-label">Snapshot Generated</span>
+                    <span className="antenna-summary-value">{placementGeneratedAt ?? "—"}</span>
+                    {placementGeneratedBy ? (
+                      <span className="antenna-summary-sub">by {placementGeneratedBy}</span>
+                    ) : null}
+                  </div>
+                  <div className="antenna-summary-card">
+                    <span className="antenna-summary-label">Floors Analysed</span>
+                    <span className="antenna-summary-value">{formatCount(placementFloorCount)}</span>
+                    <span className="antenna-summary-sub">
+                      {placementFloorCount === 1 ? "Single floor coverage" : "Multi-floor footprint"}
+                    </span>
+                  </div>
+                  <div className="antenna-summary-card">
+                    <span className="antenna-summary-label">Antennas</span>
+                    <span className="antenna-summary-value">{formatCount(placementAntennaCount)}</span>
+                  </div>
+                  <div className="antenna-summary-card">
+                    <span className="antenna-summary-label">Measured Coverage</span>
+                    <span className="antenna-summary-value">{placementAreaLabel}</span>
+                  </div>
+                </div>
+                {hasPlacementNotes ? (
+                  <div className="antenna-notes">
+                    <span className="antenna-stat-label">Notes</span>
+                    <p>{placementNotes}</p>
+                  </div>
+                ) : null}
+                {placementFloors.map((floor) => {
+                  const coveragePolygons = (floor.coveragePolygons ?? []).filter(
+                    (polygon): polygon is AntennaPlacementCoveragePolygon =>
+                      Boolean(polygon) &&
+                      Array.isArray(polygon.points) &&
+                      polygon.points.length >= 3,
+                  );
+
+                  const coveragePaths = coveragePolygons
+                    .map((polygon) => coveragePolygonToPath(polygon.points))
+                    .filter((path) => path.length > 0);
+
+                  const resolvedCoverageBounds =
+                    (isValidCoverageBounds(floor.coverageBounds) ? floor.coverageBounds : null) ??
+                    computeCoverageBoundsFromPolygons(coveragePolygons);
+
+                  const zoomStyle = computeFloorplanZoomStyle(
+                    floor.antennas,
+                    resolvedCoverageBounds ?? undefined,
+                  );
+
+                  const sanitizedFloorId = floor.floorId.replace(/[^a-zA-Z0-9_-]/g, "-");
+                  const coverageMaskId = `coverage-mask-${sanitizedFloorId}`;
+                  const hasCoverageOverlay = coveragePaths.length > 0;
+
+                  const validFloorAntennas = floor.antennas.filter(
+                    (antenna): antenna is AntennaPlacementAntenna =>
+                      Boolean(antenna) && isFiniteNumber(antenna.x) && isFiniteNumber(antenna.y),
+                  );
+
+                  const visibleAntennas = hasCoverageOverlay
+                    ? validFloorAntennas.filter((antenna) =>
+                        isPointInsideCoverage({ x: antenna.x, y: antenna.y }, coveragePolygons),
+                      )
+                    : validFloorAntennas;
+
+                  const hasVisibleAntennas = visibleAntennas.length > 0;
+                  const emptyStateMessage = hasVisibleAntennas
+                    ? null
+                    : validFloorAntennas.length > 0 && hasCoverageOverlay
+                      ? "No antennas inside the mapped coverage area yet"
+                      : "No antennas have been plotted yet";
+
+                  const rangeLabel =
+                    floor.stats.antennaRange && floor.stats.antennaRange > 0
+                      ? formatLengthValue(floor.stats.antennaRange, floor.stats.units)
+                      : null;
+
+                  return (
+                    <div key={floor.floorId} className="antenna-floor">
+                      <h3>{floor.floorName}</h3>
+                      <div className="antenna-floor-card">
+                        <div className="floorplan-container">
+                          {floor.imageUrl ? (
+                            <div className="floorplan-wrapper">
+                              <div className="floorplan-zoom-layer">
+                                <div className="floorplan-zoom-inner" style={zoomStyle}>
+                                  <div className="floorplan-image-layer">
+                                    <img
+                                      src={floor.imageUrl}
+                                      alt={`${floor.floorName} provisional antenna placement`}
+                                    />
+                                    {hasCoverageOverlay ? (
+                                      <svg
+                                        className="floorplan-coverage-layer"
+                                        viewBox="0 0 1 1"
+                                        preserveAspectRatio="none"
+                                      >
+                                        <defs>
+                                          <mask id={coverageMaskId} maskUnits="objectBoundingBox">
+                                            <rect x="0" y="0" width="1" height="1" fill="white" />
+                                            {coveragePaths.map((pathD, pathIndex) => (
+                                              <path key={`${coverageMaskId}-mask-${pathIndex}`} d={pathD} fill="black" />
+                                            ))}
+                                          </mask>
+                                        </defs>
+                                        <rect
+                                          x="0"
+                                          y="0"
+                                          width="1"
+                                          height="1"
+                                          fill="#fdfdfd"
+                                          fillOpacity={0.94}
+                                          mask={`url(#${coverageMaskId})`}
+                                        />
+                                        {coveragePaths.map((pathD, pathIndex) => (
+                                          <path
+                                            key={`${coverageMaskId}-fill-${pathIndex}`}
+                                            d={pathD}
+                                            fill="none"
+                                            stroke="rgba(70, 70, 70, 0.55)"
+                                            strokeWidth={0.0025}
+                                            strokeLinejoin="round"
+                                          />
+                                        ))}
+                                      </svg>
+                                    ) : null}
+                                  </div>
+                                  <div className="antenna-markers">
+                                    {visibleAntennas.map((antenna, antennaIndex) => (
+                                      <div
+                                        key={antenna.id || `${floor.floorId}-antenna-${antennaIndex}`}
+                                        className="antenna-marker is-pulsing"
+                                        style={{ left: `${antenna.x * 100}%`, top: `${antenna.y * 100}%` }}
+                                        title={`Antenna ${antennaIndex + 1}`}
+                                        aria-hidden="true"
+                                      >
+                                        <span className="antenna-marker-core" />
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                              {!hasVisibleAntennas && emptyStateMessage ? (
+                                <div className="antenna-marker-empty">{emptyStateMessage}</div>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <div className="floorplan-placeholder">Floorplan preview not available</div>
+                          )}
+                        </div>
+                        <div className="antenna-floor-details">
+                          <div className="antenna-floor-stats">
+                            <div className="antenna-floor-stat">
+                              <span className="antenna-stat-label">Antennas Placed</span>
+                              <span className="antenna-stat-value">
+                                  {formatCount(floor.stats.antennaCount)}
+                              </span>
+                            </div>
+                            <div className="antenna-floor-stat">
+                              <span className="antenna-stat-label">Measured Coverage</span>
+                              <span className="antenna-stat-value">
+                                {formatAreaValue(floor.stats.totalArea, floor.stats.units)}
+                              </span>
+                            </div>
+                            {rangeLabel ? (
+                              <div className="antenna-floor-stat">
+                                <span className="antenna-stat-label">Typical Radius</span>
+                                <span className="antenna-stat-value">{rangeLabel}</span>
+                              </div>
+                            ) : null}
+                          </div>
+                          {floor.stats.areaSummaries.length ? (
+                            <div className="antenna-area-breakdown">
+                              <span className="antenna-stat-label">Coverage Breakdown</span>
+                              <ul className="antenna-area-list">
+                                {floor.stats.areaSummaries.map((area) => (
+                                  <li key={area.id}>
+                                    <span>{area.label}</span>
+                                    <span>{formatAreaValue(area.area, floor.stats.units)}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : null}
+                          {!hasVisibleAntennas && emptyStateMessage ? (
+                            <p className="antenna-floor-empty">{emptyStateMessage}.</p>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="footer">
+                  <div className="footer-info">
+                    <img src="/images/uctel_logo.png" alt="UCtel Logo" className="footer-logo" />
+                    <div className="footer-text">
+                      <span>CEL-FI {getField("Solution", "Solution")} solution proposal for {getField("Account", "Customer")}</span>
+                      <span>www.uctel.co.uk | sales@uctel.co.uk</span>
+                    </div>
+                  </div>
+                  <div className="page-number"></div>
+                </div>
+              </div>
+            )}
 
             <div className="page" id="components-page">
               <div className="header">

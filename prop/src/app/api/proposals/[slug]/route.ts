@@ -207,6 +207,7 @@ export const GET = async (request: NextRequest, ctx: { params: Promise<{ slug: s
     downloadCount,
     introduction,
     createdBy,
+    antennaPlacement: data.antennaPlacement ?? null,
   }), requestOrigin);
 };
 
@@ -349,6 +350,7 @@ export const PUT = async (request: NextRequest, ctx: { params: Promise<{ slug: s
   const existingViewCount = typeof currentData.viewCount === "number" ? currentData.viewCount : 0;
   const existingDownloadCount = typeof currentData.downloadCount === "number" ? currentData.downloadCount : 0;
   const createdByResponse = sanitizeUserInfo(currentData.createdBy);
+  const antennaPlacementResponse = currentData.antennaPlacement ?? null;
 
   return withCors(NextResponse.json({
     slug,
@@ -363,6 +365,7 @@ export const PUT = async (request: NextRequest, ctx: { params: Promise<{ slug: s
     downloadCount: existingDownloadCount,
     introduction: introductionResponse ?? null,
     createdBy: createdByResponse,
+    antennaPlacement: antennaPlacementResponse,
   }), requestOrigin);
 };
 

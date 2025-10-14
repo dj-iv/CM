@@ -451,6 +451,7 @@ export const GET = async (request: NextRequest) => {
         ? data.introduction
         : buildDefaultIntroduction(proposalData),
       createdBy,
+      antennaPlacement: data.antennaPlacement ?? null,
     };
   });
 

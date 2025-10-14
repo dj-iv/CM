@@ -2,6 +2,7 @@ import pako from "pako";
 import { FieldValue } from "firebase-admin/firestore";
 import ProposalClient from "./ProposalClient";
 import { getAdminFirestore } from "@/lib/firebaseAdmin";
+import type { AntennaPlacementSnapshot } from "@/types/antennaPlacement";
 
 export interface DecodedProposal {
   [key: string]: unknown;
@@ -16,6 +17,7 @@ interface ProposalLoadResult {
   proposal: DecodedProposal | null;
   introduction: string | null;
   error: string | null;
+  antennaPlacement: AntennaPlacementSnapshot | null;
 }
 
 const PROPOSAL_HINT_KEYS = [
@@ -48,7 +50,7 @@ const hasLikelyProposalShape = (value: unknown): value is DecodedProposal => {
 
 function decodePayload(encoded: string | undefined): ProposalLoadResult {
   if (!encoded) {
-    return { proposal: null, introduction: null, error: "No payload provided." };
+    return { proposal: null, introduction: null, error: "No payload provided.", antennaPlacement: null };
   }
 
   try {
@@ -57,27 +59,27 @@ function decodePayload(encoded: string | undefined): ProposalLoadResult {
     const parsed = JSON.parse(json) as unknown;
 
     if (hasLikelyProposalShape(parsed)) {
-      return { proposal: parsed, introduction: null, error: null };
+      return { proposal: parsed, introduction: null, error: null, antennaPlacement: null };
     }
 
     if (isRecord(parsed) && hasLikelyProposalShape(parsed["proposal"])) {
-      return { proposal: parsed["proposal"] as DecodedProposal, introduction: null, error: null };
+      return { proposal: parsed["proposal"] as DecodedProposal, introduction: null, error: null, antennaPlacement: null };
     }
 
     if (isRecord(parsed) && ("inputs" in parsed || "overrides" in parsed || "support" in parsed)) {
-      return { proposal: null, introduction: null, error: "Decoded payload contained calculator state but no proposal data." };
+      return { proposal: null, introduction: null, error: "Decoded payload contained calculator state but no proposal data.", antennaPlacement: null };
     }
 
-    return { proposal: null, introduction: null, error: "Decoded payload did not contain proposal data." };
+    return { proposal: null, introduction: null, error: "Decoded payload did not contain proposal data.", antennaPlacement: null };
   } catch (err) {
     console.error("Failed to decode proposal payload", err);
-    return { proposal: null, introduction: null, error: "Could not decode proposal payload." };
+    return { proposal: null, introduction: null, error: "Could not decode proposal payload.", antennaPlacement: null };
   }
 }
 
 async function loadProposalFromFirestore(slug: string): Promise<ProposalLoadResult> {
   if (!slug) {
-    return { proposal: null, introduction: null, error: "Proposal slug is required." };
+    return { proposal: null, introduction: null, error: "Proposal slug is required.", antennaPlacement: null };
   }
 
   try {
@@ -86,7 +88,7 @@ async function loadProposalFromFirestore(slug: string): Promise<ProposalLoadResu
     const snapshot = await docRef.get();
 
     if (!snapshot.exists) {
-      return { proposal: null, introduction: null, error: `Proposal not found for slug "${slug}".` };
+  return { proposal: null, introduction: null, error: `Proposal not found for slug "${slug}".`, antennaPlacement: null };
     }
 
     const data = snapshot.data() ?? {};
@@ -102,22 +104,23 @@ async function loadProposalFromFirestore(slug: string): Promise<ProposalLoadResu
     const storedProposal = hasLikelyProposalShape(storedProposalRaw) ? (storedProposalRaw as DecodedProposal) : null;
     const storedProposalFallback = isRecord(storedProposalRaw) ? (storedProposalRaw as DecodedProposal) : null;
     const introduction = typeof data.introduction === "string" ? data.introduction : null;
+    const antennaPlacement = (data.antennaPlacement ?? null) as AntennaPlacementSnapshot | null;
 
     if (storedProposal) {
-      return { proposal: storedProposal, introduction, error: null };
+      return { proposal: storedProposal, introduction, error: null, antennaPlacement };
     }
 
     if (encodedState) {
       const decoded = decodePayload(encodedState);
       if (decoded.proposal) {
-        return { proposal: decoded.proposal, introduction, error: decoded.error };
+        return { proposal: decoded.proposal, introduction, error: decoded.error, antennaPlacement };
       }
 
       if (storedProposalFallback) {
-        return { proposal: storedProposalFallback, introduction, error: decoded.error };
+        return { proposal: storedProposalFallback, introduction, error: decoded.error, antennaPlacement };
       }
 
-      return { proposal: decoded.proposal, introduction, error: decoded.error };
+      return { proposal: decoded.proposal, introduction, error: decoded.error, antennaPlacement };
     }
 
     if (storedProposalFallback) {
@@ -125,6 +128,7 @@ async function loadProposalFromFirestore(slug: string): Promise<ProposalLoadResu
         proposal: storedProposalFallback,
         introduction,
         error: "Proposal document contains unrecognised proposal data.",
+        antennaPlacement,
       };
     }
 
@@ -132,11 +136,12 @@ async function loadProposalFromFirestore(slug: string): Promise<ProposalLoadResu
       proposal: null,
       introduction,
       error: `Proposal document for slug "${slug}" is missing payload data.`,
+      antennaPlacement,
     };
   } catch (err) {
     console.error(`Failed to load proposal for slug ${slug}`, err);
     const message = err instanceof Error ? err.message : "Unknown error while loading proposal.";
-    return { proposal: null, introduction: null, error: `Failed to load proposal: ${message}` };
+    return { proposal: null, introduction: null, error: `Failed to load proposal: ${message}`, antennaPlacement: null };
   }
 }
 
@@ -162,6 +167,7 @@ export default async function ProposalPage(props: ProposalPageProps) {
       proposal={result.proposal}
       introduction={result.introduction}
       error={result.error}
+      antennaPlacement={result.antennaPlacement}
     />
   );
 }
