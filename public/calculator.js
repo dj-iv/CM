@@ -892,8 +892,16 @@ function runFullCalculation() {
                         currentResults['connectors_rg45'].calculated = normalizedCuCount * 4;
                     }
 
+                    const nuKey = systemType.includes('EVO') ? 'QUATRA_EVO_NU' : 'QUATRA_NU';
+                    const nuEntry = currentResults[nuKey];
+                    const effectiveNuCount = Math.max(0, Number(nuEntry?.override ?? nuEntry?.calculated ?? 0));
+                    const adaptersNeeded = normalizedCuCount + (effectiveNuCount * (params.C_Net || 0));
+                    if (!currentResults['adapters_n']) {
+                        currentResults['adapters_n'] = { calculated: 0, override: null, decimals: 0, unit: '' };
+                    }
+                    currentResults['adapters_n'].calculated = adaptersNeeded;
+
                     if (systemType.includes('DAS')) {
-                        const nuKey = systemType.includes('EVO') ? 'QUATRA_EVO_NU' : 'QUATRA_NU';
                         const hubKey = systemType.includes('EVO') ? 'QUATRA_EVO_HUB' : 'QUATRA_HUB';
 
                         const fullNuSets = Math.floor(normalizedCuCount / 12);
@@ -910,6 +918,8 @@ function runFullCalculation() {
                             currentResults[hubKey] = { calculated: 0, override: null, decimals: 0, unit: '' };
                         }
                         currentResults[hubKey].calculated = derivedHubCount;
+
+                        currentResults['adapters_n'].calculated = normalizedCuCount + (derivedNuCount * (params.C_Net || 0));
 
                         const baseBsaTerm = (baseServiceAntennaInput || 0) / 3;
                         const donorTerm = (donorAntennaCount || 0) / 2;
