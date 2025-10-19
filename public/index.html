@@ -244,8 +244,9 @@
         .switch-field input:checked + label { background-color: var(--uctel-blue); color: white; }
         .percentage-group { display: flex; gap: 15px; flex-wrap: wrap; }
         .percentage-group .input-group { min-width: 120px; }
-        .checkbox-group { padding-top: 8px; }
-        .checkbox-group label { font-weight: normal; font-size: 14px; color: #555; margin-left: 6px; }
+    .checkbox-group { display: flex; align-items: center; gap: 6px; padding-top: 8px; }
+    .checkbox-group + .checkbox-group { margin-top: 4px; }
+    .checkbox-group label { font-weight: normal; font-size: 14px; color: #555; margin: 0; }
         #percentage-total-display { width: 100%; text-align: right; margin-top: 10px; font-weight: bold; }
 
         /* Modal Styles */
@@ -617,6 +618,8 @@
                         <option value="G43">GO G43</option>
                         <option value="QUATRA">QUATRA 4000e</option>
                         <option value="QUATRA_DAS">QUATRA 4000e DAS</option>
+                        <option value="QUATRA_100M">QUATRA 100M</option>
+                        <option value="QUATRA_100M_DAS">QUATRA 100M DAS</option>
                         <option value="QUATRA_EVO">QUATRA EVO</option>
                         <option value="QUATRA_EVO_DAS">QUATRA EVO DAS</option>
                     </select>
@@ -638,6 +641,10 @@
                     <div class="checkbox-group">
                         <input type="checkbox" id="no-hardware-checkbox">
                         <label for="no-hardware-checkbox">Exclude Hardware Costs</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="alt-pricing-toggle">
+                        <label for="alt-pricing-toggle">Alt Pricing</label>
                     </div>
                 </div>
                 <input type="hidden" id="total-service-antennas" value="12">

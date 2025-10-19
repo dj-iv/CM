@@ -110,6 +110,21 @@ const solutionSpecificData: Record<string, SolutionContent> = {
             <div class="component-layout reverse"><div class="image-container"><img src="/images/server_antennas.png" alt="Server Antennas"></div><div class="text-container"><h3 class="force-page-break">Server Antennas</h3><p>Depending on the environment the appropriate type of antenna will be installed. There are a range of ceiling and panel omni antennas available and the most appropriate antenna will be recommended following the survey.</p></div></div>
             <div class="component-layout"><div class="image-container"><img src="/images/cabling_quatra.png" alt="Quatra Cabling"></div><div class="text-container"><h3>Cabling</h3><p>Structured cabling will be used to connect active components together and coaxial cabling to connect antennas. Some installations involve fibre optic cable to maximise the distance between NU and CU, but will require a dedicated power at the other end.</p></div></div>`,
   },
+  QUATRA_100M: {
+    architecture: `
+      <h3 class="no-number">CEL-FI</h3>
+      <p>UCtel proposes to deploy solutions from Nextivity. Nextivity manufactures the CEL-FI suite of cellular coverage solutions which are designed to optimise mobile signal coverage within buildings and vehicles. CEL-FI is unconditionally network safe, as it prevents interference with mobile operator networks and in the UK, CEL-FI products are licence-exempt and fully comply with Ofcom’s UK Interface requirement 2102 (IR2102).</p>
+      ${VIDEO_EMBED_HTML}
+      <h3 class="force-page-break">CEL-FI QUATRA 100M</h3>
+      <p>CEL-FI QUATRA 100M combines active head-end electronics with coax-fed coverage units to support sites where passive DAS cabling already exists or long copper runs are required. The 100M platform maintains network-safe amplification while delivering multi-operator coverage over extended distances.</p>
+      <img src="/images/100m_diagram.png" alt="QUATRA 100M Architecture Diagram">`,
+    components: `
+      <div class="component-layout"><div class="image-container"><img src="/images/donor_antenna.png" alt="Donor Antenna"></div><div class="text-container"><h3>Donor Antenna</h3><p>Donor antennas will be installed on the roof (or other suitable location) to obtain the best signal for boosting. The type of donor antenna will be confirmed during the site survey. Low loss coaxial cables will be run from the donor antennas to the QUATRA 100M Network Unit.</p></div></div>
+      <div class="component-layout reverse"><div class="image-container"><img src="/images/network_unit_100m.png" alt="QUATRA 100M Network Unit"></div><div class="text-container"><h3>Network Unit</h3><p>The QUATRA 100M Network Unit (NU) will be wall or rack mounted in a comms space. Each NU can feed up to six coverage units over 100 metres of coax. Power and management connectivity are provided at the NU.</p></div></div>
+      <div class="component-layout"><div class="image-container"><img src="/images/coverage_unit_100m.png" alt="QUATRA 100M Coverage Unit"></div><div class="text-container"><h3>Coverage Unit</h3><p>Coverage Units are positioned within the areas requiring mobile signal. They connect back to the NU via low-loss coaxial cable and drive the passive antenna segments serving each zone.</p></div></div>
+      <div class="component-layout reverse"><div class="image-container"><img src="/images/power_unit_100m.png" alt="QUATRA 100M Power Unit"></div><div class="text-container"><h3 class="force-page-break">Power Unit</h3><p>Remote Power Units (RPUs) are installed where local powering of coverage points is required. The RPU converts mains power to the correct supply for the 100M coverage hardware and incorporates the necessary protection.</p></div></div>
+      <div class="component-layout"><div class="image-container"><img src="/images/cabling_quatra.png" alt="Quatra Cabling"></div><div class="text-container"><h3>Cabling</h3><p>Structured cabling and coaxial runs are designed to maintain signal quality over 100 metre spans. Existing passive DAS infrastructure can often be reused to accelerate deployment.</p></div></div>`,
+  },
   QUATRA_EVO: {
     architecture: `
             <h3 class="no-number">CEL-FI</h3>
@@ -159,6 +174,9 @@ const deriveSolutionKey = (proposal: DecodedProposal | null): keyof typeof solut
   const normalizedSolution = normalizeKey(readProposalString(proposal, "Solution", "solution", "solutionName"));
   const combined = `${normalizedSystemType} ${normalizedSolution}`.trim();
 
+  if (combined.includes("100M")) {
+    return "QUATRA_100M";
+  }
   if (combined.includes("G43")) {
     return "G43";
   }
@@ -353,48 +371,51 @@ const computeFloorplanZoomStyle = (
   antennas: AntennaPlacementAntenna[],
   coverageBounds?: AntennaPlacementFloorSnapshot["coverageBounds"],
 ): CSSProperties | undefined => {
-  const validCoverageBounds = isValidCoverageBounds(coverageBounds);
+  const hasCoverageBounds = isValidCoverageBounds(coverageBounds);
 
   const validPoints = Array.isArray(antennas)
     ? antennas.filter(
         (antenna): antenna is AntennaPlacementAntenna =>
-          Boolean(antenna) && isFiniteNumber(antenna.x) && isFiniteNumber(antenna.y)
+          Boolean(antenna) && isFiniteNumber(antenna.x) && isFiniteNumber(antenna.y),
       )
     : [];
 
-  if (!validCoverageBounds && !validPoints.length) {
+  if (!hasCoverageBounds && !validPoints.length) {
     return undefined;
   }
 
-  const BOUNDS_PADDING = 0.05;
+  const COVERAGE_PADDING = 0.05;
   const ANTENNA_PADDING = 0.08;
   const MIN_VIEWPORT = 0.4;
-  const MIN_SCALE = 1.15;
   const MAX_SCALE = 1 / MIN_VIEWPORT;
 
-  let minX = 1;
-  let minY = 1;
-  let maxX = 0;
-  let maxY = 0;
+  let minX: number;
+  let maxX: number;
+  let minY: number;
+  let maxY: number;
 
-  if (validCoverageBounds) {
-    minX = clamp(coverageBounds!.minX - BOUNDS_PADDING, 0, 1);
-    maxX = clamp(coverageBounds!.maxX + BOUNDS_PADDING, 0, 1);
-    minY = clamp(coverageBounds!.minY - BOUNDS_PADDING, 0, 1);
-    maxY = clamp(coverageBounds!.maxY + BOUNDS_PADDING, 0, 1);
+  if (hasCoverageBounds && coverageBounds) {
+    minX = clamp(coverageBounds.minX - COVERAGE_PADDING, 0, 1);
+    maxX = clamp(coverageBounds.maxX + COVERAGE_PADDING, 0, 1);
+    minY = clamp(coverageBounds.minY - COVERAGE_PADDING, 0, 1);
+    maxY = clamp(coverageBounds.maxY + COVERAGE_PADDING, 0, 1);
   } else {
-    for (const { x, y } of validPoints) {
-      minX = x < minX ? x : minX;
-      maxX = x > maxX ? x : maxX;
-      minY = y < minY ? y : minY;
-      maxY = y > maxY ? y : maxY;
+    let antennaMinX = 1;
+    let antennaMaxX = 0;
+    let antennaMinY = 1;
+    let antennaMaxY = 0;
+
+    for (const point of validPoints) {
+      antennaMinX = point.x < antennaMinX ? point.x : antennaMinX;
+      antennaMaxX = point.x > antennaMaxX ? point.x : antennaMaxX;
+      antennaMinY = point.y < antennaMinY ? point.y : antennaMinY;
+      antennaMaxY = point.y > antennaMaxY ? point.y : antennaMaxY;
     }
 
-    const padding = ANTENNA_PADDING;
-    minX = clamp(minX - padding, 0, 1);
-    maxX = clamp(maxX + padding, 0, 1);
-    minY = clamp(minY - padding, 0, 1);
-    maxY = clamp(maxY + padding, 0, 1);
+    minX = clamp(antennaMinX - ANTENNA_PADDING, 0, 1);
+    maxX = clamp(antennaMaxX + ANTENNA_PADDING, 0, 1);
+    minY = clamp(antennaMinY - ANTENNA_PADDING, 0, 1);
+    maxY = clamp(antennaMaxY + ANTENNA_PADDING, 0, 1);
   }
 
   const width = Math.max(maxX - minX, 0.05);
@@ -403,42 +424,38 @@ const computeFloorplanZoomStyle = (
   let scale = Math.min(1 / width, 1 / height);
   scale = clamp(scale, 1, MAX_SCALE);
 
-  if (!validCoverageBounds && scale <= MIN_SCALE) {
-    return undefined;
-  }
-
   const viewWidth = 1 / scale;
   const viewHeight = 1 / scale;
+  const halfViewWidth = viewWidth / 2;
+  const halfViewHeight = viewHeight / 2;
 
-  const centerX = (minX + maxX) / 2;
-  const centerY = (minY + maxY) / 2;
-
-  const desiredOffsetX = centerX - viewWidth / 2;
-  const desiredOffsetY = centerY - viewHeight / 2;
+  const desiredCenterX = clamp(0.5, halfViewWidth, 1 - halfViewWidth);
+  const desiredCenterY = clamp(0.5, halfViewHeight, 1 - halfViewHeight);
 
   const maxOffsetX = Math.max(0, 1 - viewWidth);
   const maxOffsetY = Math.max(0, 1 - viewHeight);
 
-  let offsetX = desiredOffsetX;
-  let offsetY = desiredOffsetY;
+  let offsetX = clamp(desiredCenterX - halfViewWidth, 0, maxOffsetX);
+  let offsetY = clamp(desiredCenterY - halfViewHeight, 0, maxOffsetY);
 
-  if (!validCoverageBounds) {
-    offsetX = clamp(offsetX, 0, maxOffsetX);
-    offsetY = clamp(offsetY, 0, maxOffsetY);
+  const minOffsetXForBounds = Math.max(0, maxX - viewWidth);
+  const maxOffsetXForBounds = Math.min(maxOffsetX, Math.max(minX, 0));
+  if (minOffsetXForBounds <= maxOffsetXForBounds) {
+    offsetX = clamp(offsetX, minOffsetXForBounds, maxOffsetXForBounds);
+  }
+
+  const minOffsetYForBounds = Math.max(0, maxY - viewHeight);
+  const maxOffsetYForBounds = Math.min(maxOffsetY, Math.max(minY, 0));
+  if (minOffsetYForBounds <= maxOffsetYForBounds) {
+    offsetY = clamp(offsetY, minOffsetYForBounds, maxOffsetYForBounds);
   }
 
   if (!Number.isFinite(offsetX) || !Number.isFinite(offsetY)) {
     return undefined;
   }
 
-  let translateX = (offsetX * 100) / scale;
-  let translateY = (offsetY * 100) / scale;
-
-  if (validCoverageBounds) {
-    const COVERAGE_SHIFT_PERCENT = 1.5;
-    translateX += COVERAGE_SHIFT_PERCENT;
-    translateY += COVERAGE_SHIFT_PERCENT;
-  }
+  const translateX = (offsetX * 100) / scale;
+  const translateY = (offsetY * 100) / scale;
 
   return {
     transform: `scale(${scale.toFixed(4)}) translate(${-translateX.toFixed(4)}%, ${-translateY.toFixed(4)}%)`,
@@ -1109,18 +1126,27 @@ export default function ProposalClient({ slug, proposal, introduction, error, an
                       Boolean(antenna) && isFiniteNumber(antenna.x) && isFiniteNumber(antenna.y),
                   );
 
-                  const visibleAntennas = hasCoverageOverlay
-                    ? validFloorAntennas.filter((antenna) =>
+                  const sanitizedAntennas = validFloorAntennas.map((antenna) => ({
+                    ...antenna,
+                    x: clamp(antenna.x, 0, 1),
+                    y: clamp(antenna.y, 0, 1),
+                  }));
+
+                  const antennasWithinCoverage = hasCoverageOverlay
+                    ? sanitizedAntennas.filter((antenna) =>
                         isPointInsideCoverage({ x: antenna.x, y: antenna.y }, coveragePolygons),
                       )
-                    : validFloorAntennas;
+                    : sanitizedAntennas;
 
-                  const hasVisibleAntennas = visibleAntennas.length > 0;
-                  const emptyStateMessage = hasVisibleAntennas
-                    ? null
-                    : validFloorAntennas.length > 0 && hasCoverageOverlay
+                  const visibleAntennas = sanitizedAntennas;
+                  const hasAnyAntennas = sanitizedAntennas.length > 0;
+                  const showCoverageWarning = hasCoverageOverlay && hasAnyAntennas && antennasWithinCoverage.length === 0;
+                  const emptyStateMessage = !hasAnyAntennas
+                    ? "No antennas have been plotted yet"
+                    : showCoverageWarning
                       ? "No antennas inside the mapped coverage area yet"
-                      : "No antennas have been plotted yet";
+                      : null;
+                  const shouldShowEmptyState = Boolean(emptyStateMessage);
 
                   const rangeLabel =
                     floor.stats.antennaRange && floor.stats.antennaRange > 0
@@ -1192,7 +1218,7 @@ export default function ProposalClient({ slug, proposal, introduction, error, an
                                   </div>
                                 </div>
                               </div>
-                              {!hasVisibleAntennas && emptyStateMessage ? (
+                              {shouldShowEmptyState && emptyStateMessage ? (
                                 <div className="antenna-marker-empty">{emptyStateMessage}</div>
                               ) : null}
                             </div>
@@ -1234,7 +1260,7 @@ export default function ProposalClient({ slug, proposal, introduction, error, an
                               </ul>
                             </div>
                           ) : null}
-                          {!hasVisibleAntennas && emptyStateMessage ? (
+                          {shouldShowEmptyState && emptyStateMessage ? (
                             <p className="antenna-floor-empty">{emptyStateMessage}.</p>
                           ) : null}
                         </div>

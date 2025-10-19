@@ -411,11 +411,15 @@ const buildAntennaSnapshot = (
     floorName,
     orderIndex,
     imageUrl: metadata.imageUrl || "",
-    thumbnailUrl: metadata.thumbnailUrl,
-    imageWidth: metadata.imageWidth,
-    imageHeight: metadata.imageHeight,
-    canvasWidth: safeCanvasWidth ?? undefined,
-    canvasHeight: safeCanvasHeight ?? undefined,
+    thumbnailUrl: metadata.thumbnailUrl ?? null,
+    imageWidth: typeof metadata.imageWidth === "number" && Number.isFinite(metadata.imageWidth)
+      ? metadata.imageWidth
+      : null,
+    imageHeight: typeof metadata.imageHeight === "number" && Number.isFinite(metadata.imageHeight)
+      ? metadata.imageHeight
+      : null,
+    canvasWidth: safeCanvasWidth,
+    canvasHeight: safeCanvasHeight,
     scaleMetersPerPixel: typeof canvasState.scale === "number" && Number.isFinite(canvasState.scale)
       ? canvasState.scale
       : null,

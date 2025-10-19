@@ -11,7 +11,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getFirebaseAuth } from "@/lib/firebaseClient";
 import { ALLOWED_EMAIL_DOMAINS, isEmailAllowed } from "@/lib/accessControl";
 import { INTRODUCTION_MAX_LENGTH } from "@/lib/proposalCopy";
-import type { AntennaPlacementSnapshot } from "@/types/antennaPlacement";
+import type {
+  AntennaPlacementAntenna,
+  AntennaPlacementCoveragePolygon,
+  AntennaPlacementFloorSnapshot,
+  AntennaPlacementSnapshot,
+  LengthUnit,
+} from "@/types/antennaPlacement";
 import type { FloorSummary, ProjectSummary } from "@/lib/antennaProjects";
 
 type ProposalMetadata = {
@@ -88,6 +94,93 @@ const formatExpiry = (iso: string | null | undefined): string => {
     month: "short",
     day: "2-digit",
   });
+};
+
+const normalizeLengthUnit = (value: unknown): LengthUnit => {
+  if (typeof value !== "string") {
+    return "meters";
+  }
+  const normalised = value.toLowerCase();
+  if (normalised === "feet" || normalised === "ft") {
+    return "feet";
+  }
+  if (normalised === "cm") {
+    return "cm";
+  }
+  if (normalised === "mm") {
+    return "mm";
+  }
+  return "meters";
+};
+
+const toFiniteNumber = (value: unknown, fallback = 0): number => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  return fallback;
+};
+
+const clamp = (value: number, min: number, max: number): number => {
+  if (!Number.isFinite(value)) {
+    return value;
+  }
+  if (value < min) {
+    return min;
+  }
+  if (value > max) {
+    return max;
+  }
+  return value;
+};
+
+const toNonNegativeInteger = (value: unknown, fallback = 0): number => {
+  const numeric = Math.floor(toFiniteNumber(value, fallback));
+  return numeric >= 0 ? numeric : fallback;
+};
+
+const isFiniteNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+
+const computeCoverageBoundsFromPolygons = (
+  polygons: AntennaPlacementCoveragePolygon[],
+): AntennaPlacementFloorSnapshot["coverageBounds"] => {
+  if (!Array.isArray(polygons) || !polygons.length) {
+    return null;
+  }
+
+  const xs: number[] = [];
+  const ys: number[] = [];
+
+  polygons.forEach((polygon) => {
+    polygon.points.forEach((point) => {
+      if (!point || !isFiniteNumber(point.x) || !isFiniteNumber(point.y)) {
+        return;
+      }
+      xs.push(clamp(point.x, 0, 1));
+      ys.push(clamp(point.y, 0, 1));
+    });
+  });
+
+  if (!xs.length || !ys.length) {
+    return null;
+  }
+
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+
+  if (maxX <= minX || maxY <= minY) {
+    return null;
+  }
+
+  return { minX, minY, maxX, maxY };
+};
+
+const UNIT_AREA_SUFFIX: Record<LengthUnit, string> = {
+  meters: "m²",
+  feet: "ft²",
+  cm: "cm²",
+  mm: "mm²",
 };
 
 const buildQueryString = (search: string): string => {
@@ -399,8 +492,9 @@ export default function Home() {
     previousDetailSlugRef.current = detailSlug;
     const placement = proposals.find((item) => item.slug === detailSlug)?.antennaPlacement ?? null;
     if (placement) {
-      setSelectedProjectId(placement.projectId);
-      setSelectedFloorIds(new Set(placement.floors.map((floor) => floor.floorId)));
+      const safeFloors = Array.isArray(placement.floors) ? placement.floors : [];
+      setSelectedProjectId(typeof placement.projectId === "string" ? placement.projectId : null);
+      setSelectedFloorIds(new Set(safeFloors.map((floor) => floor.floorId)));
       setPlacementNotes(placement.notes ?? "");
     } else {
       setSelectedProjectId(null);
@@ -751,12 +845,191 @@ export default function Home() {
   const activeProposal = detailSlug ? proposals.find((item) => item.slug === detailSlug) : null;
   const creatorDisplayName = activeProposal?.createdBy?.displayName?.trim() || null;
   const creatorEmail = activeProposal?.createdBy?.email?.trim() || null;
-  const currentPlacement = activeProposal?.antennaPlacement ?? null;
+  const rawPlacement = activeProposal?.antennaPlacement ?? null;
+  const normalizedPlacement = useMemo(() => {
+    if (!rawPlacement) {
+      return null;
+    }
+
+    const floors: AntennaPlacementSnapshot["floors"] = [];
+
+    if (Array.isArray(rawPlacement.floors)) {
+      rawPlacement.floors.forEach((floor) => {
+        if (!floor || typeof floor !== "object") {
+          return;
+        }
+
+        const stats = floor.stats ?? {};
+        const units = normalizeLengthUnit(stats.units);
+
+        const areaSummaries = Array.isArray(stats.areaSummaries)
+          ? stats.areaSummaries
+              .map((entry, index) => {
+                if (!entry || typeof entry !== "object") {
+                  return null;
+                }
+                const areaEntry = entry as { id?: unknown; label?: unknown; area?: unknown };
+                const id = typeof areaEntry.id === "string" && areaEntry.id.trim() ? areaEntry.id.trim() : `area-${index}`;
+                const label = typeof areaEntry.label === "string" && areaEntry.label.trim()
+                  ? areaEntry.label.trim()
+                  : `Area ${index + 1}`;
+                const area = toFiniteNumber(areaEntry.area);
+                return {
+                  id,
+                  label,
+                  area,
+                };
+              })
+              .filter((item): item is { id: string; label: string; area: number } => Boolean(item))
+          : [];
+
+        const antennaRangeValue = (() => {
+          const rawRange = (stats as { antennaRange?: unknown }).antennaRange;
+          return typeof rawRange === "number" && Number.isFinite(rawRange) ? rawRange : null;
+        })();
+
+        const sanitizedAntennas: AntennaPlacementAntenna[] = Array.isArray(floor.antennas)
+          ? floor.antennas.reduce<AntennaPlacementAntenna[]>((acc, antenna, index) => {
+              if (!antenna || typeof antenna !== "object") {
+                return acc;
+              }
+              const rawAntenna = antenna as Partial<AntennaPlacementAntenna>;
+              const id =
+                typeof rawAntenna.id === "string" && rawAntenna.id.trim()
+                  ? rawAntenna.id.trim()
+                  : `antenna-${index}`;
+              const x = clamp(toFiniteNumber(rawAntenna.x), 0, 1);
+              const y = clamp(toFiniteNumber(rawAntenna.y), 0, 1);
+              const range =
+                typeof rawAntenna.range === "number" && Number.isFinite(rawAntenna.range)
+                  ? rawAntenna.range
+                  : null;
+              const power =
+                typeof rawAntenna.power === "number" && Number.isFinite(rawAntenna.power)
+                  ? rawAntenna.power
+                  : null;
+
+              acc.push({
+                id,
+                x,
+                y,
+                range,
+                pulsing: Boolean(rawAntenna.pulsing),
+                power,
+              });
+              return acc;
+            }, [])
+          : [];
+
+        const sanitizedCoveragePolygons = Array.isArray(floor.coveragePolygons)
+          ? floor.coveragePolygons
+              .map((polygon, index) => {
+                if (!polygon || typeof polygon !== "object") {
+                  return null;
+                }
+                const rawPolygon = polygon as AntennaPlacementCoveragePolygon;
+                const points = Array.isArray(rawPolygon.points)
+                  ? rawPolygon.points
+                      .map((point) => {
+                        if (!point || typeof point !== "object") {
+                          return null;
+                        }
+                        const candidate = point as { x?: unknown; y?: unknown };
+                        const x = clamp(toFiniteNumber(candidate.x), 0, 1);
+                        const y = clamp(toFiniteNumber(candidate.y), 0, 1);
+                        return { x, y };
+                      })
+                      .filter((point): point is { x: number; y: number } => point !== null)
+                  : [];
+
+                if (points.length < 3) {
+                  return null;
+                }
+
+                const id = typeof rawPolygon.id === "string" && rawPolygon.id.trim() ? rawPolygon.id.trim() : `coverage-${index}`;
+                return { id, points } satisfies AntennaPlacementCoveragePolygon;
+              })
+              .filter((polygon): polygon is AntennaPlacementCoveragePolygon => Boolean(polygon))
+          : [];
+
+        const rawBounds = floor.coverageBounds as { minX?: unknown; minY?: unknown; maxX?: unknown; maxY?: unknown } | null | undefined;
+        let coverageBounds: AntennaPlacementFloorSnapshot["coverageBounds"] = null;
+
+        if (rawBounds && typeof rawBounds === "object") {
+          const minX = clamp(toFiniteNumber(rawBounds.minX, Number.NaN), 0, 1);
+          const minY = clamp(toFiniteNumber(rawBounds.minY, Number.NaN), 0, 1);
+          const maxX = clamp(toFiniteNumber(rawBounds.maxX, Number.NaN), 0, 1);
+          const maxY = clamp(toFiniteNumber(rawBounds.maxY, Number.NaN), 0, 1);
+          if (Number.isFinite(minX) && Number.isFinite(minY) && Number.isFinite(maxX) && Number.isFinite(maxY) && maxX > minX && maxY > minY) {
+            coverageBounds = { minX, minY, maxX, maxY };
+          }
+        }
+
+        if (!coverageBounds && sanitizedCoveragePolygons.length) {
+          const fallbackBounds = computeCoverageBoundsFromPolygons(sanitizedCoveragePolygons);
+          if (fallbackBounds) {
+            coverageBounds = fallbackBounds;
+          }
+        }
+
+        floors.push({
+          ...floor,
+          antennas: sanitizedAntennas,
+          coveragePolygons: sanitizedCoveragePolygons,
+          coverageBounds,
+          stats: {
+            antennaCount: toNonNegativeInteger((stats as { antennaCount?: unknown }).antennaCount),
+            pulsingAntennaCount: toNonNegativeInteger((stats as { pulsingAntennaCount?: unknown }).pulsingAntennaCount),
+            totalArea: toFiniteNumber((stats as { totalArea?: unknown }).totalArea),
+            areaSummaries,
+            units,
+            antennaRange: antennaRangeValue,
+          },
+        });
+      });
+    }
+
+    const derivedTotals = floors.reduce(
+      (acc, floor) => {
+        acc.antennaCount += floor.stats.antennaCount;
+        acc.pulsingCount += floor.stats.pulsingAntennaCount;
+        acc.totalArea += floor.stats.totalArea;
+        return acc;
+      },
+      { antennaCount: 0, pulsingCount: 0, totalArea: 0 },
+    );
+
+    const summaryUnits = normalizeLengthUnit(
+      (rawPlacement.summary?.units ?? floors[0]?.stats.units ?? "meters") as LengthUnit,
+    );
+
+    const summary = {
+      floorCount: toNonNegativeInteger(rawPlacement.summary?.floorCount, floors.length),
+      antennaCount: toNonNegativeInteger(rawPlacement.summary?.antennaCount, derivedTotals.antennaCount),
+      pulsingAntennaCount: toNonNegativeInteger(
+        rawPlacement.summary?.pulsingAntennaCount,
+        derivedTotals.pulsingCount,
+      ),
+      totalArea: toFiniteNumber(rawPlacement.summary?.totalArea, derivedTotals.totalArea),
+      units: summaryUnits,
+    };
+
+    return {
+      ...rawPlacement,
+      floors,
+      summary,
+    } satisfies AntennaPlacementSnapshot;
+  }, [rawPlacement]);
+
+  const placementSummary = normalizedPlacement?.summary ?? null;
+  const placementFloors = normalizedPlacement?.floors ?? [];
+  const placementAreaLabel = placementSummary
+    ? `${placementSummary.totalArea.toFixed(1)} ${UNIT_AREA_SUFFIX[placementSummary.units]}`
+    : "—";
   const selectedProject = selectedProjectId
     ? projectList.find((project) => project.id === selectedProjectId) ?? null
     : null;
   const selectedFloorsCount = selectedFloorIds.size;
-
   const renderAuthGate = () => {
     if (!authReady) {
       return (
@@ -1129,47 +1402,45 @@ export default function Home() {
           {activeProposal ? (
             <div className="flex flex-col gap-5">
               <div className="rounded-lg border border-[#cad7df] bg-white/60 p-4 text-sm text-[var(--foreground)]">
-                {currentPlacement ? (
+                {normalizedPlacement ? (
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <p className="font-semibold text-[var(--uctel-navy)]">{currentPlacement.projectName}</p>
-                        <p className="text-xs text-[var(--muted-foreground)]">Project ID: {currentPlacement.projectId}</p>
+                        <p className="font-semibold text-[var(--uctel-navy)]">{normalizedPlacement.projectName}</p>
+                        <p className="text-xs text-[var(--muted-foreground)]">Project ID: {normalizedPlacement.projectId}</p>
                       </div>
                       <div className="text-xs text-[var(--muted-foreground)]">
-                        Generated {formatDateTime(currentPlacement.generatedAt)}
+                        Generated {formatDateTime(normalizedPlacement.generatedAt)}
                       </div>
                     </div>
                     <div className="grid gap-2 sm:grid-cols-3">
                       <div className="rounded-md bg-[var(--background)] px-3 py-2">
                         <div className="text-[11px] uppercase tracking-wide text-[var(--muted-foreground)]">Floors</div>
-                        <div className="text-base font-semibold text-[var(--uctel-navy)]">{currentPlacement.summary.floorCount}</div>
+                        <div className="text-base font-semibold text-[var(--uctel-navy)]">{placementSummary?.floorCount ?? 0}</div>
                       </div>
                       <div className="rounded-md bg-[var(--background)] px-3 py-2">
                         <div className="text-[11px] uppercase tracking-wide text-[var(--muted-foreground)]">Antennas</div>
                         <div className="text-base font-semibold text-[var(--uctel-navy)]">
-                          {currentPlacement.summary.antennaCount}
-                          {currentPlacement.summary.pulsingAntennaCount > 0 && (
+                          {placementSummary?.antennaCount ?? 0}
+                          {(placementSummary?.pulsingAntennaCount ?? 0) > 0 && (
                             <span className="ml-2 text-xs font-medium text-[#d8613b]">
-                              {currentPlacement.summary.pulsingAntennaCount} pulsing
+                              {placementSummary?.pulsingAntennaCount} pulsing
                             </span>
                           )}
                         </div>
                       </div>
                       <div className="rounded-md bg-[var(--background)] px-3 py-2">
                         <div className="text-[11px] uppercase tracking-wide text-[var(--muted-foreground)]">Measured area</div>
-                        <div className="text-base font-semibold text-[var(--uctel-navy)]">
-                          {currentPlacement.summary.totalArea.toFixed(1)} {currentPlacement.summary.units === "feet" ? "ft²" : "m²"}
-                        </div>
+                        <div className="text-base font-semibold text-[var(--uctel-navy)]">{placementAreaLabel}</div>
                       </div>
                     </div>
                     <ul className="space-y-1 text-sm text-[var(--muted-foreground)]">
-                      {currentPlacement.floors.map((floor) => (
+                      {placementFloors.map((floor) => (
                         <li key={floor.floorId}>
                           <span className="font-medium text-[var(--uctel-navy)]">{floor.floorName}</span>
                           {" – "}
-                          {floor.stats.antennaCount} antenna{floor.stats.antennaCount === 1 ? "" : "s"}, {floor.stats.totalArea.toFixed(1)} {floor.stats.units === "feet" ? "ft²" : "m²"}
-                        </li>
+                          {floor.stats.antennaCount} antenna{floor.stats.antennaCount === 1 ? "" : "s"}, {floor.stats.totalArea.toFixed(1)} {UNIT_AREA_SUFFIX[floor.stats.units]}
+                          </li>
                       ))}
                     </ul>
                     <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -1181,9 +1452,9 @@ export default function Home() {
                       >
                         Remove section
                       </button>
-                      {currentPlacement.notes && (
+                      {normalizedPlacement.notes && (
                         <span className="rounded-full bg-[#f0f7f9] px-3 py-1 text-xs text-[var(--uctel-navy)]">
-                          {currentPlacement.notes}
+                          {normalizedPlacement.notes}
                         </span>
                       )}
                     </div>
@@ -1233,9 +1504,9 @@ export default function Home() {
                                 onClick={() => {
                                   setPlacementError(null);
                                   setSelectedProjectId(project.id);
-                                  if (currentPlacement?.projectId === project.id) {
-                                    setSelectedFloorIds(new Set(currentPlacement.floors.map((floor) => floor.floorId)));
-                                    setPlacementNotes(currentPlacement.notes ?? "");
+                                  if (normalizedPlacement?.projectId === project.id) {
+                                    setSelectedFloorIds(new Set(placementFloors.map((floor) => floor.floorId)));
+                                    setPlacementNotes(normalizedPlacement.notes ?? "");
                                     setPlacementDirty(false);
                                   } else {
                                     setSelectedFloorIds(new Set());

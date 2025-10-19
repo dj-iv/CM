@@ -34,11 +34,11 @@ export interface AntennaPlacementFloorSnapshot {
   floorName: string;
   orderIndex: number;
   imageUrl: string;
-  thumbnailUrl?: string;
-  imageWidth?: number;
-  imageHeight?: number;
-  canvasWidth?: number;
-  canvasHeight?: number;
+  thumbnailUrl?: string | null;
+  imageWidth?: number | null;
+  imageHeight?: number | null;
+  canvasWidth?: number | null;
+  canvasHeight?: number | null;
   scaleMetersPerPixel?: number | null;
   units: LengthUnit;
   antennas: AntennaPlacementAntenna[];

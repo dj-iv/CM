@@ -1113,6 +1113,38 @@ const solutionSpecificData = {
             <div class="component-layout"><div class="image-container"><img src="images/coverage_unit.png" alt="Coverage Unit"></div><div class="text-container"><h3>Coverage Unit</h3><p>Coverage Units are installed on the wall or ceiling in each of the areas that require coverage. Two CAT6 cables connect each CU to the NU providing power over PoE. A server antenna or segments of passive DAS will be connected to each CU to distribute the signal across the required area.</p></div></div>
             <div class="component-layout reverse"><div class="image-container"><img src="images/server_antennas.png" alt="Server Antennas"></div><div class="text-container"><h3 class="force-page-break">Server Antennas</h3><p>Depending on the environment the appropriate type of antenna will be installed. There are a range of ceiling and panel omni antennas available and the most appropriate antenna will be recommended following the survey.</p></div></div>
             <div class="component-layout"><div class="image-container"><img src="images/cabling_quatra.png" alt="Quatra Cabling"></div><div class="text-container"><h3>Cabling</h3><p>Structured cabling will be used to connect active components together and coaxial cabling to connect antennas. Some installations involve fibre optic cable to maximise the distance between NU and CU, but will require a dedicated power at the other end.</p></div></div>`
+    },
+    'QUATRA_100M': {
+        architecture: `
+            <h3 class="no-number">CEL-FI</h3>
+            <p>UCtel proposes to deploy solutions from Nextivity. Nextivity manufactures the CEL-FI suite of cellular coverage solutions which are designed to optimise mobile signal coverage within buildings and vehicles. CEL-FI is unconditionally network safe, as it prevents interference with mobile operator networks and in the UK, CEL-FI products are licence-exempt and fully comply with Ofcom’s UK Interface requirement 2102 (IR2102).</p>
+            ${VIDEO_EMBED_HTML}
+            <h3 class="force-page-break">CEL-FI QUATRA 100M</h3>
+            <p>CEL-FI QUATRA 100M is the latest evolution of the QUATRA platform, delivering enterprise-grade indoor 4G and 5G coverage for a single UK mobile operator. The 100M architecture digitises the donor signal, transports it securely over structured cabling, and recreates strong mobile service through modular remote units. The result is a scalable, carrier-approved solution that preserves signal quality while reducing installation complexity.</p>
+            <img src="images/100m_diagram.png" alt="QUATRA 100M Architecture Diagram">`,
+        components: `
+            <div class="component-layout"><div class="image-container"><img src="images/donor_antenna.png" alt="Donor Antenna"></div><div class="text-container"><h3>Donor Antenna</h3><p>A high-gain donor antenna will be installed where the best signal is available. The final antenna type is confirmed during the site survey, ensuring the 100M headend receives a clean, stable input from the selected mobile network.</p></div></div>
+            <div class="component-layout reverse"><div class="image-container"><img src="images/network_unit_100m.png" alt="QUATRA 100M Network Unit"></div><div class="text-container"><h3>Network Unit</h3><p>The QUATRA 100M Network Unit digitises the donor signal and manages up to 12 Coverage Units. It is wall or rack mounted in a secure comms space with local power and network backhaul, and additional Network Units can be added to extend coverage as required.</p></div></div>
+            <div class="component-layout"><div class="image-container"><img src="images/coverage_unit_100m.png" alt="QUATRA 100M Coverage Unit"></div><div class="text-container"><h3>Coverage Unit</h3><p>Coverage Units are positioned in the areas that need improved mobile service. Each CU links to the Network Unit over fibre and connects to the Power Unit via a single CAT6 feed for power and control. Up to two additional CUs can be daisy chained from each unit, spreading coverage efficiently across the floorplate.</p></div></div>
+            <div class="component-layout reverse"><div class="image-container"><img src="images/power_unit_100m.png" alt="QUATRA 100M Power Unit"></div><div class="text-container"><h3>Power Unit</h3><p>The dedicated Power Unit provides resilient DC power and intelligent monitoring for the Network Unit and up to five connected Coverage Units. Locating the Power Unit centrally simplifies maintenance and supports future expansion.</p></div></div>
+            <div class="component-layout"><div class="image-container"><img src="images/server_antennas.png" alt="Server Antennas"></div><div class="text-container"><h3 class="force-page-break">Server Antennas</h3><p>Discrete omni or panel antennas are connected to each Coverage Unit via low-loss coaxial cable to broadcast the boosted signal. UCtel selects antenna styles that complement the building aesthetics while maintaining RF performance.</p></div></div>
+            <div class="component-layout reverse"><div class="image-container"><img src="images/cabling_quatra.png" alt="Quatra Cabling"></div><div class="text-container"><h3>Cabling</h3><p>Fibre links each Coverage Unit back to its Network Unit, CAT6 ties both into the Power Unit for power and monitoring, and low-loss coax connects the Coverage Units to their antennas. Fibre uplinks can be introduced where extended backbone runs are required.</p></div></div>`
+    },
+    'QUATRA_100M_DAS': {
+        architecture: `
+            <h3 class="no-number">CEL-FI</h3>
+            <p>UCtel proposes to deploy solutions from Nextivity. Nextivity manufactures the CEL-FI suite of cellular coverage solutions which are designed to optimise mobile signal coverage within buildings and vehicles. CEL-FI is unconditionally network safe, as it prevents interference with mobile operator networks and in the UK, CEL-FI products are licence-exempt and fully comply with Ofcom’s UK Interface requirement 2102 (IR2102).</p>
+            ${VIDEO_EMBED_HTML}
+            <h3 class="force-page-break">CEL-FI QUATRA 100M Hybrid DAS</h3>
+            <p>The QUATRA 100M Hybrid DAS configuration combines the digital headend of the 100M platform with a passive DAS network. This approach allows the conditioned carrier signal to be shared across splitters, combiners, and leaky feeder runs while maintaining operator approval and safeguarding uplink quality. It is ideal for campuses and large-floorplate buildings where existing cabling or DAS assets can be reused.</p>
+            <img src="images/100m_diagram.png" alt="QUATRA 100M Hybrid DAS Diagram">`,
+        components: `
+            <div class="component-layout"><div class="image-container"><img src="images/donor_antenna.png" alt="Donor Antenna"></div><div class="text-container"><h3>Donor Antenna</h3><p>Roof-level donor antennas capture the clean mobile signal that feeds the hybrid DAS headend. Antenna selection and mounting are engineered to deliver consistent signal strength to the Network Unit.</p></div></div>
+            <div class="component-layout reverse"><div class="image-container"><img src="images/network_unit_100m.png" alt="QUATRA 100M Network Unit"></div><div class="text-container"><h3>Network Unit</h3><p>The Network Unit digitises and conditions the donor signal before handing off to the DAS interface. A single controller can manage up to 12 Coverage Units and sits within the comms room alongside the building’s passive DAS racks, providing remote monitoring and alarm reporting.</p></div></div>
+            <div class="component-layout"><div class="image-container"><img src="images/coverage_unit_100m.png" alt="Hybrid DAS Interface"></div><div class="text-container"><h3>Hybrid DAS Interface</h3><p>Specially configured Coverage Units accept fibre backhaul from the Network Unit and pass power and control over a single CAT6 link from the Power Unit. Each interface can daisy chain two further CUs, maintaining the correct drive levels for the passive DAS network.</p></div></div>
+            <div class="component-layout reverse"><div class="image-container"><img src="images/power_unit_100m.png" alt="Power and Monitoring"></div><div class="text-container"><h3>Power and Monitoring</h3><p>The Power Unit delivers conditioned DC power and supervisory control for the Network Unit and up to five Coverage Units. It supports resilience options such as UPS integration and enables UCtel to monitor performance after handover.</p></div></div>
+            <div class="component-layout"><div class="image-container"><img src="images/cabling_quatra.png" alt="Passive DAS Infrastructure"></div><div class="text-container"><h3 class="force-page-break">Passive DAS Infrastructure</h3><p>Fibre transports the signal between the Network Unit and Coverage Units, CAT6 connects both to the Power Unit, and low-loss coaxial cable distributes the amplified signal to the passive DAS antennas. Where appropriate, existing DAS assets are reused to minimise disruption and cost.</p></div></div>
+            <div class="component-layout reverse"><div class="image-container"><img src="images/server_antennas.png" alt="In-Building Antennas"></div><div class="text-container"><h3>In-Building Antennas</h3><p>Ceiling, panel, or specialist antennas connect to the passive DAS network to radiate the enhanced mobile service. UCtel balances aesthetics with performance to deliver reliable coverage in every target area.</p></div></div>`
     }
 };
 
@@ -1176,12 +1208,77 @@ document.title = newFilename;
 
         // --- 3. INJECT DYNAMIC SOLUTION-SPECIFIC HTML ---
         (function populateDynamicContent(data) {
-            if (!data || !data.systemType) return;
-            const systemKey = data.systemType.replace('_DAS', '');
-            const content = solutionSpecificData[systemKey];
+            if (!data) return;
+
+            const solutionToKeyMap = {
+                'GO G41 DAS': 'G41',
+                'GO G43 DAS': 'G43',
+                'QUATRA 4000e': 'QUATRA',
+                'QUATRA 4000e DAS': 'QUATRA_DAS',
+                'QUATRA EVO': 'QUATRA_EVO',
+                'QUATRA EVO DAS': 'QUATRA_EVO_DAS',
+                'QUATRA 100M': 'QUATRA_100M',
+                'QUATRA 100M DAS': 'QUATRA_100M_DAS'
+            };
+
+            const rawType = data.systemType || solutionToKeyMap[data.Solution] || '';
+            const normalizedKey = rawType
+                ? String(rawType).trim()
+                : '';
+
+            const candidateKeys = [];
+            if (normalizedKey) {
+                candidateKeys.push(normalizedKey);
+                if (!normalizedKey.includes('_')) {
+                    candidateKeys.push(normalizedKey.replace(/\s+/g, '_'));
+                }
+                if (normalizedKey.includes('_DAS')) {
+                    candidateKeys.push(normalizedKey.replace('_DAS', ''));
+                }
+            }
+
+            const solutionKeyFromName = solutionToKeyMap[data.Solution];
+            if (solutionKeyFromName) {
+                candidateKeys.push(solutionKeyFromName);
+            }
+
+            let content = null;
+            console.debug('Interactive proposal system match', {
+                rawType,
+                solution: data.Solution,
+                candidateKeys
+            });
+            for (const key of candidateKeys) {
+                if (solutionSpecificData[key]) {
+                    content = solutionSpecificData[key];
+                    break;
+                }
+            }
+
             if (content) {
                 document.getElementById('solution-architecture-section').innerHTML = content.architecture;
                 document.getElementById('solution-components-section').innerHTML = content.components;
+            } else {
+                const solutionName = (data.Solution || '').toLowerCase();
+                if (solutionName.includes('100m')) {
+                    const forcedKey = solutionName.includes('das') ? 'QUATRA_100M_DAS' : 'QUATRA_100M';
+                    const forcedContent = solutionSpecificData[forcedKey];
+                    if (forcedContent) {
+                        console.warn('Falling back to QUATRA 100M content based on solution name.', {
+                            forcedKey,
+                            solution: data.Solution
+                        });
+                        document.getElementById('solution-architecture-section').innerHTML = forcedContent.architecture;
+                        document.getElementById('solution-components-section').innerHTML = forcedContent.components;
+                        return;
+                    }
+                }
+
+                console.warn('No solution-specific content matched; falling back to default', {
+                    rawType,
+                    solution: data.Solution,
+                    candidateKeys
+                });
             }
         })(proposalData);
 

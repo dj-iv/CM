@@ -201,4 +201,6 @@ const getFloorplanFirebaseAdminApp = (): App => {
 
 export const getAdminAuth = () => getAuth(getFirebaseAdminApp());
 export const getAdminFirestore = () => getFirestore(getFirebaseAdminApp());
-export const getFloorplanFirestore = () => getFirestore(getFloorplanFirebaseAdminApp());
+export function getFloorplanFirestore() {
+  return getFirestore(getFloorplanFirebaseAdminApp());
+}
