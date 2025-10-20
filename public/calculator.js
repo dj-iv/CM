@@ -1813,7 +1813,8 @@ function setupScreenshotButton() {
     if (proposalTempBtn) {
         proposalTempBtn.addEventListener('click', (event) => {
             event.preventDefault();
-            openProposalTemp(event);
+            const portalUrl = `${PROPOSAL_APP_BASE_URL}/`;
+            window.open(portalUrl, '_blank', 'noopener');
         });
     }
 
@@ -2610,7 +2611,7 @@ async function generatePdf() {
             };
 
             if (button) {
-                button.innerHTML = openAfterSave ? 'Opening Portal...' : 'Saving...';
+                button.innerHTML = openAfterSave ? 'Opening...' : 'Saving...';
                 button.disabled = true;
             }
 
@@ -2640,12 +2641,12 @@ async function generatePdf() {
             }
 
             if (button) {
-                button.innerHTML = openAfterSave ? 'Portal Opened! ✅' : 'Saved! ✅';
+                button.innerHTML = openAfterSave ? 'Opened! ✅' : 'Saved! ✅';
             }
             showSaveStatusMessage('Saved to Proposal Management Portal', 'success', 4000);
 
-            if (openAfterSave) {
-                const url = `${PROPOSAL_APP_BASE_URL}/`;
+            if (openAfterSave && payload?.slug) {
+                const url = `${PROPOSAL_APP_BASE_URL}/${payload.slug}`;
                 window.open(url, '_blank', 'noopener');
             }
 
@@ -2666,7 +2667,7 @@ async function generatePdf() {
         } finally {
             if (button) {
                 const restore = () => {
-                    const fallbackLabel = openAfterSave ? 'Open Portal 🚀' : 'Save Proposal 💾';
+                    const fallbackLabel = openAfterSave ? 'Open Proposal 🚀' : 'Save Proposal 💾';
                     button.innerHTML = originalButtonText !== null ? originalButtonText : fallbackLabel;
                     button.disabled = false;
                 };
@@ -2756,15 +2757,6 @@ async function generateInteractiveLink() {
     }
 }
 
-async function openProposalTemp(event) {
-    const button = event?.currentTarget || document.getElementById('proposal-temp-btn');
-    try {
-        await saveProposalToPortal({ button, openAfterSave: true });
-    } catch (error) {
-        // Error surface handled in saveProposalToPortal
-    }
-}
-    
    function loadStateFromURL() {
     const searchParams = new URLSearchParams(window.location.search);
     const slugFromQuery = searchParams.get('slug');
