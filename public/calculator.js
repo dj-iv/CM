@@ -2610,7 +2610,7 @@ async function generatePdf() {
             };
 
             if (button) {
-                button.innerHTML = openAfterSave ? 'Opening...' : 'Saving...';
+                button.innerHTML = openAfterSave ? 'Opening Portal...' : 'Saving...';
                 button.disabled = true;
             }
 
@@ -2640,12 +2640,12 @@ async function generatePdf() {
             }
 
             if (button) {
-                button.innerHTML = openAfterSave ? 'Opened! ✅' : 'Saved! ✅';
+                button.innerHTML = openAfterSave ? 'Portal Opened! ✅' : 'Saved! ✅';
             }
             showSaveStatusMessage('Saved to Proposal Management Portal', 'success', 4000);
 
-            if (openAfterSave && payload?.slug) {
-                const url = `${PROPOSAL_APP_BASE_URL}/${payload.slug}`;
+            if (openAfterSave) {
+                const url = `${PROPOSAL_APP_BASE_URL}/`;
                 window.open(url, '_blank', 'noopener');
             }
 
@@ -2666,7 +2666,7 @@ async function generatePdf() {
         } finally {
             if (button) {
                 const restore = () => {
-                    const fallbackLabel = openAfterSave ? 'Open Proposal 🚀' : 'Save Proposal 💾';
+                    const fallbackLabel = openAfterSave ? 'Open Portal 🚀' : 'Save Proposal 💾';
                     button.innerHTML = originalButtonText !== null ? originalButtonText : fallbackLabel;
                     button.disabled = false;
                 };
