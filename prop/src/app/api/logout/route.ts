@@ -28,7 +28,7 @@ async function handleLogout(request: NextRequest) {
   let body: LogoutRequestBody = {}
   try {
     body = await request.json()
-  } catch (error) {
+  } catch {
     // Ignore non-JSON bodies and fall back to defaults
   }
 

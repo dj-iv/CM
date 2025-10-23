@@ -1476,15 +1476,15 @@ export default function ProposalClient({ slug, proposal, introduction, error, an
               </div>
               <h3>Money-Back Guarantee</h3>
               <p>
-                We are confident in our Mobile Signal Booster Solutions, but your satisfaction is our top priority. If you're not happy with the results of your installation, we offer a straightforward money-back guarantee under the following conditions:
+                We are confident in our Mobile Signal Booster Solutions, but your satisfaction is our top priority. If you&rsquo;re not happy with the results of your installation, we offer a straightforward money-back guarantee under the following conditions:
               </p>
               <ul>
                 <li><strong>Eligibility:</strong> This guarantee is valid for 3 months from the date of installation.</li>
-                <li><strong>Condition for Refund:</strong> You must be genuinely dissatisfied* with the results of the service, and you must have allowed us a reasonable opportunity to resolve any issues you've reported.</li>
+                <li><strong>Condition for Refund:</strong> You must be genuinely dissatisfied* with the results of the service, and you must have allowed us a reasonable opportunity to resolve any issues you&rsquo;ve reported.</li>
                 <li><strong>Refund Process:</strong> To initiate a refund, please submit a formal application to our Sales Director.</li>
                 <li><strong>Hardware Retrieval:</strong> As a condition of the refund, you must grant UCtel Limited access to the property to retrieve all hardware components of the system.</li>
               </ul>
-              <p>If you have any questions about our guarantee or need assistance with your installation, please don't hesitate to contact us.</p>
+              <p>If you have any questions about our guarantee or need assistance with your installation, please don&rsquo;t hesitate to contact us.</p>
               <p>*Genuine Dissatisfaction is expected to be that the results from the installed system fail to conform to the parameters established prior to installation. Those parameters would normally be the ability to make and receive calls in the targeted areas.</p>
               <div className="footer">
                 <div className="footer-info">

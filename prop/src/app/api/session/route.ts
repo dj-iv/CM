@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { UpdateRequest, UserRecord } from 'firebase-admin/auth'
 import { getAdminAuth } from '@/lib/firebaseAdmin'
 import {
   buildPortalLaunchUrl,
@@ -29,19 +30,29 @@ function resolveRedirectTarget(bodyRedirect: string | undefined, request: NextRe
 async function ensureFirebaseUser(uid: string, email: string | null, displayName: string | null) {
   const auth = getAdminAuth()
 
-  const syncDisplayName = async (targetUid: string, currentDisplayName: string | undefined | null) => {
+  const getErrorCode = (error: unknown): string | undefined => {
+    if (typeof error === 'object' && error !== null && 'code' in error) {
+      const { code } = error as { code?: unknown }
+      if (typeof code === 'string') {
+        return code
+      }
+    }
+    return undefined
+  }
+
+  const syncDisplayName = async (targetUid: string, currentDisplayName: string | undefined | null): Promise<void> => {
     if (!displayName || currentDisplayName === displayName) {
       return
     }
 
     try {
       await auth.updateUser(targetUid, { displayName })
-    } catch (updateError) {
+    } catch (updateError: unknown) {
       console.warn('[proposal] session.syncDisplayName failed', { targetUid, displayName, updateError })
     }
   }
 
-  const resolveEmailOwner = async () => {
+  const resolveEmailOwner = async (): Promise<UserRecord | null> => {
     if (!email) {
       return null
     }
@@ -49,8 +60,8 @@ async function ensureFirebaseUser(uid: string, email: string | null, displayName
       const existing = await auth.getUserByEmail(email)
       await syncDisplayName(existing.uid, existing.displayName)
       return existing
-    } catch (lookupError: any) {
-      if (lookupError?.code !== 'auth/user-not-found') {
+    } catch (lookupError: unknown) {
+      if (getErrorCode(lookupError) !== 'auth/user-not-found') {
         console.warn('[proposal] session.resolveEmailOwner lookup failed', { email, lookupError })
       }
       return null
@@ -59,7 +70,7 @@ async function ensureFirebaseUser(uid: string, email: string | null, displayName
 
   try {
     const record = await auth.getUser(uid)
-    const updates: Record<string, string> = {}
+    const updates: Partial<UpdateRequest> = {}
 
     if (email) {
       if (!record.email) {
@@ -80,8 +91,8 @@ async function ensureFirebaseUser(uid: string, email: string | null, displayName
     if (Object.keys(updates).length > 0) {
       try {
         await auth.updateUser(uid, updates)
-      } catch (updateError: any) {
-        if (email && updateError?.code === 'auth/email-already-exists') {
+      } catch (updateError: unknown) {
+        if (email && getErrorCode(updateError) === 'auth/email-already-exists') {
           const emailOwner = await resolveEmailOwner()
           if (emailOwner) {
             return emailOwner
@@ -94,8 +105,8 @@ async function ensureFirebaseUser(uid: string, email: string | null, displayName
     const refreshed = await auth.getUser(uid)
     await syncDisplayName(refreshed.uid, refreshed.displayName)
     return refreshed
-  } catch (error: any) {
-    if (error?.code === 'auth/user-not-found') {
+  } catch (error: unknown) {
+    if (getErrorCode(error) === 'auth/user-not-found') {
       try {
         const created = await auth.createUser({
           uid,
@@ -103,8 +114,8 @@ async function ensureFirebaseUser(uid: string, email: string | null, displayName
           displayName: displayName ?? undefined,
         })
         return created
-      } catch (createError: any) {
-        if (email && createError?.code === 'auth/email-already-exists') {
+      } catch (createError: unknown) {
+        if (email && getErrorCode(createError) === 'auth/email-already-exists') {
           const emailOwner = await resolveEmailOwner()
           if (emailOwner) {
             return emailOwner
@@ -124,7 +135,7 @@ export async function POST(request: NextRequest) {
   let body: SessionRequestBody = {}
   try {
     body = await request.json()
-  } catch (error) {
+  } catch {
     // Ignore JSON parse errors and fall back to defaults
   }
 
