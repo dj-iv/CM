@@ -4,9 +4,18 @@ import { getSessionCookieName } from '@/lib/sessionCookie'
 
 const PORTAL_URL = process.env.NEXT_PUBLIC_PORTAL_URL || process.env.PORTAL_URL || 'http://localhost:3000'
 const PUBLIC_PATHS = ['/healthz', '/portal/callback']
+const PUBLIC_SLUG_REGEX = /^\/[a-z0-9-]+$/i
 
 function isPublicPath(pathname: string) {
-  return PUBLIC_PATHS.some((publicPath) => pathname.startsWith(publicPath))
+  if (PUBLIC_PATHS.some((publicPath) => pathname.startsWith(publicPath))) {
+    return true
+  }
+
+  if (PUBLIC_SLUG_REGEX.test(pathname)) {
+    return true
+  }
+
+  return false
 }
 
 export function middleware(request: NextRequest) {
@@ -33,5 +42,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next|static|.*\.(?:ico|png|jpg|jpeg|svg|css|js)).*)'],
+  matcher: ['/((?!api|_next|static|.*\.(?:ico|png|jpg|jpeg|svg|css|js|html?)).*)'],
 }
