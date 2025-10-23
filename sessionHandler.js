@@ -133,6 +133,12 @@ async function handlePortalSession({ appId, origin, cookiesHeader, body }) {
   const session = decodeSessionCookie(sessionCookie)
 
   if (!session) {
+    console.warn('[cost-model] handlePortalSession missing session cookie', {
+      appId,
+      origin,
+      hasCookiesHeader: Boolean(cookiesHeader),
+      cookieNames: Object.keys(cookies),
+    })
     return buildLaunchRedirect(appId, origin, body?.redirect)
   }
 

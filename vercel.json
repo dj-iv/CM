@@ -4,5 +4,11 @@
     "api/convert-to-pdf.js": {
       "maxDuration": 30
     }
-  }
+  },
+  "routes": [
+    {
+      "src": "/portal/callback",
+      "dest": "/api/portal-callback"
+    }
+  ]
 }
