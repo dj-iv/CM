@@ -793,8 +793,8 @@
    <script src="https://cdn.jsdelivr.net/npm/pizzip@3.1.5/dist/pizzip.min.js"></script>
    <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.47.1/docxtemplater.js"></script>
    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-   <script src="./firebase-config.js"></script>
-   <script src="./calculator.js"></script>
+    <script src="/firebase-config.js"></script>
+    <script src="/calculator.js"></script>
      <script>
     const firebaseConfigs = window.FIREBASE_CONFIGS;
     const proposalAppName = window.PROPOSAL_FIREBASE_APP_NAME || 'proposalPortalApp';
@@ -825,94 +825,95 @@
 
     const auth = costModelApp.auth();
     const proposalAuth = proposalApp.auth();
-    const provider = new firebase.auth.GoogleAuthProvider();
-    provider.setCustomParameters({ hd: 'uctel.co.uk' });
-
-    const ensureProposalPortalSignIn = async (credential = null) => {
-        if (proposalAuth.currentUser) {
-            return proposalAuth.currentUser;
-        }
-
-        if (credential) {
-            try {
-                const result = await proposalAuth.signInWithCredential(credential);
-                return result.user;
-            } catch (credentialError) {
-                console.warn('Could not reuse Google credential for proposal portal sign-in:', credentialError);
-            }
-        }
-
-        const interactiveResult = await proposalAuth.signInWithPopup(provider);
-        return interactiveResult.user;
-    };
-
     window.PROPOSAL_AUTH = proposalAuth;
 
-    // DOM Elements
     const loginContainer = document.getElementById('login-container');
-    const appContainer = document.getElementById('main-container'); // Changed to main-container
+    const appContainer = document.getElementById('main-container');
     const loginButton = document.getElementById('login-button');
     const logoutButton = document.getElementById('logout-button');
     const errorMessage = document.getElementById('error-message');
 
-    const ALLOWED_DOMAIN = "uctel.co.uk";
+    if (loginButton) {
+        loginButton.style.display = 'none';
+    }
 
-    // Sign in function
-    loginButton.onclick = () => {
-        auth.signInWithPopup(provider)
-            .then(async (result) => {
-                const credential = firebase.auth.GoogleAuthProvider.credentialFromResult(result);
-                try {
-                    await ensureProposalPortalSignIn(credential);
-                } catch (proposalError) {
-                    console.warn('Secondary proposal auth failed during login:', proposalError);
-                }
-            })
-            .catch(error => {
-                console.error("Login failed:", error);
-                errorMessage.textContent = "Login failed. Please try again.";
-            });
+    const loginMessage = loginContainer?.querySelector('p');
+    if (loginMessage) {
+        loginMessage.textContent = 'Checking your UCtel portal session…';
+    }
+
+    const redirectToPortal = (launchUrl) => {
+        window.location.href = launchUrl || '/portal/callback';
     };
 
-    // Sign out function
+    const establishPortalSession = async () => {
+        const response = await fetch('/api/session', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ redirect: window.location.pathname + window.location.search }),
+        });
+
+        if (response.status === 401) {
+            const data = await response.json().catch(() => ({}));
+            redirectToPortal(data?.launch || data?.login);
+            throw new Error('Portal session not present');
+        }
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Portal session exchange failed (${response.status}): ${errorText}`);
+        }
+
+        return response.json();
+    };
+
+    const ensureFirebaseSignIn = async () => {
+        try {
+            const session = await establishPortalSession();
+            const { costToken, proposalToken, email, displayName } = session;
+
+            await Promise.all([
+                auth.signInWithCustomToken(costToken),
+                proposalAuth.signInWithCustomToken(proposalToken),
+            ]);
+
+            loginContainer.classList.add('hidden');
+            appContainer.classList.remove('hidden');
+            errorMessage.textContent = '';
+
+            document.documentElement.dataset.userEmail = email || '';
+            document.documentElement.dataset.userName = displayName || '';
+        } catch (error) {
+            console.error('Failed to establish Firebase session from portal cookie', error);
+            errorMessage.textContent = 'Session expired. Redirecting to the UCtel portal…';
+            setTimeout(() => redirectToPortal(), 1500);
+        }
+    };
+
+    ensureFirebaseSignIn();
+
     logoutButton.onclick = async () => {
+        errorMessage.textContent = '';
         await Promise.allSettled([
             auth.signOut(),
             proposalAuth.signOut().catch(() => null),
         ]);
-    };
 
-    // Authentication state listener
-    auth.onAuthStateChanged(async user => {
-        if (user) {
-            const userDomain = user.email.split('@')[1];
-            if (userDomain === ALLOWED_DOMAIN) {
-                // User is from the correct domain, show the app
-                loginContainer.classList.add('hidden');
-                appContainer.classList.remove('hidden');
-                errorMessage.textContent = "";
-                if (!proposalAuth.currentUser) {
-                    try {
-                        await ensureProposalPortalSignIn();
-                    } catch (proposalError) {
-                        console.warn('Proposal portal authentication pending user action:', proposalError);
-                    }
-                }
-            } else {
-                // User is from the wrong domain, sign them out
-                errorMessage.textContent = `Access denied. Please use an @${ALLOWED_DOMAIN} account.`;
-                await Promise.allSettled([
-                    auth.signOut(),
-                    proposalAuth.signOut().catch(() => null),
-                ]);
-            }
-        } else {
-            // No user is signed in, show the login page
-            loginContainer.classList.remove('hidden');
-            appContainer.classList.add('hidden');
-            proposalAuth.signOut().catch(() => null);
+        try {
+            const response = await fetch('/logout', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ redirect: '/' }),
+            });
+            const data = await response.json().catch(() => ({}));
+            window.location.href = data?.redirect || '/';
+        } catch (logoutError) {
+            console.warn('Failed to call server logout endpoint, redirecting directly', logoutError);
+            window.location.href = '/logout';
         }
-    });
+    };
 </script>   
 </body>
 </html>

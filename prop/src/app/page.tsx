@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  GoogleAuthProvider,
-  onIdTokenChanged,
-  signInWithPopup,
-  signOut,
-} from "firebase/auth";
+import { onIdTokenChanged, signInWithCustomToken, signOut } from "firebase/auth";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getFirebaseAuth } from "@/lib/firebaseClient";
@@ -241,6 +236,8 @@ export default function Home() {
 
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authExchangeInFlight, setAuthExchangeInFlight] = useState(false);
+  const portalSignInPromiseRef = useRef<Promise<void> | null>(null);
 
   const dismissToast = useCallback((id: string) => {
     setToasts((current) => current.filter((toast) => toast.id !== id));
@@ -257,43 +254,204 @@ export default function Home() {
     }, TOAST_DISMISS_MS);
   }, [dismissToast]);
 
-  const googleProvider = useMemo(() => {
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({
-      prompt: "select_account",
-      hd: "uctel.co.uk",
-    });
-    return provider;
+  const beginPortalSignIn = useCallback(async () => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (portalSignInPromiseRef.current) {
+      return portalSignInPromiseRef.current;
+    }
+
+    const auth = getFirebaseAuth();
+    if (auth.currentUser) {
+      return;
+    }
+
+    const exchangePromise = (async () => {
+      try {
+        setAuthExchangeInFlight(true);
+        setAuthError(null);
+
+        const response = await fetch("/api/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ redirect: window.location.href }),
+          cache: "no-store",
+        });
+
+        let data: { token?: string; error?: string; redirect?: string } | null = null;
+        try {
+          data = await response.json();
+        } catch (parseError) {
+          console.warn("Failed to parse session response", parseError);
+        }
+
+        if (response.status === 401) {
+          if (data?.redirect) {
+            window.location.href = data.redirect;
+            return;
+          }
+          throw new Error(typeof data?.error === "string" ? data.error : "Portal session required");
+        }
+
+        if (!response.ok) {
+          throw new Error(typeof data?.error === "string" ? data.error : "Portal sign-in failed");
+        }
+
+        const token = data?.token;
+        if (typeof token !== "string" || !token) {
+          throw new Error("Portal session did not return a token");
+        }
+
+        await signInWithCustomToken(auth, token);
+        setAuthError(null);
+      } catch (error) {
+        console.error("Portal sign-in failed", error);
+        const message = (error as Error).message || "Portal sign-in failed";
+        setAuthError(message);
+        pushToast({ type: "error", message });
+      } finally {
+        setAuthExchangeInFlight(false);
+        portalSignInPromiseRef.current = null;
+      }
+    })();
+
+    portalSignInPromiseRef.current = exchangePromise;
+    await exchangePromise;
+  }, [portalSignInPromiseRef, pushToast]);
+
+  const requestPortalLogout = useCallback(async (redirectOverride?: string) => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    try {
+      const response = await fetch("/api/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ redirect: redirectOverride ?? window.location.href }),
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        const errorMessage = await readErrorMessage(response);
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      if (typeof data?.redirect === "string" && data.redirect.length) {
+        window.location.href = data.redirect;
+        return true;
+      }
+    } catch (error) {
+      console.error("Portal logout request failed", error);
+    }
+
+    return false;
   }, []);
 
   useEffect(() => {
-    let isMounted = true;
-    let unsubscribe: (() => void) | null = null;
-
+    let active = true;
     const auth = getFirebaseAuth();
-    unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
-      if (!isMounted) {
+
+    const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
+      if (!active) {
         return;
       }
+
       if (firebaseUser) {
-        if (!isEmailAllowed(firebaseUser.email)) {
+        let effectiveEmail = firebaseUser.email ?? null;
+        let effectiveDisplayName = firebaseUser.displayName ?? null;
+        let portalClaims: Record<string, unknown> = {};
+
+        const hydrateClaims = async (forceRefresh: boolean) => {
+          try {
+            const result = await firebaseUser.getIdTokenResult(forceRefresh);
+            portalClaims = result.claims as Record<string, unknown>;
+            const claimEmail = typeof portalClaims.portalEmail === "string" ? portalClaims.portalEmail : null;
+            const claimDisplayName = typeof portalClaims.portalDisplayName === "string" ? portalClaims.portalDisplayName : null;
+            if (!effectiveEmail && claimEmail) {
+              effectiveEmail = claimEmail;
+            }
+            if (!effectiveDisplayName && claimDisplayName) {
+              effectiveDisplayName = claimDisplayName;
+            }
+            return true;
+          } catch (claimError) {
+            console.warn("Failed to inspect ID token claims", claimError, { forceRefresh });
+            portalClaims = {};
+            return false;
+          }
+        };
+
+        const ensureClaims = async () => {
+          const emailValid = !!effectiveEmail && isEmailAllowed(effectiveEmail);
+          const claimsPresent = Object.keys(portalClaims).length > 0;
+
+          if (!emailValid || !claimsPresent) {
+            const initialHydrated = await hydrateClaims(false);
+            if (!emailValid && (!effectiveEmail || !isEmailAllowed(effectiveEmail))) {
+              await hydrateClaims(true);
+            } else if (!initialHydrated && !claimsPresent) {
+              await hydrateClaims(true);
+            }
+          }
+        };
+
+        await ensureClaims();
+
+        const emailAllowed = !!effectiveEmail && isEmailAllowed(effectiveEmail);
+        const portalSource = typeof portalClaims.source === "string" ? portalClaims.source : null;
+        const portalAppClaim = typeof portalClaims.app === "string" ? portalClaims.app : null;
+        const portalTrusted = portalSource === "portal" && portalAppClaim === "proposal";
+
+        if (!emailAllowed && !portalTrusted) {
           const message = `Access restricted to ${ALLOWED_EMAIL_DOMAINS.join(", ")} accounts`;
           setAuthError(message);
           pushToast({ type: "error", message });
           await signOut(auth);
-          setAuthReady(true);
+          setAuthReady(false);
+          const redirected = await requestPortalLogout();
+          if (!redirected) {
+            setAuthReady(true);
+          }
           return;
         }
-        setCurrentUserEmail(firebaseUser.email ?? firebaseUser.displayName ?? firebaseUser.uid);
-        const token = await firebaseUser.getIdToken();
-        setAuthToken(token);
-      } else {
-        setAuthToken(null);
-        setCurrentUserEmail(null);
-        setSelected(new Set());
-        setDetailSlug(null);
+
+        setCurrentUserEmail(effectiveEmail ?? effectiveDisplayName ?? firebaseUser.uid);
+        try {
+          const token = await firebaseUser.getIdToken();
+          setAuthToken(token);
+        } catch (tokenError) {
+          console.warn("Failed to obtain ID token", tokenError);
+          setAuthToken(null);
+        }
+        setAuthError(null);
+        setAuthReady(true);
+        return;
       }
-      setAuthReady(true);
+
+      setAuthToken(null);
+      setCurrentUserEmail(null);
+      setSelected(new Set());
+      setDetailSlug(null);
+      setAuthReady(false);
+
+      if (typeof window === "undefined") {
+        setAuthReady(true);
+        return;
+      }
+
+      await beginPortalSignIn();
+
+      if (!active) {
+        return;
+      }
+
+      if (!auth.currentUser) {
+        setAuthReady(true);
+      }
     });
 
     const refreshInterval = window.setInterval(() => {
@@ -306,13 +464,11 @@ export default function Home() {
     }, 30 * 60 * 1000);
 
     return () => {
-      isMounted = false;
-      if (unsubscribe) {
-        unsubscribe();
-      }
+      active = false;
+      unsubscribe();
       window.clearInterval(refreshInterval);
     };
-  }, [pushToast]);
+  }, [beginPortalSignIn, pushToast, requestPortalLogout]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -597,16 +753,7 @@ export default function Home() {
   }, [buildProposalUrl, pushToast]);
 
   const handleSignIn = async () => {
-    try {
-      const auth = getFirebaseAuth();
-      await signInWithPopup(auth, googleProvider);
-      setAuthError(null);
-    } catch (error) {
-      console.error("Failed to sign in", error);
-      const message = (error as Error).message ?? "Sign-in failed";
-      setAuthError(message);
-      pushToast({ type: "error", message });
-    }
+    await beginPortalSignIn();
   };
 
   const handleSignOut = async () => {
@@ -614,7 +761,11 @@ export default function Home() {
       const auth = getFirebaseAuth();
       await signOut(auth);
       setAuthError(null);
-      pushToast({ type: "success", message: "Signed out" });
+
+      const redirected = await requestPortalLogout();
+      if (!redirected) {
+        pushToast({ type: "success", message: "Signed out" });
+      }
     } catch (error) {
       console.error("Failed to sign out", error);
       const message = (error as Error).message ?? "Sign-out failed";
@@ -1034,7 +1185,7 @@ export default function Home() {
     if (!authReady) {
       return (
         <div className="flex h-screen items-center justify-center">
-          <p className="text-lg font-semibold">Checking authentication…</p>
+          <p className="text-lg font-semibold">{authExchangeInFlight ? "Signing you in via the UCtel portal…" : "Checking authentication…"}</p>
         </div>
       );
     }
@@ -1053,15 +1204,16 @@ export default function Home() {
           <div className="max-w-md space-y-2">
             <h1 className="text-2xl font-semibold text-[var(--uctel-navy)]">UCtel Proposal Admin</h1>
             <p className="text-base text-[var(--muted-foreground)]">
-              Sign in with your UCtel Google account to manage proposals, update introductions, and export PDFs.
+              Continue via the UCtel portal to manage proposals, update introductions, and export PDFs.
             </p>
           </div>
           <button
             type="button"
             onClick={handleSignIn}
-            className="uctel-primary rounded-md px-6 py-3 text-base font-semibold shadow focus:outline-none focus:ring-2 focus:ring-[rgba(28,139,157,0.35)] focus:ring-offset-2 focus:ring-offset-[var(--background)]"
+            disabled={authExchangeInFlight}
+            className="uctel-primary rounded-md px-6 py-3 text-base font-semibold shadow transition focus:outline-none focus:ring-2 focus:ring-[rgba(28,139,157,0.35)] focus:ring-offset-2 focus:ring-offset-[var(--background)] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Sign in with Google
+            {authExchangeInFlight ? "Signing in…" : "Continue via UCtel Portal"}
           </button>
           {authError && (
             <p className="text-sm text-[#d8613b]">{authError}</p>

@@ -371,88 +371,82 @@ const computeFloorplanZoomStyle = (
   antennas: AntennaPlacementAntenna[],
   coverageBounds?: AntennaPlacementFloorSnapshot["coverageBounds"],
 ): CSSProperties | undefined => {
-  const hasCoverageBounds = isValidCoverageBounds(coverageBounds);
-
-  const validPoints = Array.isArray(antennas)
+  const sanitizedAntennas = Array.isArray(antennas)
     ? antennas.filter(
         (antenna): antenna is AntennaPlacementAntenna =>
           Boolean(antenna) && isFiniteNumber(antenna.x) && isFiniteNumber(antenna.y),
       )
     : [];
 
-  if (!hasCoverageBounds && !validPoints.length) {
+  const hasCoverage = isValidCoverageBounds(coverageBounds);
+
+  if (!sanitizedAntennas.length && !hasCoverage) {
     return undefined;
   }
 
-  const COVERAGE_PADDING = 0.05;
-  const ANTENNA_PADDING = 0.08;
-  const MIN_VIEWPORT = 0.4;
-  const MAX_SCALE = 1 / MIN_VIEWPORT;
+  const points: Array<{ x: number; y: number }> = [];
 
-  let minX: number;
-  let maxX: number;
-  let minY: number;
-  let maxY: number;
+  sanitizedAntennas.forEach((antenna) => {
+    points.push({ x: clamp(antenna.x, 0, 1), y: clamp(antenna.y, 0, 1) });
+  });
 
-  if (hasCoverageBounds && coverageBounds) {
-    minX = clamp(coverageBounds.minX - COVERAGE_PADDING, 0, 1);
-    maxX = clamp(coverageBounds.maxX + COVERAGE_PADDING, 0, 1);
-    minY = clamp(coverageBounds.minY - COVERAGE_PADDING, 0, 1);
-    maxY = clamp(coverageBounds.maxY + COVERAGE_PADDING, 0, 1);
-  } else {
-    let antennaMinX = 1;
-    let antennaMaxX = 0;
-    let antennaMinY = 1;
-    let antennaMaxY = 0;
-
-    for (const point of validPoints) {
-      antennaMinX = point.x < antennaMinX ? point.x : antennaMinX;
-      antennaMaxX = point.x > antennaMaxX ? point.x : antennaMaxX;
-      antennaMinY = point.y < antennaMinY ? point.y : antennaMinY;
-      antennaMaxY = point.y > antennaMaxY ? point.y : antennaMaxY;
+  if (hasCoverage && coverageBounds) {
+    const coverageWidth = coverageBounds.maxX - coverageBounds.minX;
+    const coverageHeight = coverageBounds.maxY - coverageBounds.minY;
+    const includeCoverage = coverageWidth < 0.99 || coverageHeight < 0.99;
+    if (includeCoverage) {
+      points.push({ x: clamp(coverageBounds.minX, 0, 1), y: clamp(coverageBounds.minY, 0, 1) });
+      points.push({ x: clamp(coverageBounds.maxX, 0, 1), y: clamp(coverageBounds.maxY, 0, 1) });
     }
-
-    minX = clamp(antennaMinX - ANTENNA_PADDING, 0, 1);
-    maxX = clamp(antennaMaxX + ANTENNA_PADDING, 0, 1);
-    minY = clamp(antennaMinY - ANTENNA_PADDING, 0, 1);
-    maxY = clamp(antennaMaxY + ANTENNA_PADDING, 0, 1);
   }
 
-  const width = Math.max(maxX - minX, 0.05);
-  const height = Math.max(maxY - minY, 0.05);
+  if (!points.length) {
+    return undefined;
+  }
 
+  let minX = Math.min(...points.map((point) => point.x));
+  let maxX = Math.max(...points.map((point) => point.x));
+  let minY = Math.min(...points.map((point) => point.y));
+  let maxY = Math.max(...points.map((point) => point.y));
+
+  const ANTENNA_PADDING = 0.12;
+
+  minX = clamp(minX - ANTENNA_PADDING, 0, 1);
+  maxX = clamp(maxX + ANTENNA_PADDING, 0, 1);
+  minY = clamp(minY - ANTENNA_PADDING, 0, 1);
+  maxY = clamp(maxY + ANTENNA_PADDING, 0, 1);
+
+  const desiredCenter = 0.5;
+
+  const currentCenterX = (minX + maxX) / 2;
+  const availableShiftLeftX = minX;
+  const availableShiftRightX = 1 - maxX;
+  const shiftX = clamp(desiredCenter - currentCenterX, -availableShiftLeftX, availableShiftRightX);
+  minX += shiftX;
+  maxX += shiftX;
+
+  const currentCenterY = (minY + maxY) / 2;
+  const availableShiftUpY = minY;
+  const availableShiftDownY = 1 - maxY;
+  const shiftY = clamp(desiredCenter - currentCenterY, -availableShiftUpY, availableShiftDownY);
+  minY += shiftY;
+  maxY += shiftY;
+
+  const width = Math.max(maxX - minX, 0.06);
+  const height = Math.max(maxY - minY, 0.06);
+
+  const MAX_SCALE = 5.75;
   let scale = Math.min(1 / width, 1 / height);
   scale = clamp(scale, 1, MAX_SCALE);
 
   const viewWidth = 1 / scale;
   const viewHeight = 1 / scale;
-  const halfViewWidth = viewWidth / 2;
-  const halfViewHeight = viewHeight / 2;
 
-  const desiredCenterX = clamp(0.5, halfViewWidth, 1 - halfViewWidth);
-  const desiredCenterY = clamp(0.5, halfViewHeight, 1 - halfViewHeight);
+  const centerX = clamp((minX + maxX) / 2, viewWidth / 2, 1 - viewWidth / 2);
+  const centerY = clamp((minY + maxY) / 2, viewHeight / 2, 1 - viewHeight / 2);
 
-  const maxOffsetX = Math.max(0, 1 - viewWidth);
-  const maxOffsetY = Math.max(0, 1 - viewHeight);
-
-  let offsetX = clamp(desiredCenterX - halfViewWidth, 0, maxOffsetX);
-  let offsetY = clamp(desiredCenterY - halfViewHeight, 0, maxOffsetY);
-
-  const minOffsetXForBounds = Math.max(0, maxX - viewWidth);
-  const maxOffsetXForBounds = Math.min(maxOffsetX, Math.max(minX, 0));
-  if (minOffsetXForBounds <= maxOffsetXForBounds) {
-    offsetX = clamp(offsetX, minOffsetXForBounds, maxOffsetXForBounds);
-  }
-
-  const minOffsetYForBounds = Math.max(0, maxY - viewHeight);
-  const maxOffsetYForBounds = Math.min(maxOffsetY, Math.max(minY, 0));
-  if (minOffsetYForBounds <= maxOffsetYForBounds) {
-    offsetY = clamp(offsetY, minOffsetYForBounds, maxOffsetYForBounds);
-  }
-
-  if (!Number.isFinite(offsetX) || !Number.isFinite(offsetY)) {
-    return undefined;
-  }
+  const offsetX = clamp(centerX - viewWidth / 2, 0, Math.max(0, 1 - viewWidth));
+  const offsetY = clamp(centerY - viewHeight / 2, 0, Math.max(0, 1 - viewHeight));
 
   const translateX = (offsetX * 100) / scale;
   const translateY = (offsetY * 100) / scale;
@@ -984,6 +978,8 @@ export default function ProposalClient({ slug, proposal, introduction, error, an
                 <li>We have developed our own survey tools which are tailored to the specific requirements of in-building signal boosters. This allows us to see the important information about the signals that matter to ensure the best result from the installation.</li>
                 <li>We deploy 5G Stand Alone (Up to 4.0GHz) ready DAS solutions so that when 5G SA can be boosted, the DAS elements of the solution do not need to be upgraded.</li>
                 <li>We provide a range of tailored support packages from break/fix maintenance to fully managed systems with onsite engineering support.</li>
+                <li>We use our own experienced UCtel engineering team for surveys, system design and installation, maintaining accountability without relying on subcontractors and ensuring a quality installation.</li>
+                <li>We are confident in our solutions and back them with a money-back guarantee if we do not deliver the agreed coverage outcomes. See pricing section for details.</li>
               </ul>
               <h3>Key Contacts</h3>
               <p>The following team members are your <strong>primary points of contact</strong> for this proposal. We are here to answer any questions you may have.</p>
@@ -1478,6 +1474,18 @@ export default function ProposalClient({ slug, proposal, introduction, error, an
                   The price for the survey and report is <span className="survey-price">{getField("SurveyPrice", "")}</span>
                 </p>
               </div>
+              <h3>Money-Back Guarantee</h3>
+              <p>
+                We are confident in our Mobile Signal Booster Solutions, but your satisfaction is our top priority. If you're not happy with the results of your installation, we offer a straightforward money-back guarantee under the following conditions:
+              </p>
+              <ul>
+                <li><strong>Eligibility:</strong> This guarantee is valid for 3 months from the date of installation.</li>
+                <li><strong>Condition for Refund:</strong> You must be genuinely dissatisfied* with the results of the service, and you must have allowed us a reasonable opportunity to resolve any issues you've reported.</li>
+                <li><strong>Refund Process:</strong> To initiate a refund, please submit a formal application to our Sales Director.</li>
+                <li><strong>Hardware Retrieval:</strong> As a condition of the refund, you must grant UCtel Limited access to the property to retrieve all hardware components of the system.</li>
+              </ul>
+              <p>If you have any questions about our guarantee or need assistance with your installation, please don't hesitate to contact us.</p>
+              <p>*Genuine Dissatisfaction is expected to be that the results from the installed system fail to conform to the parameters established prior to installation. Those parameters would normally be the ability to make and receive calls in the targeted areas.</p>
               <div className="footer">
                 <div className="footer-info">
                   <img src="/images/uctel_logo.png" alt="UCtel Logo" className="footer-logo" />

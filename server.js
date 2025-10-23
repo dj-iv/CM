@@ -4,12 +4,153 @@ const express = require('express');
 const path = require('path');
 const { gunzipSync } = require('zlib');
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
+const {
+  verifyPortalToken,
+  createSessionCookie,
+  getSessionCookieName,
+  parseCookies,
+  sanitizeRedirect,
+  buildPortalLoginUrl,
+  buildPortalLaunchUrl,
+  decodeSessionCookie,
+} = require('./portalAuth');
+const { getCostModelAuth, getProposalAuth } = require('./firebaseAdmin');
 
 if (typeof globalThis.btoa !== 'function') {
   globalThis.btoa = (input) => Buffer.from(input).toString('base64');
 }
 
 const INLINE_IMAGE_REGEX = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+
+const APP_ID = 'cost';
+const SESSION_COOKIE_NAME = getSessionCookieName();
+const PUBLIC_PATHS = new Set(['/healthz', '/portal/callback']);
+const STATIC_PATH_REGEX = /\.(?:css|js|map|png|jpg|jpeg|svg|gif|webp|ico|woff2?|ttf)$/i;
+const PORTAL_BASE_URL = process.env.NEXT_PUBLIC_PORTAL_URL || process.env.PORTAL_URL || 'http://localhost:3000';
+const COOKIE_CLEAR_OPTIONS = {
+  path: '/',
+  httpOnly: true,
+  sameSite: 'lax',
+  secure: PORTAL_BASE_URL.startsWith('https://') || process.env.NODE_ENV === 'production',
+};
+
+function buildPortalLogoutUrl(redirect) {
+  try {
+    const url = new URL('/login', PORTAL_BASE_URL);
+    if (redirect) {
+      url.searchParams.set('redirect', redirect);
+    }
+    url.searchParams.set('logout', '1');
+    return url.toString();
+  } catch (error) {
+    console.warn('[cost-model] Failed to build portal logout URL', { error });
+    return buildPortalLoginUrl(redirect);
+  }
+}
+
+function clearSessionCookie(res) {
+  res.clearCookie(SESSION_COOKIE_NAME, COOKIE_CLEAR_OPTIONS);
+}
+
+async function ensureFirebaseUser(auth, { uid, email, displayName }) {
+  const syncDisplayName = async (targetUid, currentDisplayName) => {
+    if (!displayName || currentDisplayName === displayName) {
+      return;
+    }
+
+    try {
+      await auth.updateUser(targetUid, { displayName });
+    } catch (updateError) {
+      console.warn('[cost-model] syncDisplayName failed', { targetUid, displayName, updateError });
+    }
+  };
+
+  const resolveEmailOwner = async () => {
+    if (!email) {
+      return null;
+    }
+
+    try {
+      const existing = await auth.getUserByEmail(email);
+      await syncDisplayName(existing.uid, existing.displayName);
+      return existing;
+    } catch (lookupError) {
+      if (lookupError?.code !== 'auth/user-not-found') {
+        console.warn('[cost-model] resolveEmailOwner lookup failed', { email, lookupError });
+      }
+      return null;
+    }
+  };
+
+  try {
+    const record = await auth.getUser(uid);
+    const updates = {};
+
+    if (email) {
+      if (!record.email) {
+        updates.email = email;
+      } else if (record.email !== email) {
+        const emailOwner = await resolveEmailOwner();
+        if (emailOwner && emailOwner.uid !== uid) {
+          return emailOwner;
+        }
+        updates.email = email;
+      }
+    }
+
+    if (displayName && record.displayName !== displayName) {
+      updates.displayName = displayName;
+    }
+
+    if (Object.keys(updates).length > 0) {
+      try {
+        await auth.updateUser(uid, updates);
+      } catch (updateError) {
+        if (email && updateError?.code === 'auth/email-already-exists') {
+          const emailOwner = await resolveEmailOwner();
+          if (emailOwner) {
+            return emailOwner;
+          }
+        }
+        console.warn('[cost-model] Failed to update Firebase user', { uid, updates, updateError });
+      }
+    }
+
+    const refreshed = await auth.getUser(uid);
+    await syncDisplayName(refreshed.uid, refreshed.displayName);
+    return refreshed;
+  } catch (error) {
+    if (error?.code === 'auth/user-not-found') {
+      try {
+        const created = await auth.createUser({
+          uid,
+          email: email ?? undefined,
+          displayName: displayName ?? undefined,
+        });
+        return created;
+      } catch (createError) {
+        if (email && createError?.code === 'auth/email-already-exists') {
+          const emailOwner = await resolveEmailOwner();
+          if (emailOwner) {
+            return emailOwner;
+          }
+        }
+        console.error('[cost-model] createUser failed', { uid, createError });
+        throw createError;
+      }
+    }
+
+    console.error('[cost-model] ensureFirebaseUser unexpected error', { uid, error });
+    throw error;
+  }
+}
+
+const getOrigin = (req) => {
+  const protoHeader = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+  const proto = Array.isArray(protoHeader) ? protoHeader[0] : protoHeader.split(',')[0];
+  const host = req.headers['x-forwarded-host'] || req.headers.host;
+  return `${proto}://${host}`;
+};
 
 const guessMimeType = (urlPath, fallback = 'application/octet-stream') => {
   if (!urlPath || typeof urlPath !== 'string') {
@@ -187,7 +328,136 @@ const PDFSHIFT_API_KEY = process.env.PDFSHIFT_API_KEY || process.env.REACT_APP_P
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+app.use((req, res, next) => {
+  if (PUBLIC_PATHS.has(req.path)) {
+    return next();
+  }
+
+  if (STATIC_PATH_REGEX.test(req.path) || req.path.startsWith('/templates/')) {
+    return next();
+  }
+
+  const hasSession = Boolean(parseCookies(req.headers.cookie || '')[SESSION_COOKIE_NAME]);
+  if (hasSession) {
+    return next();
+  }
+
+  const origin = getOrigin(req);
+  const sanitizedTarget = sanitizeRedirect(req.originalUrl, origin);
+  const absoluteRedirect = new URL(sanitizedTarget, origin).toString();
+  const launchUrl = buildPortalLaunchUrl(APP_ID, absoluteRedirect);
+
+  if (req.path.startsWith('/api/')) {
+    return res.status(401).json({ error: 'Portal session required', launch: launchUrl });
+  }
+
+  return res.redirect(launchUrl);
+});
+
+app.post('/api/session', async (req, res) => {
+  const origin = getOrigin(req);
+  const cookies = parseCookies(req.headers.cookie || '');
+  const sessionCookie = cookies[SESSION_COOKIE_NAME];
+  const session = decodeSessionCookie(sessionCookie);
+
+  if (!session) {
+    const redirectTarget = sanitizeRedirect(req.body?.redirect || '/', origin);
+    const absoluteRedirect = new URL(redirectTarget, origin).toString();
+    const launchUrl = buildPortalLaunchUrl(APP_ID, absoluteRedirect);
+    return res.status(401).json({ error: 'NO_SESSION', launch: launchUrl });
+  }
+
+  try {
+    const costAuth = getCostModelAuth();
+    const proposalAuth = getProposalAuth();
+
+    const [costUser, proposalUser] = await Promise.all([
+      ensureFirebaseUser(costAuth, session),
+      ensureFirebaseUser(proposalAuth, session),
+    ]);
+
+    const resolvedEmail = costUser.email || proposalUser.email || session.email || null;
+    const resolvedDisplayName = costUser.displayName || proposalUser.displayName || session.displayName || null;
+
+    if (costUser.uid !== session.uid || proposalUser.uid !== session.uid) {
+      console.info('[cost-model] ensureFirebaseUser resolved alternate uid', {
+        sessionUid: session.uid,
+        costUid: costUser.uid,
+        proposalUid: proposalUser.uid,
+      });
+    }
+
+    const [costToken, proposalToken] = await Promise.all([
+      costAuth.createCustomToken(costUser.uid, {
+        portalApp: APP_ID,
+        email: resolvedEmail ?? undefined,
+        displayName: resolvedDisplayName ?? undefined,
+      }),
+      proposalAuth.createCustomToken(proposalUser.uid, {
+        portalApp: 'proposal',
+        email: resolvedEmail ?? undefined,
+        displayName: resolvedDisplayName ?? undefined,
+      }),
+    ]);
+
+    return res.json({
+      success: true,
+      email: resolvedEmail,
+      displayName: resolvedDisplayName,
+      costToken,
+      proposalToken,
+    });
+  } catch (error) {
+    console.error('[cost-model] Failed to mint custom tokens', error);
+    return res.status(500).json({ error: 'TOKEN_CREATION_FAILED' });
+  }
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
+
+app.get('/portal/callback', (req, res) => {
+  const origin = getOrigin(req);
+  const token = req.query.portalToken;
+  const redirectParam = Array.isArray(req.query.redirect) ? req.query.redirect[0] : req.query.redirect;
+  const redirectTarget = sanitizeRedirect(redirectParam, origin);
+
+  if (!token) {
+    return res.redirect(buildPortalLoginUrl(redirectTarget));
+  }
+
+  const payload = verifyPortalToken(token);
+  if (!payload || payload.appId !== APP_ID) {
+    return res.redirect(buildPortalLoginUrl(redirectTarget));
+  }
+
+  const sessionCookie = createSessionCookie(payload);
+  res.cookie(sessionCookie.name, sessionCookie.value, {
+    httpOnly: sessionCookie.options.httpOnly,
+    secure: sessionCookie.options.secure,
+    sameSite: sessionCookie.options.sameSite,
+    path: sessionCookie.options.path,
+    maxAge: sessionCookie.options.maxAge * 1000,
+  });
+
+  const destination = new URL(redirectTarget, origin).toString();
+  return res.redirect(destination);
+});
+
+app.get('/logout', (req, res) => {
+  const origin = getOrigin(req);
+  const redirectTarget = sanitizeRedirect(req.query.redirect || '/', origin);
+  clearSessionCookie(res);
+  const logoutUrl = buildPortalLogoutUrl(redirectTarget);
+  return res.redirect(logoutUrl);
+});
+
+app.post('/logout', (req, res) => {
+  const origin = getOrigin(req);
+  const redirectTarget = sanitizeRedirect(req.body?.redirect || '/', origin);
+  clearSessionCookie(res);
+  const logoutUrl = buildPortalLogoutUrl(redirectTarget);
+  return res.json({ success: true, redirect: logoutUrl });
+});
 
 app.post('/api/convert-to-pdf', async (req, res) => {
   if (!PDFSHIFT_API_KEY) {

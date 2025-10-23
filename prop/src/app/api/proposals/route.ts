@@ -86,20 +86,44 @@ const parseExpiresAt = (value: unknown): Date | null | undefined => {
   return date;
 };
 
-const extractFirstName = (displayName: string | null | undefined, email: string | null | undefined): string | null => {
-  const fromDisplayName = displayName?.trim();
+const normaliseFirstNameSegment = (value: string | null | undefined): string | null => {
+  if (!value) {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const segments = trimmed.split(/[\s._-]+/).filter(Boolean);
+  if (segments.length === 0) {
+    return null;
+  }
+
+  const first = segments[0].toLowerCase();
+  if (!first) {
+    return null;
+  }
+  return first.charAt(0).toUpperCase() + first.slice(1);
+};
+
+const extractFirstName = (
+  displayName: string | null | undefined,
+  email: string | null | undefined,
+  explicit?: string | null | undefined,
+): string | null => {
+  const fromExplicit = normaliseFirstNameSegment(explicit ?? null);
+  if (fromExplicit) {
+    return fromExplicit;
+  }
+
+  const fromDisplayName = normaliseFirstNameSegment(displayName ?? null);
   if (fromDisplayName) {
-    const [firstSegment] = fromDisplayName.split(/\s+/);
-    if (firstSegment) {
-      return firstSegment.trim() || null;
-    }
+    return fromDisplayName;
   }
-  const fromEmail = email?.trim();
-  if (fromEmail) {
-    const [prefix] = fromEmail.split("@");
-    return prefix?.trim() || null;
-  }
-  return null;
+
+  const emailPrefix = typeof email === "string" ? email.split("@")[0] ?? null : null;
+  return normaliseFirstNameSegment(emailPrefix);
 };
 
 const sanitizeUserInfo = (
@@ -112,12 +136,7 @@ const sanitizeUserInfo = (
   const displayName = typeof maybeRecord.displayName === "string" ? maybeRecord.displayName : null;
   const email = typeof maybeRecord.email === "string" ? maybeRecord.email : null;
   const firstNameCandidate = typeof maybeRecord.firstName === "string" ? maybeRecord.firstName : null;
-  const derivedFirstName = (() => {
-    if (firstNameCandidate) {
-      return firstNameCandidate.trim() || null;
-    }
-    return extractFirstName(displayName, email);
-  })();
+  const derivedFirstName = extractFirstName(displayName, email, firstNameCandidate);
   if (!displayName && !email && !derivedFirstName) {
     return null;
   }

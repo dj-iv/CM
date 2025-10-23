@@ -1,5 +1,14 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Environment
+
+Add the following variables to `.env.local` so the UCtel portal handshake works during local development and deployment:
+
+```bash
+PORTAL_SIGNING_SECRET=matching_secret_from_portal
+NEXT_PUBLIC_PORTAL_URL=https://portal.yourdomain.co.uk
+```
+
 ## Getting Started
 
 First, run the development server:
