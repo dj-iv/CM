@@ -28,12 +28,28 @@ const SESSION_COOKIE_NAME = getSessionCookieName();
 const PUBLIC_PATHS = new Set(['/healthz', '/portal/callback']);
 const STATIC_PATH_REGEX = /\.(?:css|js|map|png|jpg|jpeg|svg|gif|webp|ico|woff2?|ttf|html?)$/i;
 const PORTAL_BASE_URL = process.env.NEXT_PUBLIC_PORTAL_URL || process.env.PORTAL_URL || 'http://localhost:3000';
-const COOKIE_CLEAR_OPTIONS = {
-  path: '/',
-  httpOnly: true,
-  sameSite: 'lax',
-  secure: PORTAL_BASE_URL.startsWith('https://') || process.env.NODE_ENV === 'production',
-  domain: getSessionCookieDomain() || undefined,
+const SECURE_COOKIE = PORTAL_BASE_URL.startsWith('https://') || process.env.NODE_ENV === 'production';
+
+const resolveHost = (req) => {
+  const rawHost = req.headers['x-forwarded-host'] || req.headers.host
+  if (!rawHost) {
+    return undefined
+  }
+  return rawHost.split(':')[0]
+};
+
+const buildCookieOptions = (host) => {
+  const domain = getSessionCookieDomain(host)
+  const options = {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: SECURE_COOKIE,
+  };
+  if (domain) {
+    options.domain = domain;
+  }
+  return options;
 };
 
 function buildPortalLogoutUrl(redirect) {
@@ -50,8 +66,9 @@ function buildPortalLogoutUrl(redirect) {
   }
 }
 
-function clearSessionCookie(res) {
-  res.clearCookie(SESSION_COOKIE_NAME, COOKIE_CLEAR_OPTIONS);
+function clearSessionCookie(res, host) {
+  const options = buildCookieOptions(host);
+  res.clearCookie(SESSION_COOKIE_NAME, options);
 }
 
 const getOrigin = (req) => {
@@ -292,14 +309,13 @@ app.get('/portal/callback', (req, res) => {
     return res.redirect(buildPortalLoginUrl(redirectTarget));
   }
 
-  const sessionCookie = createSessionCookie(payload);
-  res.cookie(sessionCookie.name, sessionCookie.value, {
-    httpOnly: sessionCookie.options.httpOnly,
-    secure: sessionCookie.options.secure,
-    sameSite: sessionCookie.options.sameSite,
-    path: sessionCookie.options.path,
-    maxAge: sessionCookie.options.maxAge * 1000,
-  });
+  const host = resolveHost(req);
+  const sessionCookie = createSessionCookie(payload, { host });
+  const cookieOptions = buildCookieOptions(host);
+  if (sessionCookie.options.maxAge) {
+    cookieOptions.maxAge = sessionCookie.options.maxAge * 1000;
+  }
+  res.cookie(sessionCookie.name, sessionCookie.value, cookieOptions);
 
   const destination = new URL(redirectTarget, origin).toString();
   return res.redirect(destination);
@@ -308,7 +324,8 @@ app.get('/portal/callback', (req, res) => {
 app.get('/logout', (req, res) => {
   const origin = getOrigin(req);
   const redirectTarget = sanitizeRedirect(req.query.redirect || '/', origin);
-  clearSessionCookie(res);
+  const host = resolveHost(req);
+  clearSessionCookie(res, host);
   const logoutUrl = buildPortalLogoutUrl(redirectTarget);
   return res.redirect(logoutUrl);
 });
@@ -316,7 +333,8 @@ app.get('/logout', (req, res) => {
 app.post('/logout', (req, res) => {
   const origin = getOrigin(req);
   const redirectTarget = sanitizeRedirect(req.body?.redirect || '/', origin);
-  clearSessionCookie(res);
+  const host = resolveHost(req);
+  clearSessionCookie(res, host);
   const logoutUrl = buildPortalLogoutUrl(redirectTarget);
   return res.json({ success: true, redirect: logoutUrl });
 });

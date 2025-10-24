@@ -34,8 +34,10 @@ module.exports = async (req, res) => {
       const portalUrl = process.env.NEXT_PUBLIC_PORTAL_URL || process.env.PORTAL_URL
       const secure = portalUrl ? portalUrl.startsWith('https://') : process.env.NODE_ENV === 'production'
       const cookieName = process.env.PORTAL_SESSION_COOKIE_NAME || 'uctel_cost_session'
-      const cookieParts = [`${cookieName}=`, 'Path=/', 'Max-Age=0', 'HttpOnly', 'SameSite=Lax']
-      const cookieDomain = getSessionCookieDomain()
+    const cookieParts = [`${cookieName}=`, 'Path=/', 'Max-Age=0', 'HttpOnly', 'SameSite=Lax']
+    const forwardedHost = req.headers['x-forwarded-host'] || req.headers.host
+    const host = forwardedHost ? forwardedHost.split(':')[0] : undefined
+      const cookieDomain = getSessionCookieDomain(host)
       if (cookieDomain) {
         cookieParts.push(`Domain=${cookieDomain}`)
       }

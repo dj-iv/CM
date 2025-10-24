@@ -71,7 +71,9 @@ module.exports = async (req, res) => {
     return res.end()
   }
 
-  const sessionCookie = createSessionCookie(payload)
+  const forwardedHost = req.headers['x-forwarded-host'] || req.headers.host
+  const host = forwardedHost ? forwardedHost.split(':')[0] : undefined
+  const sessionCookie = createSessionCookie(payload, { host })
   res.setHeader('Set-Cookie', formatCookie(sessionCookie))
 
   const destination = new URL(redirectTarget, origin).toString()

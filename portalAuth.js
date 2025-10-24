@@ -4,40 +4,43 @@ const { Buffer } = require('node:buffer')
 const SESSION_COOKIE = process.env.PORTAL_SESSION_COOKIE_NAME || 'uctel_cost_session'
 const SESSION_DURATION_SECONDS = 60 * 60 * 5 // 5 hours
 
-function resolveCookieDomain() {
+function resolveCookieDomain(referenceHost) {
   const override = process.env.PORTAL_COOKIE_DOMAIN
   if (override) {
     return override
   }
 
+  let hostname = null
   const portalUrl = process.env.NEXT_PUBLIC_PORTAL_URL || process.env.PORTAL_URL
-  if (!portalUrl) {
+
+  if (portalUrl) {
+    try {
+      hostname = new URL(portalUrl).hostname
+    } catch (error) {
+      console.warn('[portalAuth] Invalid portal URL for cookie domain', { portalUrl, error })
+    }
+  }
+
+  if (!hostname && referenceHost) {
+    hostname = referenceHost
+  }
+
+  if (!hostname || hostname === 'localhost' || hostname === '127.0.0.1') {
     return undefined
   }
 
-  try {
-    const { hostname } = new URL(portalUrl)
-    if (!hostname || hostname === 'localhost' || hostname === '127.0.0.1') {
-      return undefined
-    }
-    if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
-      return undefined
-    }
-    const segments = hostname.split('.')
-    if (segments.length < 2) {
-      return undefined
-    }
-    if (segments.length === 2) {
-      return `.${hostname}`
-    }
-    return `.${segments.slice(1).join('.')}`
-  } catch (error) {
-    console.warn('[portalAuth] Failed to resolve cookie domain from portal URL', {
-      portalUrl,
-      error,
-    })
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
     return undefined
   }
+
+  const segments = hostname.split('.')
+  if (segments.length < 2) {
+    return undefined
+  }
+  if (segments.length === 2) {
+    return `.${hostname}`
+  }
+  return `.${segments.slice(1).join('.')}`
 }
 
 function getSecret() {
@@ -117,10 +120,10 @@ function decodeSessionCookie(value) {
   }
 }
 
-function createSessionCookie(value) {
+function createSessionCookie(value, { host } = {}) {
   const portalUrl = process.env.NEXT_PUBLIC_PORTAL_URL || process.env.PORTAL_URL
   const secure = portalUrl ? portalUrl.startsWith('https://') : process.env.NODE_ENV === 'production'
-  const domain = resolveCookieDomain()
+  const domain = resolveCookieDomain(host)
   return {
     name: SESSION_COOKIE,
     value: encodeSessionValue(value),
@@ -139,8 +142,8 @@ function getSessionCookieName() {
   return SESSION_COOKIE
 }
 
-function getSessionCookieDomain() {
-  return resolveCookieDomain()
+function getSessionCookieDomain(referenceHost) {
+  return resolveCookieDomain(referenceHost)
 }
 
 function parseCookies(header = '') {
