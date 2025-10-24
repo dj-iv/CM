@@ -16,6 +16,9 @@ function formatCookie({ name, value, options }) {
   if (options.path) {
     parts.push(`Path=${options.path}`)
   }
+  if (options.domain) {
+    parts.push(`Domain=${options.domain}`)
+  }
   if (options.sameSite) {
     const sameSiteValue =
       typeof options.sameSite === 'string'

@@ -4,6 +4,42 @@ const { Buffer } = require('node:buffer')
 const SESSION_COOKIE = process.env.PORTAL_SESSION_COOKIE_NAME || 'uctel_cost_session'
 const SESSION_DURATION_SECONDS = 60 * 60 * 5 // 5 hours
 
+function resolveCookieDomain() {
+  const override = process.env.PORTAL_COOKIE_DOMAIN
+  if (override) {
+    return override
+  }
+
+  const portalUrl = process.env.NEXT_PUBLIC_PORTAL_URL || process.env.PORTAL_URL
+  if (!portalUrl) {
+    return undefined
+  }
+
+  try {
+    const { hostname } = new URL(portalUrl)
+    if (!hostname || hostname === 'localhost' || hostname === '127.0.0.1') {
+      return undefined
+    }
+    if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+      return undefined
+    }
+    const segments = hostname.split('.')
+    if (segments.length < 2) {
+      return undefined
+    }
+    if (segments.length === 2) {
+      return `.${hostname}`
+    }
+    return `.${segments.slice(1).join('.')}`
+  } catch (error) {
+    console.warn('[portalAuth] Failed to resolve cookie domain from portal URL', {
+      portalUrl,
+      error,
+    })
+    return undefined
+  }
+}
+
 function getSecret() {
   const secret = process.env.PORTAL_SIGNING_SECRET
   if (!secret) {
@@ -84,6 +120,7 @@ function decodeSessionCookie(value) {
 function createSessionCookie(value) {
   const portalUrl = process.env.NEXT_PUBLIC_PORTAL_URL || process.env.PORTAL_URL
   const secure = portalUrl ? portalUrl.startsWith('https://') : process.env.NODE_ENV === 'production'
+  const domain = resolveCookieDomain()
   return {
     name: SESSION_COOKIE,
     value: encodeSessionValue(value),
@@ -92,6 +129,7 @@ function createSessionCookie(value) {
       secure,
       sameSite: 'lax',
       path: '/',
+      domain: domain || undefined,
       maxAge: SESSION_DURATION_SECONDS,
     },
   }
@@ -99,6 +137,10 @@ function createSessionCookie(value) {
 
 function getSessionCookieName() {
   return SESSION_COOKIE
+}
+
+function getSessionCookieDomain() {
+  return resolveCookieDomain()
 }
 
 function parseCookies(header = '') {
@@ -167,4 +209,5 @@ module.exports = {
   buildPortalLaunchUrl,
   encodeSessionValue,
   decodeSessionCookie,
+  getSessionCookieDomain,
 }

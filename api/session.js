@@ -1,4 +1,5 @@
 const { handlePortalSession, resolveOrigin } = require('../sessionHandler')
+const { getSessionCookieDomain } = require('../portalAuth')
 
 const APP_ID = process.env.PORTAL_APP_ID || 'cost'
 
@@ -34,6 +35,10 @@ module.exports = async (req, res) => {
       const secure = portalUrl ? portalUrl.startsWith('https://') : process.env.NODE_ENV === 'production'
       const cookieName = process.env.PORTAL_SESSION_COOKIE_NAME || 'uctel_cost_session'
       const cookieParts = [`${cookieName}=`, 'Path=/', 'Max-Age=0', 'HttpOnly', 'SameSite=Lax']
+      const cookieDomain = getSessionCookieDomain()
+      if (cookieDomain) {
+        cookieParts.push(`Domain=${cookieDomain}`)
+      }
       if (secure) {
         cookieParts.push('Secure')
       }

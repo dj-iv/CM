@@ -8,6 +8,7 @@ const {
   verifyPortalToken,
   createSessionCookie,
   getSessionCookieName,
+  getSessionCookieDomain,
   parseCookies,
   sanitizeRedirect,
   buildPortalLoginUrl,
@@ -25,13 +26,14 @@ const INLINE_IMAGE_REGEX = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
 const APP_ID = 'cost';
 const SESSION_COOKIE_NAME = getSessionCookieName();
 const PUBLIC_PATHS = new Set(['/healthz', '/portal/callback']);
-const STATIC_PATH_REGEX = /\.(?:css|js|map|png|jpg|jpeg|svg|gif|webp|ico|woff2?|ttf)$/i;
+const STATIC_PATH_REGEX = /\.(?:css|js|map|png|jpg|jpeg|svg|gif|webp|ico|woff2?|ttf|html?)$/i;
 const PORTAL_BASE_URL = process.env.NEXT_PUBLIC_PORTAL_URL || process.env.PORTAL_URL || 'http://localhost:3000';
 const COOKIE_CLEAR_OPTIONS = {
   path: '/',
   httpOnly: true,
   sameSite: 'lax',
   secure: PORTAL_BASE_URL.startsWith('https://') || process.env.NODE_ENV === 'production',
+  domain: getSessionCookieDomain() || undefined,
 };
 
 function buildPortalLogoutUrl(redirect) {
