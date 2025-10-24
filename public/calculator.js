@@ -80,7 +80,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const PDF_MAKE_WEBHOOK_URL = 'https://hook.eu1.make.com/cfde3avwbdpr5y131ffkle13z40haem3';
     const DEFAULT_PROPOSAL_APP_BASE_URL = 'https://prop.uctel.co.uk';
     const LOCAL_PROPOSAL_APP_BASE_URL = 'http://localhost:3000';
+    const DEFAULT_PORTAL_BASE_URL = 'https://portal.uctel.co.uk';
+    const LOCAL_PORTAL_BASE_URL = 'http://localhost:3000';
     const PROPOSAL_BASE_URL_STORAGE_KEY = 'calculator-proposal-base-url';
+    const PORTAL_BASE_URL_STORAGE_KEY = 'calculator-portal-base-url';
 
     const sanitizeBaseUrl = (value) => {
         if (!value || typeof value !== 'string') {
@@ -153,9 +156,58 @@ document.addEventListener('DOMContentLoaded', () => {
         return DEFAULT_PROPOSAL_APP_BASE_URL;
     };
 
+    const resolvePortalBaseUrl = () => {
+        let override = null;
+
+        try {
+            const searchParams = new URLSearchParams(window.location.search || '');
+            override = sanitizeBaseUrl(searchParams.get('portalBaseUrl'));
+            if (override) {
+                try {
+                    localStorage.setItem(PORTAL_BASE_URL_STORAGE_KEY, override);
+                } catch (storageError) {
+                    console.debug('Unable to persist portal base URL override:', storageError);
+                }
+                return override;
+            }
+        } catch (error) {
+            console.debug('Unable to read portal base URL from query params:', error);
+        }
+
+        try {
+            override = sanitizeBaseUrl(localStorage.getItem(PORTAL_BASE_URL_STORAGE_KEY));
+            if (override) {
+                return override;
+            }
+        } catch (error) {
+            console.debug('Unable to read persisted portal base URL override:', error);
+        }
+
+        const hostname = window.location.hostname || '';
+        const private172Range = /^172\.(1[6-9]|2\d|3[01])\./;
+        const isLikelyLocalHost = (
+            hostname === '' ||
+            hostname === 'localhost' ||
+            hostname === '127.0.0.1' ||
+            hostname === '0.0.0.0' ||
+            hostname.endsWith('.local') ||
+            hostname.startsWith('10.') ||
+            hostname.startsWith('192.168.') ||
+            private172Range.test(hostname)
+        );
+
+        if (isLikelyLocalHost) {
+            return LOCAL_PORTAL_BASE_URL;
+        }
+
+        return DEFAULT_PORTAL_BASE_URL;
+    };
+
     const PROPOSAL_APP_BASE_URL = resolveProposalAppBaseUrl();
     const PROPOSAL_API_BASE_URL = PROPOSAL_APP_BASE_URL;
+    const PORTAL_BASE_URL = resolvePortalBaseUrl();
     console.info('Using proposal portal base URL:', PROPOSAL_APP_BASE_URL);
+    console.info('Using UCtel portal base URL:', PORTAL_BASE_URL);
     const LAST_SAVED_SLUG_KEY = 'calculator-last-proposal-slug';
     const SHARE_STATE_STORAGE_KEY = 'calculator-share-state';
     let pendingShareOverrides = null;
@@ -1813,7 +1865,9 @@ function setupScreenshotButton() {
     if (proposalTempBtn) {
         proposalTempBtn.addEventListener('click', (event) => {
             event.preventDefault();
-            const portalUrl = `${PROPOSAL_APP_BASE_URL}/`;
+            const redirectTarget = `${PROPOSAL_APP_BASE_URL}/`;
+            const portalLaunchBase = PORTAL_BASE_URL.replace(/\/+$/, '');
+            const portalUrl = `${portalLaunchBase}/launch/proposal?redirect=${encodeURIComponent(redirectTarget)}`;
             window.open(portalUrl, '_blank', 'noopener');
         });
     }
