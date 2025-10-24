@@ -29,6 +29,17 @@ module.exports = async (req, res) => {
       body: payload,
     })
 
+    if (result.clearSessionCookie) {
+      const portalUrl = process.env.NEXT_PUBLIC_PORTAL_URL || process.env.PORTAL_URL
+      const secure = portalUrl ? portalUrl.startsWith('https://') : process.env.NODE_ENV === 'production'
+      const cookieName = process.env.PORTAL_SESSION_COOKIE_NAME || 'uctel_cost_session'
+      const cookieParts = [`${cookieName}=`, 'Path=/', 'Max-Age=0', 'HttpOnly', 'SameSite=Lax']
+      if (secure) {
+        cookieParts.push('Secure')
+      }
+      res.setHeader('Set-Cookie', cookieParts.join('; '))
+    }
+
     return res.status(result.status).json(result.body)
   } catch (error) {
     console.error('[api/session] unexpected error', error)

@@ -124,7 +124,11 @@ function buildLaunchRedirect(appId, origin, redirectTarget) {
   const sanitized = sanitizeRedirect(redirectTarget || '/', safeOrigin)
   const absolute = new URL(sanitized, safeOrigin).toString()
   const launchUrl = buildPortalLaunchUrl(appId, absolute)
-  return { status: 401, body: { error: 'NO_SESSION', launch: launchUrl } }
+  return {
+    status: 401,
+    body: { error: 'NO_SESSION', launch: launchUrl },
+    clearSessionCookie: true,
+  }
 }
 
 async function handlePortalSession({ appId, origin, cookiesHeader, body }) {
