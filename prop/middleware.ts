@@ -5,6 +5,34 @@ import { getSessionCookieName } from '@/lib/sessionCookie'
 const PORTAL_URL = process.env.NEXT_PUBLIC_PORTAL_URL || process.env.PORTAL_URL || 'http://localhost:3300'
 const PUBLIC_PATHS = ['/healthz', '/portal/callback']
 const PUBLIC_SLUG_REGEX = /^\/[a-z0-9-]+$/i
+const APP_ID = 'proposal'
+
+function sanitizeRedirect(target: string, origin: string): string {
+  if (!target) {
+    return '/'
+  }
+
+  try {
+    const candidate = new URL(target, origin)
+    if (candidate.origin !== origin) {
+      return '/'
+    }
+    return candidate.pathname + candidate.search + candidate.hash
+  } catch (error) {
+    if (typeof target === 'string' && target.startsWith('/')) {
+      return target
+    }
+    return '/'
+  }
+}
+
+function buildPortalLaunchUrl(appId: string, redirect: string) {
+  const launchUrl = new URL(`/launch/${appId}`, PORTAL_URL)
+  if (redirect) {
+    launchUrl.searchParams.set('redirect', redirect)
+  }
+  return launchUrl.toString()
+}
 
 function isPublicPath(pathname: string) {
   if (PUBLIC_PATHS.some((publicPath) => pathname.startsWith(publicPath))) {
@@ -36,9 +64,11 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  const portalLoginUrl = new URL('/login', PORTAL_URL)
-  portalLoginUrl.searchParams.set('redirect', request.nextUrl.href)
-  return NextResponse.redirect(portalLoginUrl)
+  const origin = request.nextUrl.origin
+  const sanitisedRedirect = sanitizeRedirect(request.nextUrl.href, origin)
+  const absoluteRedirect = new URL(sanitisedRedirect, origin).toString()
+  const launchUrl = buildPortalLaunchUrl(APP_ID, absoluteRedirect)
+  return NextResponse.redirect(launchUrl)
 }
 
 export const config = {
