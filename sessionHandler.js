@@ -120,7 +120,7 @@ async function ensureFirebaseUser(auth, { uid, email, displayName }) {
 }
 
 function buildLaunchRedirect(appId, origin, redirectTarget) {
-  const safeOrigin = origin || 'http://localhost:8080'
+  const safeOrigin = origin || 'http://localhost:3301'
   const sanitized = sanitizeRedirect(redirectTarget || '/', safeOrigin)
   const absolute = new URL(sanitized, safeOrigin).toString()
   const launchUrl = buildPortalLaunchUrl(appId, absolute)

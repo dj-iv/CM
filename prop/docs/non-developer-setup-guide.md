@@ -70,7 +70,7 @@ You need to install packages in **two** folders.
 1. Open Notepad.
 2. Paste the template below and fill in the pdfShift key (use the dedicated key created for the proposal portal):
    ```ini
-   PORT=8080
+   PORT=3301
    PDFSHIFT_API_KEY=YOUR_PDFSHIFT_KEY_HERE
    ```
 3. Save the file as `C:\Users\roman\Documents\Projects\CM\.env` (note the dot at the beginning of the filename).
@@ -106,7 +106,7 @@ You need to install packages in **two** folders.
 4. Save the file.
 
 ### 4.4 Link calculator to the local proposal app
-For local testing, set the proposal URL to `http://localhost:3000` so the calculator talks to your local Next.js server.
+For local testing, set the proposal URL to `http://localhost:3302` so the calculator talks to your local Next.js server.
 1. Open `public\calculator.js`.
 2. At the top, change:
    ```javascript
@@ -114,7 +114,7 @@ For local testing, set the proposal URL to `http://localhost:3000` so the calcul
    ```
    to
    ```javascript
-   const PROPOSAL_APP_BASE_URL = 'http://localhost:3000';
+   const PROPOSAL_APP_BASE_URL = 'http://localhost:3302';
    ```
 3. Save the file.
 
@@ -131,14 +131,14 @@ You will run two commands, each in its own PowerShell window or tab.
 cd "C:\Users\roman\Documents\Projects\CM\prop"
 npm run dev
 ```
-- Leave this window open. The app runs at `http://localhost:3000`.
+- Leave this window open. The app runs at `http://localhost:3302`.
 
 ### 5.2 Start the calculator/Express server
 ```powershell
 cd "C:\Users\roman\Documents\Projects\CM"
 npm run dev
 ```
-- Leave this running as well. The calculator is served at `http://localhost:8080`.
+- Leave this running as well. The calculator is served at `http://localhost:3301`.
 
 ---
 
@@ -147,7 +147,7 @@ npm run dev
 Follow this quick checklist after the servers start:
 
 1. **Sign in to the calculator**
-   - Visit `http://localhost:8080`.
+   - Visit `http://localhost:3301`.
    - Click “Sign in with Google”.
    - Confirm the login succeeds and you can see the calculator interface.
 
@@ -157,7 +157,7 @@ Follow this quick checklist after the servers start:
    - Confirm the temporary banner reads “Saved to Proposal Management Portal”.
 
 3. **Review the proposal in the portal**
-   - Open `http://localhost:3000/<slug>` in a new tab, replacing `<slug>` with the last saved slug (see browser DevTools → Application → Local Storage → `calculator-last-proposal-slug`) or use the portal UI if available.
+   - Open `http://localhost:3302/<slug>` in a new tab, replacing `<slug>` with the last saved slug (see browser DevTools → Application → Local Storage → `calculator-last-proposal-slug`) or use the portal UI if available.
    - Verify the interactive proposal renders correctly.
 
 4. **Download a PDF**

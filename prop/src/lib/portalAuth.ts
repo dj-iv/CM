@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import { SESSION_COOKIE, SESSION_DURATION_SECONDS, encodeSessionValue, decodeSessionValue, type SessionCookiePayload } from './sessionCookie'
 
-const PORTAL_BASE_URL = process.env.NEXT_PUBLIC_PORTAL_URL || process.env.PORTAL_URL || 'http://localhost:3000'
+const PORTAL_BASE_URL = process.env.NEXT_PUBLIC_PORTAL_URL || process.env.PORTAL_URL || 'http://localhost:3300'
 
 function getSecret(): string {
   const secret = process.env.PORTAL_SIGNING_SECRET

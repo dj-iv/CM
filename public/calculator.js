@@ -79,7 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const MAKE_WEBHOOK_URL = 'https://hook.eu1.make.com/chemsqrmifjs5lwbrquhh1bha0vo96k2';
     const PDF_MAKE_WEBHOOK_URL = 'https://hook.eu1.make.com/cfde3avwbdpr5y131ffkle13z40haem3';
     const DEFAULT_PROPOSAL_APP_BASE_URL = 'https://prop.uctel.co.uk';
-    const LOCAL_PROPOSAL_APP_BASE_URL = 'http://localhost:3000';
+    const LOCAL_PROPOSAL_APP_BASE_URL = 'http://localhost:3302';
     const PROPOSAL_BASE_URL_STORAGE_KEY = 'calculator-proposal-base-url';
 
     const sanitizeBaseUrl = (value) => {

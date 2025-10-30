@@ -185,7 +185,7 @@ function sanitizeRedirect(target, origin) {
 }
 
 function buildPortalLoginUrl(redirect) {
-  const baseUrl = process.env.NEXT_PUBLIC_PORTAL_URL || process.env.PORTAL_URL || 'http://localhost:3000'
+  const baseUrl = process.env.NEXT_PUBLIC_PORTAL_URL || process.env.PORTAL_URL || 'http://localhost:3300'
   const loginUrl = new URL('/login', baseUrl)
   if (redirect) {
     loginUrl.searchParams.set('redirect', redirect)
@@ -194,7 +194,7 @@ function buildPortalLoginUrl(redirect) {
 }
 
 function buildPortalLaunchUrl(appId, redirect) {
-  const baseUrl = process.env.NEXT_PUBLIC_PORTAL_URL || process.env.PORTAL_URL || 'http://localhost:3000'
+  const baseUrl = process.env.NEXT_PUBLIC_PORTAL_URL || process.env.PORTAL_URL || 'http://localhost:3300'
   const launchUrl = new URL(`/launch/${appId}`, baseUrl)
   if (redirect) {
     launchUrl.searchParams.set('redirect', redirect)

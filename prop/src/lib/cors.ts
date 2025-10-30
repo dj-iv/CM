@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const ALLOWED_ORIGINS = new Set<string>([
-  "http://localhost:8080",
-  "http://localhost:3000",
+  "http://localhost:3301",
+  "http://localhost:3302",
   "https://prop.uctel.co.uk",
 ]);
 

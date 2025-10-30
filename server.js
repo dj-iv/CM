@@ -27,7 +27,7 @@ const APP_ID = 'cost';
 const SESSION_COOKIE_NAME = getSessionCookieName();
 const PUBLIC_PATHS = new Set(['/healthz', '/portal/callback']);
 const STATIC_PATH_REGEX = /\.(?:css|js|map|png|jpg|jpeg|svg|gif|webp|ico|woff2?|ttf|html?)$/i;
-const PORTAL_BASE_URL = process.env.NEXT_PUBLIC_PORTAL_URL || process.env.PORTAL_URL || 'http://localhost:3000';
+const PORTAL_BASE_URL = process.env.NEXT_PUBLIC_PORTAL_URL || process.env.PORTAL_URL || 'http://localhost:3300';
 const SECURE_COOKIE = PORTAL_BASE_URL.startsWith('https://') || process.env.NODE_ENV === 'production';
 
 const resolveHost = (req) => {
@@ -247,7 +247,7 @@ const buildPayload = ({ html, css, options }) => {
 };
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 3301;
 
 const PDFSHIFT_API_KEY = process.env.PDFSHIFT_API_KEY || process.env.REACT_APP_PDFSHIFT_KEY;
 
