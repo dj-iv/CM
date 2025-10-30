@@ -972,8 +972,9 @@ export const createPdfDownloadHandler = ({ button, note, computeFilename, slug }
       iframeDoc.write("<!DOCTYPE html>" + clonedRoot.outerHTML);
       iframeDoc.close();
 
-  await inlineStylesheets(iframeDoc);
+      await inlineStylesheets(iframeDoc);
       await waitForImages(iframeDoc);
+      await inlineImages(iframeDoc);
 
       const balancePagination = async () => {
         const MAX_PASSES = 7;
