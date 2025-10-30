@@ -81,6 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const DEFAULT_PROPOSAL_APP_BASE_URL = 'https://prop.uctel.co.uk';
     const LOCAL_PROPOSAL_APP_BASE_URL = 'http://localhost:3302';
     const PROPOSAL_BASE_URL_STORAGE_KEY = 'calculator-proposal-base-url';
+    const SHARE_STATE_QUERY_PARAM = 'shareState';
 
     const sanitizeBaseUrl = (value) => {
         if (!value || typeof value !== 'string') {
@@ -2692,12 +2693,15 @@ async function generatePdf() {
             console.warn('Unable to cache share-state in sessionStorage:', storageError);
         }
 
-        const shareUrl = `${window.location.origin}${window.location.pathname}#${encodedState}`;
-        await navigator.clipboard.writeText(shareUrl);
+        const shareUrl = new URL(window.location.pathname, window.location.origin);
+        shareUrl.searchParams.set(SHARE_STATE_QUERY_PARAM, encodedState);
+        shareUrl.hash = encodedState;
+
+        await navigator.clipboard.writeText(shareUrl.toString());
         button.innerHTML = 'Link Copied! ✅';
 
     } catch (error) {
-        console.error("Failed to generate share link:", error);
+        console.error('Failed to generate share link:', error);
         button.innerHTML = 'Failed! ❌';
     } finally {
         setTimeout(() => {
@@ -2760,6 +2764,22 @@ async function generateInteractiveLink() {
    function loadStateFromURL() {
     const searchParams = new URLSearchParams(window.location.search);
     const slugFromQuery = searchParams.get('slug');
+    let urlNeedsCleanup = false;
+
+    const applyUrlCleanup = (preserveHash = false) => {
+        const shouldUpdate = urlNeedsCleanup || (!preserveHash && window.location.hash);
+        if (!shouldUpdate) {
+            return;
+        }
+        try {
+            const newSearch = searchParams.toString();
+            const hashSuffix = preserveHash && window.location.hash ? window.location.hash : '';
+            const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : '') + hashSuffix;
+            history.replaceState('', document.title, newUrl);
+        } catch (cleanupError) {
+            console.warn('Unable to clean share-state indicators from URL:', cleanupError);
+        }
+    };
     if (slugFromQuery) {
         const cleanedSlug = sanitizeSlugValue(slugFromQuery);
         if (cleanedSlug) {
@@ -2768,15 +2788,22 @@ async function generateInteractiveLink() {
 
         try {
             searchParams.delete('slug');
-            const newSearch = searchParams.toString();
-            const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : '') + window.location.hash;
-            history.replaceState('', document.title, newUrl);
+            urlNeedsCleanup = true;
         } catch (error) {
             console.warn('Unable to clean slug query parameter:', error);
         }
     }
 
-    let encodedState = window.location.hash.substring(1);
+    let encodedState = searchParams.get(SHARE_STATE_QUERY_PARAM) || '';
+    if (encodedState) {
+        searchParams.delete(SHARE_STATE_QUERY_PARAM);
+        urlNeedsCleanup = true;
+    }
+
+    if (!encodedState) {
+        encodedState = window.location.hash.substring(1);
+    }
+
     if (encodedState) {
         try {
             sessionStorage.setItem(SHARE_STATE_STORAGE_KEY, encodedState);
@@ -2792,7 +2819,10 @@ async function generateInteractiveLink() {
         }
     }
 
-    if (!encodedState) return false;
+    if (!encodedState) {
+        applyUrlCleanup(true);
+        return false;
+    }
 
     try {
         const compressedString = atob(encodedState);
@@ -2875,9 +2905,7 @@ async function generateInteractiveLink() {
             }
         }
 
-        if (window.location.hash) {
-            history.replaceState('', document.title, window.location.pathname + window.location.search);
-        }
+        applyUrlCleanup(false);
 
         return true;
 
