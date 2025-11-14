@@ -2583,6 +2583,7 @@ async function generatePdf() {
 
     async function saveProposalToPortal({ button = null, openAfterSave = false } = {}) {
         if (!validateInputs(['customer-name', 'survey-price'])) {
+            alert('Please fill in both Customer Name and Survey Price before saving the proposal.');
             return null;
         }
 
@@ -2693,11 +2694,17 @@ async function generatePdf() {
             console.warn('Unable to cache share-state in sessionStorage:', storageError);
         }
 
-        const shareUrl = new URL(window.location.pathname, window.location.origin);
-        shareUrl.searchParams.set(SHARE_STATE_QUERY_PARAM, encodedState);
-        shareUrl.hash = encodedState;
+        // Build the original Cost Model URL representing the current state
+        const costModelUrl = new URL(window.location.pathname, window.location.origin);
+        costModelUrl.searchParams.set(SHARE_STATE_QUERY_PARAM, encodedState);
+        costModelUrl.hash = encodedState;
 
-        await navigator.clipboard.writeText(shareUrl.toString());
+        // Wrap it in a portal launch URL so SSO + redirect work correctly
+        const portalBase = window.PORTAL_BASE_URL || 'https://portal.uctel.co.uk';
+        const launchUrl = new URL('/launch/cost', portalBase);
+        launchUrl.searchParams.set('redirect', costModelUrl.toString());
+
+        await navigator.clipboard.writeText(launchUrl.toString());
         button.innerHTML = 'Link Copied! ✅';
 
     } catch (error) {
