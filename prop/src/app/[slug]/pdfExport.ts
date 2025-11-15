@@ -64,6 +64,8 @@ export const createPdfDownloadHandler = ({ button, note, computeFilename, slug, 
   const PAGINATION_TOLERANCE = 2;
   const FOOTER_BUFFER = mmToPx(8);
   const MAX_QUEUE_STEPS = 2000;
+  const INLINE_PAYLOAD_LIMIT_BYTES = 3_600_000;
+  const DEFAULT_UPLOAD_CONTENT_TYPE = "application/gzip";
 
   const createPageShell = (doc: Document, templatePage: HTMLElement, header: HTMLElement | null, footer: HTMLElement | null) => {
     const newPage = templatePage.cloneNode(false) as HTMLElement;
@@ -922,7 +924,49 @@ export const createPdfDownloadHandler = ({ button, note, computeFilename, slug, 
     return {
       base64: uint8ToBase64(compressed),
       byteLength: compressed.length,
+      bytes: compressed,
     };
+  };
+
+  const requestUploadSlot = async (byteLength: number) => {
+    const response = await fetch(`/api/proposals/${encodeURIComponent(slug)}/pdf/upload-url`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contentLength: byteLength, contentType: DEFAULT_UPLOAD_CONTENT_TYPE }),
+    });
+
+    if (!response.ok) {
+      let message = "Unable to reserve upload slot";
+      try {
+        const errorPayload = await response.json();
+        if (errorPayload?.error) {
+          message = errorPayload.error;
+        }
+      } catch (error) {
+        // ignore JSON parse errors
+      }
+      throw new Error(message);
+    }
+
+    const payload = await response.json();
+    if (!payload?.uploadUrl || !payload?.storagePath) {
+      throw new Error("Upload slot response missing required fields");
+    }
+    return payload as { uploadUrl: string; storagePath: string; expiresAt?: number };
+  };
+
+  const uploadCompressedHtml = async (uploadUrl: string, bytes: Uint8Array) => {
+    const uploadResponse = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": DEFAULT_UPLOAD_CONTENT_TYPE,
+      },
+      body: bytes,
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error(`Upload failed with status ${uploadResponse.status}`);
+    }
   };
 
   const inlineImages = async (root: Document) => {
@@ -1187,29 +1231,60 @@ export const createPdfDownloadHandler = ({ button, note, computeFilename, slug, 
 
       let requestBody;
       try {
-        const { base64, byteLength } = compressHtmlToBase64(html);
+        const { base64, byteLength, bytes } = compressHtmlToBase64(html);
         console.info("PDF export compressed payload size (bytes):", byteLength);
-        requestBody = {
-          encoding: "gzip-base64",
-          data: base64,
-          filename: filenameBase,
-          origin: window.location.origin,
-          options: {
-            page_size: "a4",
-            use_print: false,
-            margin: {
-              top: "0mm",
-              right: "0mm",
-              bottom: "0mm",
-              left: "0mm",
+
+        if (byteLength > INLINE_PAYLOAD_LIMIT_BYTES) {
+          setLoadingState(true, "Uploading proposal data for PDF conversion…");
+          const uploadSlot = await requestUploadSlot(byteLength);
+          await uploadCompressedHtml(uploadSlot.uploadUrl, bytes);
+          requestBody = {
+            storagePath: uploadSlot.storagePath,
+            filename: filenameBase,
+            origin: window.location.origin,
+            options: {
+              page_size: "a4",
+              use_print: false,
+              margin: {
+                top: "0mm",
+                right: "0mm",
+                bottom: "0mm",
+                left: "0mm",
+              },
+              wait: 1,
             },
-            wait: 1,
-          },
-          diagnostics: {
-            rawBytes: rawByteLength,
-            compressedBytes: byteLength,
-          },
-        };
+            diagnostics: {
+              rawBytes: rawByteLength,
+              compressedBytes: byteLength,
+              offloaded: true,
+            },
+            payloadBytes: byteLength,
+          };
+        } else {
+          requestBody = {
+            encoding: "gzip-base64",
+            data: base64,
+            filename: filenameBase,
+            origin: window.location.origin,
+            options: {
+              page_size: "a4",
+              use_print: false,
+              margin: {
+                top: "0mm",
+                right: "0mm",
+                bottom: "0mm",
+                left: "0mm",
+              },
+              wait: 1,
+            },
+            diagnostics: {
+              rawBytes: rawByteLength,
+              compressedBytes: byteLength,
+              offloaded: false,
+            },
+            payloadBytes: byteLength,
+          };
+        }
       } catch (compressionError) {
         console.error("Failed to compress HTML before sending to PDF service.", compressionError);
         throw new Error("Unable to compress proposal for PDF generation. Please refresh and try again.");

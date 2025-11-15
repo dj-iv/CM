@@ -8,6 +8,7 @@ Add the following variables to `.env.local` so the UCtel portal handshake works 
 PORTAL_SIGNING_SECRET=matching_secret_from_portal
 NEXT_PUBLIC_PORTAL_URL=https://portal.yourdomain.co.uk
 NEXT_PUBLIC_PORTAL_SESSION_COOKIE=uctel_portal_session # optional, defaults to the UCtel portal cookie name
+PDF_STORAGE_BUCKET=proposal-uploads.appspot.com # optional, defaults to FIREBASE_STORAGE_BUCKET
 ```
 
 `NEXT_PUBLIC_PORTAL_SESSION_COOKIE` only needs to be set if your portal uses a non-default cookie name. The proposal app checks this cookie (in addition to its own `uctel_proposal_session`) so that anyone already signed into the portal automatically bypasses the email gate without re-authenticating.
@@ -17,6 +18,26 @@ NEXT_PUBLIC_PORTAL_SESSION_COOKIE=uctel_portal_session # optional, defaults to t
 - The proposal admin table shows total **Opens** and **Downloads** per proposal based on the customer email gate and PDF export.
 - Selecting a proposal reveals a **Viewer activity** card with a "Clear counts" button that resets both totals and purges the underlying activity log (`/api/proposals/[slug]/events`).
 - Clearing counts requires an authenticated UCtel portal session and cannot be undone.
+
+## Large PDF exports
+
+When a proposal produces more than roughly 3.5&nbsp;MB of compressed HTML, the browser now uploads the payload to the configured Cloud Storage bucket (`PDF_STORAGE_BUCKET`) before triggering the `/api/proposals/[slug]/pdf` endpoint. This avoids Vercel's 4.5&nbsp;MB request limit and prevents 413 errors for very large proposals. Ensure the environment variable points at a writable bucket owned by the Firebase project serving the proposal data.
+
+### Configure Cloud Storage CORS (one-time)
+
+Uploads rely on signed URLs, so the target bucket must allow `PUT` requests from your browser origins. Follow these steps:
+
+1. Install the [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) if you do not already have it, then run `gcloud init` to authenticate.
+2. Review `docs/storage-cors.json`. Update the `origin` array if you host the proposal app on additional domains.
+3. Apply the policy with the helper script (replace the bucket name if needed):
+
+	```powershell
+	cd C:\Users\roman\Documents\Projects\CM\prop
+	./scripts/set-storage-cors.ps1 -BucketName proposal-5823c.firebasestorage.app
+	```
+
+	The script uses `gsutil cors set` under the hood and will report success once the policy is stored.
+4. Retry a large PDF export (over ~4&nbsp;MB compressed). The upload should now complete, and the API will fetch the HTML from storage automatically.
 
 ## Getting Started
 

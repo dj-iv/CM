@@ -1,4 +1,6 @@
 import { FieldValue } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
+import { gunzipSync } from "node:zlib";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminFirestore } from "@/lib/firebaseAdmin";
@@ -10,6 +12,7 @@ import {
   decodeState,
   ProposalPayload,
 } from "@/lib/proposalUtils";
+import { resolvePdfStorageBucket } from "@/lib/pdfStorage";
 
 const PdfRequestSchema = z.object({
   html: z.string().optional(),
@@ -20,6 +23,8 @@ const PdfRequestSchema = z.object({
   data: z.string().optional(),
   origin: z.string().optional(),
   debug: z.boolean().optional(),
+  storagePath: z.string().optional(),
+  payloadBytes: z.number().optional(),
 });
 
 export const runtime = "nodejs";
@@ -57,11 +62,51 @@ export const POST = async (request: NextRequest, ctx: { params: Promise<{ slug: 
   const metadata = storedMetadata ?? buildMetadata(proposal, state);
   const filename = body.filename ?? buildProposalFilename(metadata);
 
+  let offloadedFile: { delete: () => Promise<void> } | null = null;
+  let convertPayload = { ...body, filename };
+
+  if (body.storagePath) {
+  const bucketName = resolvePdfStorageBucket();
+    if (!bucketName) {
+      return withCors(NextResponse.json({ error: "PDF storage bucket is not configured" }, { status: 500 }), requestOrigin);
+    }
+
+    const bucket = getStorage().bucket(bucketName);
+    const file = bucket.file(body.storagePath);
+    const [exists] = await file.exists();
+    if (!exists) {
+      return withCors(NextResponse.json({ error: "Uploaded HTML payload expired" }, { status: 410 }), requestOrigin);
+    }
+
+    try {
+      const [contents] = await file.download();
+      const html = gunzipSync(contents).toString("utf8");
+      convertPayload = {
+        ...body,
+        html,
+        data: undefined,
+        encoding: undefined,
+        storagePath: undefined,
+        filename,
+      };
+    } catch (storageError) {
+      console.error("Failed to download or decompress uploaded PDF payload", storageError);
+      return withCors(NextResponse.json({ error: "Failed to read uploaded HTML payload" }, { status: 500 }), requestOrigin);
+    }
+
+    offloadedFile = {
+      delete: async () => {
+        try {
+          await file.delete({ ignoreNotFound: true });
+        } catch (cleanupError) {
+          console.warn("Failed to delete temporary PDF payload", cleanupError, { storagePath: body.storagePath });
+        }
+      },
+    };
+  }
+
   try {
-    const { buffer, filename: safeFilename } = await convertWithPdfShift({
-      ...body,
-      filename,
-    });
+    const { buffer, filename: safeFilename } = await convertWithPdfShift(convertPayload);
 
     await docRef.update({
       pdf: {
@@ -98,6 +143,10 @@ export const POST = async (request: NextRequest, ctx: { params: Promise<{ slug: 
 
     console.error("PDF generation failed", error);
     return withCors(NextResponse.json({ error: message }, { status }), requestOrigin);
+  } finally {
+    if (offloadedFile) {
+      await offloadedFile.delete();
+    }
   }
 };
 
