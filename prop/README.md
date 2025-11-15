@@ -7,7 +7,16 @@ Add the following variables to `.env.local` so the UCtel portal handshake works 
 ```bash
 PORTAL_SIGNING_SECRET=matching_secret_from_portal
 NEXT_PUBLIC_PORTAL_URL=https://portal.yourdomain.co.uk
+NEXT_PUBLIC_PORTAL_SESSION_COOKIE=uctel_portal_session # optional, defaults to the UCtel portal cookie name
 ```
+
+`NEXT_PUBLIC_PORTAL_SESSION_COOKIE` only needs to be set if your portal uses a non-default cookie name. The proposal app checks this cookie (in addition to its own `uctel_proposal_session`) so that anyone already signed into the portal automatically bypasses the email gate without re-authenticating.
+
+## Viewer activity counters
+
+- The proposal admin table shows total **Opens** and **Downloads** per proposal based on the customer email gate and PDF export.
+- Selecting a proposal reveals a **Viewer activity** card with a "Clear counts" button that resets both totals and purges the underlying activity log (`/api/proposals/[slug]/events`).
+- Clearing counts requires an authenticated UCtel portal session and cannot be undone.
 
 ## Getting Started
 

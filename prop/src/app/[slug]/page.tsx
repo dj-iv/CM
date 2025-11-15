@@ -1,7 +1,8 @@
 import pako from "pako";
-import { FieldValue } from "firebase-admin/firestore";
+import { cookies } from "next/headers";
 import ProposalClient from "./ProposalClient";
 import { getAdminFirestore } from "@/lib/firebaseAdmin";
+import { decodeSessionValue, getSessionCookieName } from "@/lib/sessionCookie";
 import type { AntennaPlacementSnapshot } from "@/types/antennaPlacement";
 
 export interface DecodedProposal {
@@ -92,13 +93,6 @@ async function loadProposalFromFirestore(slug: string): Promise<ProposalLoadResu
     }
 
     const data = snapshot.data() ?? {};
-    try {
-      await docRef.update({
-        viewCount: FieldValue.increment(1),
-      });
-    } catch (err) {
-      console.error(`Failed to increment view count for slug ${slug}`, err);
-    }
     const encodedState = typeof data.encodedState === "string" ? data.encodedState : undefined;
     const storedProposalRaw = data.proposal as unknown;
     const storedProposal = hasLikelyProposalShape(storedProposalRaw) ? (storedProposalRaw as DecodedProposal) : null;
@@ -161,6 +155,15 @@ export default async function ProposalPage(props: ProposalPageProps) {
     }
   }
 
+  const cookieStore = await cookies();
+  const sessionCookieName = getSessionCookieName();
+  const encodedSession = cookieStore.get(sessionCookieName)?.value;
+  const fallbackSessionCookieName =
+    process.env.NEXT_PUBLIC_PORTAL_SESSION_COOKIE || process.env.PORTAL_SESSION_COOKIE || "uctel_portal_session";
+  const fallbackSession = encodedSession ? null : cookieStore.get(fallbackSessionCookieName)?.value;
+  const sessionPayload = decodeSessionValue(encodedSession ?? fallbackSession);
+  const isInternalViewer = Boolean(sessionPayload?.uid);
+
   return (
     <ProposalClient
       slug={resolvedParams.slug}
@@ -168,6 +171,7 @@ export default async function ProposalPage(props: ProposalPageProps) {
       introduction={result.introduction}
       error={result.error}
       antennaPlacement={result.antennaPlacement}
+      isInternalViewer={isInternalViewer}
     />
   );
 }

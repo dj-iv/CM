@@ -2,7 +2,7 @@
 
 import { onIdTokenChanged, signInWithCustomToken, signOut } from "firebase/auth";
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getFirebaseAuth } from "@/lib/firebaseClient";
 import { ALLOWED_EMAIL_DOMAINS, isEmailAllowed } from "@/lib/accessControl";
 import { INTRODUCTION_MAX_LENGTH } from "@/lib/proposalCopy";
@@ -37,6 +37,13 @@ type ProposalListItem = {
   createdBy?: { firstName?: string | null; displayName: string | null; email: string | null } | null;
   introduction?: string | null;
   antennaPlacement?: AntennaPlacementSnapshot | null;
+};
+
+type ProposalEvent = {
+  id: string;
+  type: "open" | "download";
+  email: string | null;
+  createdAt: string | null;
 };
 
 type Toast = {
@@ -199,6 +206,23 @@ const readErrorMessage = async (response: Response): Promise<string> => {
   return `${response.status} ${response.statusText}`;
 };
 
+const formatEventDateTime = (iso: string | null): string => {
+  if (!iso) {
+    return "Unknown time";
+  }
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return "Unknown time";
+  }
+  return date.toLocaleString("en-GB", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
 export default function Home() {
   const [authReady, setAuthReady] = useState(false);
   const [authToken, setAuthToken] = useState<string | null>(null);
@@ -233,6 +257,12 @@ export default function Home() {
   const [placementSaving, setPlacementSaving] = useState(false);
   const [placementError, setPlacementError] = useState<string | null>(null);
   const [placementDirty, setPlacementDirty] = useState(false);
+
+  const [hoverEvents, setHoverEvents] = useState<ProposalEvent[] | null>(null);
+  const [hoverEventsLoading, setHoverEventsLoading] = useState(false);
+  const [hoverEventsError, setHoverEventsError] = useState<string | null>(null);
+  const [hoverTarget, setHoverTarget] = useState<{ slug: string; type: "open" | "download" } | null>(null);
+  const [activityResetting, setActivityResetting] = useState(false);
 
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -1181,6 +1211,82 @@ export default function Home() {
     ? projectList.find((project) => project.id === selectedProjectId) ?? null
     : null;
   const selectedFloorsCount = selectedFloorIds.size;
+  const handleHoverEvents = useCallback(
+    async (slug: string, type: "open" | "download") => {
+      setHoverTarget({ slug, type });
+      setHoverEvents(null);
+      setHoverEventsError(null);
+      setHoverEventsLoading(true);
+      try {
+        const params = new URLSearchParams({ type, limit: "20" });
+        const response = await fetch(`/api/proposals/${encodeURIComponent(slug)}/events?${params.toString()}`, {
+          method: "GET",
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          const message = await readErrorMessage(response);
+          throw new Error(message);
+        }
+        const data = await response.json();
+        const items: ProposalEvent[] = Array.isArray(data?.items) ? data.items : [];
+        setHoverEvents(items);
+      } catch (error) {
+        console.error("Failed to load proposal events", error);
+        setHoverEventsError((error as Error).message || "Unable to load events");
+        setHoverEvents(null);
+      } finally {
+        setHoverEventsLoading(false);
+      }
+    },
+    [],
+  );
+
+  const handleResetActivity = useCallback(async () => {
+    if (!authToken || !detailSlug || activityResetting) {
+      return;
+    }
+
+    const confirmed = typeof window === "undefined"
+      ? true
+      : window.confirm(
+          "Clear all recorded opens and downloads for this proposal? This also removes the recent activity list.",
+        );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setActivityResetting(true);
+    try {
+      const response = await fetch(`/api/proposals/${detailSlug}/events`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorMessage = await readErrorMessage(response);
+        throw new Error(errorMessage);
+      }
+
+      setProposals((current) => current.map((proposal) => (
+        proposal.slug === detailSlug
+          ? { ...proposal, viewCount: 0, downloadCount: 0 }
+          : proposal
+      )));
+      setHoverTarget((current) => (current && current.slug === detailSlug ? null : current));
+      setHoverEvents(null);
+      setHoverEventsError(null);
+
+      pushToast({ type: "success", message: "Opens and downloads cleared" });
+    } catch (error) {
+      console.error("Failed to reset viewer activity", error);
+      pushToast({ type: "error", message: (error as Error).message || "Unable to clear counts" });
+    } finally {
+      setActivityResetting(false);
+    }
+  }, [activityResetting, authToken, detailSlug, pushToast]);
   const renderAuthGate = () => {
     if (!authReady) {
       return (
@@ -1375,26 +1481,26 @@ export default function Home() {
                   const isArchived = Boolean(proposal.isArchived);
                   const isActive = detailSlug === proposal.slug;
                   return (
-                    <tr
-                      key={proposal.slug}
-                      className={`uctel-table-row cursor-pointer bg-white ${isArchived ? "opacity-70" : ""}`}
-                      data-selected={isSelected ? "true" : "false"}
-                      data-active={isActive ? "true" : "false"}
-                      onClick={() => {
-                        setDetailSlug((current) => (current === proposal.slug ? current : proposal.slug));
-                        setDetailDirty(false);
-                      }}
-                    >
-                      <td className="px-3 py-2">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={(event) => {
-                            event.stopPropagation();
-                            handleToggleOne(proposal.slug);
-                          }}
-                        />
-                      </td>
+                    <Fragment key={proposal.slug}>
+                      <tr
+                        className={`uctel-table-row cursor-pointer bg-white ${isArchived ? "opacity-70" : ""}`}
+                        data-selected={isSelected ? "true" : "false"}
+                        data-active={isActive ? "true" : "false"}
+                        onClick={() => {
+                          setDetailSlug((current) => (current === proposal.slug ? current : proposal.slug));
+                          setDetailDirty(false);
+                        }}
+                      >
+                        <td className="px-3 py-2">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(event) => {
+                              event.stopPropagation();
+                              handleToggleOne(proposal.slug);
+                            }}
+                          />
+                        </td>
                       <td className="px-3 py-3">
                         <div className="flex flex-col">
                           <span className="font-medium text-[var(--foreground)]">{proposal.metadata?.customerName ?? "—"}</span>
@@ -1410,7 +1516,7 @@ export default function Home() {
                           {isArchived && <span className="mt-1 inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium uppercase uctel-badge-accent">Archived</span>}
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-[var(--muted-foreground)]">{proposal.metadata?.solutionType ?? "—"}</td>
+                        <td className="px-3 py-3 text-[var(--muted-foreground)]">{proposal.metadata?.solutionType ?? "—"}</td>
                       <td className="px-3 py-3 text-[var(--muted-foreground)]">{typeof proposal.metadata?.numberOfNetworks === "number" ? proposal.metadata.numberOfNetworks : "—"}</td>
                       <td className="px-3 py-3 text-[var(--muted-foreground)]">{formatCurrency(proposal.metadata?.totalPrice ?? null)}</td>
                       <td className="px-3 py-3 text-[var(--muted-foreground)]">
@@ -1425,37 +1531,109 @@ export default function Home() {
                           return preferred || "—";
                         })()}
                       </td>
-                      <td className="px-3 py-3 text-[var(--muted-foreground)]">{formatExpiry(proposal.expiresAt)}</td>
-                      <td className="px-3 py-3 text-[var(--muted-foreground)]">{formatDateTime(proposal.updatedAt)}</td>
-                      <td className="px-3 py-3 text-center text-[var(--muted-foreground)]">{proposal.viewCount ?? 0}</td>
-                      <td className="px-3 py-3 text-center text-[var(--muted-foreground)]">{proposal.downloadCount ?? 0}</td>
-                      <td className="px-3 py-3 text-center">
-                        <button
-                          type="button"
-                          className="inline-flex items-center justify-center rounded-full border border-[#cad7df] bg-white p-2 text-[var(--muted-foreground)] transition hover:bg-[#f3fbfd]"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void copyProposalLink(proposal.slug);
-                          }}
-                          aria-label="Copy proposal link"
-                        >
-                          <svg
-                            aria-hidden="true"
-                            viewBox="0 0 24 24"
-                            className="h-4 w-4"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth={1.5}
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M9 7.5V6a2.25 2.25 0 0 1 2.25-2.25h5.25A2.25 2.25 0 0 1 18.75 6v9A2.25 2.25 0 0 1 16.5 17.25H15" />
-                            <path d="M6.75 7.5h5.25A2.25 2.25 0 0 1 14.25 9.75v7.5A2.25 2.25 0 0 1 12 19.5H6.75A2.25 2.25 0 0 1 4.5 17.25V9.75A2.25 2.25 0 0 1 6.75 7.5z" />
-                          </svg>
-                          <span className="sr-only">Copy proposal link</span>
-                        </button>
+                        <td className="px-3 py-3 text-[var(--muted-foreground)]">{formatExpiry(proposal.expiresAt)}</td>
+                        <td className="px-3 py-3 text-[var(--muted-foreground)]">{formatDateTime(proposal.updatedAt)}</td>
+                        <td
+                        className="px-3 py-3 text-center text-[var(--muted-foreground)]"
+                        onMouseEnter={(event) => {
+                          event.stopPropagation();
+                          void handleHoverEvents(proposal.slug, "open");
+                        }}
+                        onMouseLeave={(event) => {
+                          event.stopPropagation();
+                          setHoverTarget((current) =>
+                            current && current.slug === proposal.slug && current.type === "open" ? null : current,
+                          );
+                          setHoverEvents(null);
+                          setHoverEventsError(null);
+                        }}
+                      >
+                        {proposal.viewCount ?? 0}
                       </td>
-                    </tr>
+                        <td
+                        className="px-3 py-3 text-center text-[var(--muted-foreground)]"
+                        onMouseEnter={(event) => {
+                          event.stopPropagation();
+                          void handleHoverEvents(proposal.slug, "download");
+                        }}
+                        onMouseLeave={(event) => {
+                          event.stopPropagation();
+                          setHoverTarget((current) =>
+                            current && current.slug === proposal.slug && current.type === "download" ? null : current,
+                          );
+                          setHoverEvents(null);
+                          setHoverEventsError(null);
+                        }}
+                      >
+                        {proposal.downloadCount ?? 0}
+                      </td>
+                        <td className="px-3 py-3 text-center">
+                          <button
+                            type="button"
+                            className="inline-flex items-center justify-center rounded-full border border-[#cad7df] bg-white p-2 text-[var(--muted-foreground)] transition hover:bg-[#f3fbfd]"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void copyProposalLink(proposal.slug);
+                            }}
+                            aria-label="Copy proposal link"
+                          >
+                            <svg
+                              aria-hidden="true"
+                              viewBox="0 0 24 24"
+                              className="h-4 w-4"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth={1.5}
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M9 7.5V6a2.25 2.25 0 0 1 2.25-2.25h5.25A2.25 2.25 0 0 1 18.75 6v9A2.25 2.25 0 0 1 16.5 17.25H15" />
+                              <path d="M6.75 7.5h5.25A2.25 2.25 0 0 1 14.25 9.75v7.5A2.25 2.25 0 0 1 12 19.5H6.75A2.25 2.25 0 0 1 4.5 17.25V9.75A2.25 2.25 0 0 1 6.75 7.5z" />
+                            </svg>
+                            <span className="sr-only">Copy proposal link</span>
+                          </button>
+                        </td>
+                      </tr>
+
+                      {hoverTarget && hoverTarget.slug === proposal.slug && (
+                        <tr className="bg-[var(--table-header-bg)]/40">
+                          <td colSpan={11} className="px-3 py-2">
+                            <div className="rounded-lg border border-[var(--border-subtle)] bg-white p-3 text-xs text-[var(--muted-foreground)] shadow-sm">
+                              <div className="mb-1 flex items-center justify-between gap-2">
+                                <span className="font-semibold text-[var(--uctel-navy)]">
+                                  {hoverTarget.type === "open" ? "Recent opens" : "Recent downloads"}
+                                </span>
+                                {hoverEventsLoading && (
+                                  <span className="text-[10px] uppercase tracking-wide">Loading…</span>
+                                )}
+                              </div>
+                              {hoverEventsError && (
+                                <div className="text-[#d8613b]">{hoverEventsError}</div>
+                              )}
+                              {!hoverEventsError && !hoverEventsLoading && (!hoverEvents || hoverEvents.length === 0) && (
+                                <div>No recent activity recorded.</div>
+                              )}
+                              {!hoverEventsError && hoverEvents && hoverEvents.length > 0 && (
+                                <ul className="space-y-1">
+                                  {hoverEvents.slice(0, 10).map((event) => (
+                                    <li key={event.id} className="flex items-baseline justify-between gap-4">
+                                      <div className="flex flex-col">
+                                        <span className="font-medium text-[var(--foreground)]">
+                                          {event.email ?? "Unknown email"}
+                                        </span>
+                                      </div>
+                                      <span className="whitespace-nowrap text-[11px] text-[var(--muted-foreground)]">
+                                        {formatEventDateTime(event.createdAt)}
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -1476,6 +1654,39 @@ export default function Home() {
             <span>{proposals.length} proposals</span>
             <span>{visibleSelectionCount} selected</span>
           </div>
+        </section>
+
+        <section className="rounded-xl uctel-surface p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-base font-semibold uctel-section-title">Viewer activity</h2>
+              <p className="text-sm text-[var(--muted-foreground)]">Live totals from the public proposal link. Resetting also removes the underlying activity log.</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleResetActivity}
+              disabled={!activeProposal || activityResetting}
+              className="rounded-lg border border-[#f3c4aa] px-4 py-2 text-sm font-medium text-[#d8613b] transition hover:bg-[#fef0e6] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {activityResetting ? "Clearing…" : "Clear counts"}
+            </button>
+          </div>
+          {activeProposal ? (
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-lg border border-[#cad7df] bg-white/70 px-4 py-3">
+                <div className="text-[11px] uppercase tracking-wide text-[var(--muted-foreground)]">Total opens</div>
+                <div className="text-3xl font-semibold text-[var(--uctel-navy)]">{activeProposal.viewCount ?? 0}</div>
+                <p className="text-xs text-[var(--muted-foreground)]">Incremented whenever a viewer submits their email.</p>
+              </div>
+              <div className="rounded-lg border border-[#cad7df] bg-white/70 px-4 py-3">
+                <div className="text-[11px] uppercase tracking-wide text-[var(--muted-foreground)]">Total downloads</div>
+                <div className="text-3xl font-semibold text-[var(--uctel-navy)]">{activeProposal.downloadCount ?? 0}</div>
+                <p className="text-xs text-[var(--muted-foreground)]">Captured when a customer downloads the PDF.</p>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-[var(--muted-foreground)]">Select a proposal to review and reset its viewer activity.</p>
+          )}
         </section>
 
         <section className="grid gap-5 lg:grid-cols-[2fr_1fr]">

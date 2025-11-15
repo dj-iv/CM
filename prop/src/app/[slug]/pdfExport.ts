@@ -11,9 +11,11 @@ interface PdfDownloadContext {
   note: HTMLElement | null;
   computeFilename: () => string;
   slug: string;
+  getViewerEmail?: () => string | null;
+  isInternalViewer?: boolean;
 }
 
-export const createPdfDownloadHandler = ({ button, note, computeFilename, slug }: PdfDownloadContext) => {
+export const createPdfDownloadHandler = ({ button, note, computeFilename, slug, getViewerEmail, isInternalViewer }: PdfDownloadContext) => {
   const originalButtonContent = button.innerHTML;
   const defaultNoteText = note?.textContent ?? "";
 
@@ -109,6 +111,60 @@ export const createPdfDownloadHandler = ({ button, note, computeFilename, slug }
     }
 
     return body;
+  };
+
+  const hasMeaningfulContent = (body: HTMLElement | null) => {
+    if (!body) {
+      return false;
+    }
+
+    return Array.from(body.children).some((child) => {
+      if (!(child instanceof HTMLElement)) {
+        return Boolean(child.textContent?.trim());
+      }
+
+      if (child.classList.contains("force-page-break") || child.classList.contains("page-break")) {
+        return false;
+      }
+
+      const textContent = child.textContent?.replace(/\s+/g, "");
+      if (textContent) {
+        return true;
+      }
+
+      return Boolean(
+        child.querySelector(
+          "img, svg, table, video, canvas, figure, ul, ol, li, p, h1, h2, h3, h4, h5, h6, .component-layout, .antenna-floor",
+        ),
+      );
+    });
+  };
+
+  const removeEmptyPages = (doc: Document) => {
+    const pages = Array.from(doc.querySelectorAll<HTMLElement>(".page"));
+
+    let removed = 0;
+    pages.forEach((page) => {
+      if (page.classList.contains("cover-page")) {
+        return;
+      }
+
+      const header = page.querySelector<HTMLElement>(".header");
+      const footer = page.querySelector<HTMLElement>(".footer");
+      const body = ensurePageBody(doc, page, header, footer);
+      if (!body) {
+        return;
+      }
+
+      if (hasMeaningfulContent(body)) {
+        return;
+      }
+
+      page.parentNode?.removeChild(page);
+      removed += 1;
+    });
+
+    return removed;
   };
 
   const applyInsetsToBody = (body: HTMLElement | null, topInset: number, bottomInset: number) => {
@@ -962,6 +1018,8 @@ export const createPdfDownloadHandler = ({ button, note, computeFilename, slug }
         downloadContainer.remove();
       }
 
+      clonedRoot.querySelectorAll(".proposal-viewer-banner").forEach((banner) => banner.remove());
+
       clonedRoot.querySelectorAll('iframe[src*="youtube.com"], iframe[src*="youtu.be"]').forEach((embed) => {
         embed.remove();
       });
@@ -1105,6 +1163,11 @@ export const createPdfDownloadHandler = ({ button, note, computeFilename, slug }
       await balancePagination();
       await inlineImages(iframeDoc);
 
+      const removedPages = removeEmptyPages(iframeDoc);
+      if (removedPages) {
+        refreshPageMetadata(iframeDoc);
+      }
+
       const serializedHtml = "<!DOCTYPE html>" + iframeDoc.documentElement.outerHTML;
       return serializedHtml;
     } finally {
@@ -1184,6 +1247,24 @@ export const createPdfDownloadHandler = ({ button, note, computeFilename, slug }
       URL.revokeObjectURL(url);
 
       setLoadingState(false, "PDF downloaded successfully.");
+
+      // Attempt to record a customer download event using the active viewer email (if allowed).
+      try {
+        if (!isInternalViewer) {
+          const viewerEmail = getViewerEmail?.();
+          const fallbackEmail = typeof window !== "undefined" ? window.localStorage.getItem("uctel_proposal_email") : null;
+          const normalizedEmail = (viewerEmail ?? fallbackEmail)?.trim();
+          if (normalizedEmail) {
+            await fetch(`/api/proposals/${encodeURIComponent(slug)}/events`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ type: "download", email: normalizedEmail }),
+            });
+          }
+        }
+      } catch (eventError) {
+        console.warn("Failed to log proposal download event", eventError);
+      }
     } catch (error) {
       console.error("PDF download failed", error);
       setLoadingState(false, "Failed to generate PDF. Please try again or contact support.");

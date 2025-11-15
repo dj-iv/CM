@@ -1,10 +1,9 @@
 "use client";
 
-/* eslint-disable @next/next/no-page-custom-font */
 /* eslint-disable @next/next/no-img-element */
 
 import Head from "next/head";
-import { CSSProperties, useEffect, useMemo, useState } from "react";
+import { CSSProperties, ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPdfDownloadHandler } from "./pdfExport";
 import type { DecodedProposal } from "./page";
 import "./proposal.css";
@@ -25,6 +24,7 @@ interface ProposalClientProps {
   introduction: string | null;
   error: string | null;
   antennaPlacement: AntennaPlacementSnapshot | null;
+  isInternalViewer: boolean;
 }
 
 interface SolutionContent {
@@ -143,6 +143,8 @@ const solutionSpecificData: Record<string, SolutionContent> = {
 };
 
 const SUPPORT_TIERS: SupportTier[] = ["bronze", "silver", "gold"];
+const EMAIL_STORAGE_KEY = "uctel_proposal_email";
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
 const normalizeKey = (value: string): string =>
   value.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_");
@@ -631,10 +633,28 @@ const updateProposalOutline = (container: HTMLElement, tocList: HTMLElement): vo
   });
 };
 
-export default function ProposalClient({ slug, proposal, introduction, error, antennaPlacement }: ProposalClientProps) {
+export default function ProposalClient({ slug, proposal, introduction, error, antennaPlacement, isInternalViewer }: ProposalClientProps) {
   const [selectedTier, setSelectedTier] = useState<SupportTier | null>(null);
+  const [viewerEmail, setViewerEmail] = useState<string | null>(null);
+  const [emailInput, setEmailInput] = useState("");
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [isSubmittingEmail, setIsSubmittingEmail] = useState(false);
+  const hasEmailAccess = isInternalViewer || Boolean(viewerEmail);
+  const shouldRequestEmail = !isInternalViewer;
+  const openEventLogRef = useRef<Set<string>>(new Set());
   const supportRowClass = (tier: SupportTier) =>
     selectedTier === tier ? "support-tier-option selected" : "support-tier-option";
+
+  const getField = (key: string, fallback = ""): string => {
+    if (!proposal) {
+      return fallback;
+    }
+    return toDisplayString(proposal[key], fallback);
+  };
+
+  const hasProposal = Boolean(proposal);
+  const shouldShowEmailGate = shouldRequestEmail && !hasEmailAccess && hasProposal && !error;
+
 
   const placementFloors = useMemo<AntennaPlacementSnapshot["floors"]>(() => {
     if (!antennaPlacement?.floors || !antennaPlacement.floors.length) {
@@ -697,6 +717,120 @@ export default function ProposalClient({ slug, proposal, introduction, error, an
   const placementAreaLabel = aggregatePlacementSummary?.totalAreaLabel ?? "—";
   const hasPlacementNotes = Boolean(placementNotes);
 
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (isInternalViewer) {
+      try {
+        window.localStorage.removeItem(EMAIL_STORAGE_KEY);
+      } catch (storageError) {
+        console.warn("Unable to clear stored proposal email", storageError);
+      }
+      setViewerEmail(null);
+      setEmailInput("");
+      setEmailError(null);
+      return;
+    }
+
+    try {
+      const storedEmail = window.localStorage.getItem(EMAIL_STORAGE_KEY);
+      if (storedEmail) {
+        setViewerEmail(storedEmail);
+        setEmailInput(storedEmail);
+      }
+    } catch (storageError) {
+      console.warn("Unable to read stored proposal email", storageError);
+    }
+  }, [isInternalViewer]);
+
+  useEffect(() => {
+    if (isInternalViewer) {
+      return;
+    }
+    const email = viewerEmail?.trim();
+    if (!email) {
+      return;
+    }
+
+    const key = `${slug}:${email}`;
+    if (openEventLogRef.current.has(key)) {
+      return;
+    }
+
+    openEventLogRef.current.add(key);
+    let isCancelled = false;
+
+    const logOpenEvent = async () => {
+      try {
+        await fetch(`/api/proposals/${encodeURIComponent(slug)}/events`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "open", email }),
+        });
+      } catch (eventError) {
+        console.warn("Failed to log proposal open event", eventError);
+        if (!isCancelled) {
+          openEventLogRef.current.delete(key);
+        }
+      }
+    };
+
+    void logOpenEvent();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [viewerEmail, slug, isInternalViewer]);
+
+  const handleEmailChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    setEmailInput(event.target.value);
+    if (emailError) {
+      setEmailError(null);
+    }
+  }, [emailError]);
+
+  const handleEmailSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (isInternalViewer) {
+      return;
+    }
+    const normalized = emailInput.trim().toLowerCase();
+    if (!EMAIL_REGEX.test(normalized)) {
+      setEmailError("Enter a valid email address to continue.");
+      return;
+    }
+
+    setIsSubmittingEmail(true);
+    try {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(EMAIL_STORAGE_KEY, normalized);
+      }
+      setViewerEmail(normalized);
+      setEmailInput(normalized);
+      setEmailError(null);
+    } catch (storageError) {
+      console.error("Failed to store viewer email", storageError);
+      setEmailError("We couldn't save your email locally. Please allow browser storage and try again.");
+    } finally {
+      setIsSubmittingEmail(false);
+    }
+  }, [emailInput, isInternalViewer]);
+
+  const handleResetEmail = useCallback(() => {
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.removeItem(EMAIL_STORAGE_KEY);
+      } catch (storageError) {
+        console.warn("Unable to remove stored proposal email", storageError);
+      }
+    }
+    setViewerEmail(null);
+    setEmailInput("");
+    setEmailError(null);
+  }, []);
+
   useEffect(() => {
     document.body.classList.add("proposal-body");
     return () => {
@@ -721,6 +855,28 @@ export default function ProposalClient({ slug, proposal, introduction, error, an
     }
   }, [proposal, computedTitle]);
 
+  const accountLabel = getField("Account", getField("CustomerName", ""));
+
+  const watermarkText = useMemo(() => {
+    if (!proposal || shouldShowEmailGate) {
+      return "";
+    }
+
+    const parts: string[] = [];
+    const account = accountLabel?.trim();
+    if (account) {
+      parts.push(`Prepared for ${account}`);
+    }
+
+    const viewerLabel = viewerEmail?.trim() || (isInternalViewer ? "Internal UCtel view" : "");
+    if (viewerLabel) {
+      parts.push(viewerLabel);
+    }
+
+    parts.push(new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase());
+    return parts.join(" • ");
+  }, [proposal, shouldShowEmailGate, accountLabel, viewerEmail, isInternalViewer]);
+
   const derivedSolutionKey = useMemo(() => deriveSolutionKey(proposal), [proposal]);
   const solutionContent = derivedSolutionKey ? solutionSpecificData[derivedSolutionKey] : undefined;
   const architectureHtml = solutionContent?.architecture ?? "";
@@ -738,7 +894,7 @@ export default function ProposalClient({ slug, proposal, introduction, error, an
   }, [proposal]);
 
   useEffect(() => {
-    if (!proposal) {
+    if (!proposal || shouldShowEmailGate) {
       return;
     }
 
@@ -768,10 +924,10 @@ export default function ProposalClient({ slug, proposal, introduction, error, an
         element.removeEventListener("click", handler);
       });
     };
-  }, [proposal]);
+  }, [proposal, shouldShowEmailGate]);
 
   useEffect(() => {
-    if (!proposal) {
+    if (!proposal || shouldShowEmailGate) {
       return;
     }
 
@@ -827,10 +983,10 @@ export default function ProposalClient({ slug, proposal, introduction, error, an
     cells[2].textContent = formattedTier;
     cells[3].textContent = formattedTier;
     grandTotalElem.textContent = formatCurrency(newGrandTotal);
-  }, [proposal, selectedTier]);
+  }, [proposal, selectedTier, shouldShowEmailGate]);
 
   useEffect(() => {
-    if (!proposal) {
+    if (!proposal || shouldShowEmailGate) {
       return;
     }
 
@@ -846,10 +1002,10 @@ export default function ProposalClient({ slug, proposal, introduction, error, an
     return () => {
       window.cancelAnimationFrame(frame);
     };
-  }, [proposal, architectureHtml, componentsHtml, antennaPlacement]);
+  }, [proposal, architectureHtml, componentsHtml, antennaPlacement, shouldShowEmailGate]);
 
   useEffect(() => {
-    if (!proposal) {
+    if (!proposal || shouldShowEmailGate) {
       return;
     }
 
@@ -864,6 +1020,8 @@ export default function ProposalClient({ slug, proposal, introduction, error, an
       note: downloadNote,
       computeFilename: () => computedTitle,
       slug,
+      getViewerEmail: () => (isInternalViewer ? null : viewerEmail),
+      isInternalViewer,
     });
 
     const handleClick = () => {
@@ -874,408 +1032,430 @@ export default function ProposalClient({ slug, proposal, introduction, error, an
     return () => {
       downloadBtn.removeEventListener("click", handleClick);
     };
-  }, [proposal, computedTitle, slug]);
+  }, [proposal, computedTitle, slug, viewerEmail, isInternalViewer, shouldShowEmailGate]);
 
-  const getField = (key: string, fallback = ""): string => {
-    if (!proposal) {
-      return fallback;
-    }
-    return toDisplayString(proposal[key], fallback);
-  };
-
-  const hasProposal = Boolean(proposal);
   const introductionHtml = useMemo(() => {
     const stored = typeof introduction === "string" ? introduction.trim() : "";
     const base = stored || buildDefaultIntroduction(proposal);
     return base.replace(/\n/g, "<br />");
   }, [introduction, proposal]);
 
-  return (
-    <>
-      <Head>
-        <title>{computedTitle}</title>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Montserrat:wght@600;700&display=swap"
-          rel="stylesheet"
-        />
-        <link
-          rel="stylesheet"
-          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
-          integrity="sha512-Yi7WUVw7Ck4S2tUGV3Q824ZjWvJ1i8xVqrodtk2fe8HPD+b1GaajLqU+S73UJeBB+vSiHbAf8KDGy6dCyYem0A=="
-          crossOrigin="anonymous"
-          referrerPolicy="no-referrer"
-        />
-      </Head>
+  const bodyContent = (() => {
+    if (!hasProposal || error) {
+      return (
+      <div className="mx-auto w-full max-w-3xl px-6 py-16 text-center">
+        <h1 className="text-3xl font-semibold text-slate-800">Interactive Proposal</h1>
+        <p className="mt-2 text-sm text-slate-600">Slug: {slug}</p>
+        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-8 shadow">
+          {error ? (
+            <>
+              <p className="text-lg font-medium text-red-600">{error}</p>
+              <p className="mt-2 text-sm text-slate-600">
+                Ensure the proposal was saved from the Cost Model using the “Save Proposal” action.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-lg font-medium text-slate-700">Proposal data not found.</p>
+              <p className="mt-2 text-sm text-slate-600">
+                Save a new proposal from the Cost Model using the “Save Proposal” action.
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+      );
+    }
 
-      <div className="proposal-root">
-        {!hasProposal || error ? (
-          <div className="mx-auto w-full max-w-3xl px-6 py-16 text-center">
-            <h1 className="text-3xl font-semibold text-slate-800">Interactive Proposal</h1>
-            <p className="mt-2 text-sm text-slate-600">Slug: {slug}</p>
-            <div className="mt-6 rounded-lg border border-slate-200 bg-white p-8 shadow">
-              {error ? (
-                <>
-                  <p className="text-lg font-medium text-red-600">{error}</p>
-                  <p className="mt-2 text-sm text-slate-600">
-                    Ensure the proposal was saved from the Cost Model using the “Save Proposal” action.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-lg font-medium text-slate-700">Proposal data not found.</p>
-                  <p className="mt-2 text-sm text-slate-600">
-                    Save a new proposal from the Cost Model using the “Save Proposal” action.
-                  </p>
-                </>
-              )}
+    if (shouldShowEmailGate) {
+      return (
+      <div className="proposal-gate">
+        <div className="proposal-gate-card">
+          <img className="proposal-gate-logo" src="/images/uctel_logo.png" alt="UCtel Logo" />
+          <h1>View your UCtel proposal</h1>
+          <p>
+            Enter your work email address so we can let your UCtel account team know you’ve accessed this interactive proposal.
+          </p>
+          <form className="proposal-gate-form" onSubmit={handleEmailSubmit}>
+            <label htmlFor="proposal-email">Work email address</label>
+            <input
+              id="proposal-email"
+              name="proposal-email"
+              type="email"
+              autoComplete="email"
+              value={emailInput}
+              onChange={handleEmailChange}
+              disabled={isSubmittingEmail}
+              placeholder="you@company.com"
+            />
+            {emailError ? (
+              <p className="proposal-gate-error">{emailError}</p>
+            ) : (
+              <p className="proposal-gate-helper">We’ll never share this externally—it’s only used for account visibility.</p>
+            )}
+            <button type="submit" disabled={isSubmittingEmail}>
+              {isSubmittingEmail ? "Checking access…" : "Continue to proposal"}
+            </button>
+          </form>
+          <p className="proposal-gate-meta">
+            Need help? Email <a href="mailto:sales@uctel.co.uk">sales@uctel.co.uk</a>
+          </p>
+        </div>
+      </div>
+      );
+    }
+
+    return (
+      <>
+        {!isInternalViewer && viewerEmail ? (
+          <div className="proposal-viewer-banner">
+            <span>Viewing as <strong>{viewerEmail}</strong></span>
+            <button type="button" onClick={handleResetEmail}>Change email</button>
+          </div>
+        ) : null}
+        <div id="proposal-container">
+          <div className="page cover-page">
+            <img className="cover-logo" src="/images/uctel_logo.png" alt="UCtel Logo" />
+            <div className="cover-title">
+              Budgetary CEL-FI {getField("Solution", "Solution")}
+              <span className="cover-title-intro">proposal for</span>
+              <span data-proposal-account>{accountLabel}</span>
             </div>
           </div>
-        ) : (
-          <div id="proposal-container">
-            <div className="page cover-page">
-              <img className="cover-logo" src="/images/uctel_logo.png" alt="UCtel Logo" />
-              <div className="cover-title">
-                Budgetary CEL-FI {getField("Solution", "Solution")}
-                <span className="cover-title-intro">proposal for</span>
-                {getField("Account", getField("CustomerName", ""))}
-              </div>
-            </div>
 
-            <div className="page toc-page">
-              <div className="header">
-                <img src="/images/uctel_logo.png" alt="UCtel Logo" />
-              </div>
-              <h2 className="no-number">CONTENTS</h2>
-              <ul className="toc" id="toc-list"></ul>
-              <div className="footer">
-                <div className="footer-info">
-                  <img src="/images/uctel_logo.png" alt="UCtel Logo" className="footer-logo" />
-                  <div className="footer-text">
-                    <span>CEL-FI {getField("Solution", "Solution")} solution proposal for {getField("Account", "Customer")}</span>
-                    <span>www.uctel.co.uk | sales@uctel.co.uk</span>
-                  </div>
+          <div className="page toc-page">
+            <div className="header">
+              <img src="/images/uctel_logo.png" alt="UCtel Logo" />
+            </div>
+            <h2 className="no-number">CONTENTS</h2>
+            <ul className="toc" id="toc-list"></ul>
+            <div className="footer">
+              <div className="footer-info">
+                <img src="/images/uctel_logo.png" alt="UCtel Logo" className="footer-logo" />
+                <div className="footer-text">
+                  <span>CEL-FI {getField("Solution", "Solution")} solution proposal for {getField("Account", "Customer")}</span>
+                  <span>www.uctel.co.uk | sales@uctel.co.uk</span>
                 </div>
-                <div className="page-number"></div>
               </div>
+              <div className="page-number"></div>
             </div>
+          </div>
 
-            <div className="page">
+          <div className="page">
+            <div className="header">
+              <img src="/images/uctel_logo.png" alt="UCtel Logo" />
+            </div>
+            <h2>
+              <i className="fa-solid fa-circle-info" /> Introduction
+            </h2>
+            <p dangerouslySetInnerHTML={{ __html: introductionHtml }} />
+            <h3>About UCtel</h3>
+            <p>UCtel specialises in the design, installation and management of in-building mobile signal systems.</p>
+            <h4 className="no-number">Why UCtel:</h4>
+            <ul>
+              <li>We have been installing in building mobile signal systems since 2019 and have deployed over 300 systems in a wide range of buildings including private houses, offices, factories and hospitals</li>
+              <li>We only work with equipment that complies with Ofcom’s UK Interface Requirement 2102</li>
+              <li>We have developed our own survey tools which are tailored to the specific requirements of in-building signal boosters. This allows us to see the important information about the signals that matter to ensure the best result from the installation.</li>
+              <li>We deploy 5G Stand Alone (Up to 4.0GHz) ready DAS solutions so that when 5G SA can be boosted, the DAS elements of the solution do not need to be upgraded.</li>
+              <li>We provide a range of tailored support packages from break/fix maintenance to fully managed systems with onsite engineering support.</li>
+              <li>We use our own experienced UCtel engineering team for surveys, system design and installation, maintaining accountability without relying on subcontractors and ensuring a quality installation.</li>
+              <li>We are confident in our solutions and back them with a money-back guarantee if we do not deliver the agreed coverage outcomes. See pricing section for details.</li>
+            </ul>
+            <h3>Key Contacts</h3>
+            <p>The following team members are your <strong>primary points of contact</strong> for this proposal. We are here to answer any questions you may have.</p>
+            <table id="key-contacts-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Title</th>
+                  <th>Contact Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Ivor Nicholls</td>
+                  <td>Sales Director</td>
+                  <td>ivor.nicholls@uctel.co.uk</td>
+                </tr>
+                <tr>
+                  <td>Ivan Romanov</td>
+                  <td>Technical Director</td>
+                  <td>ivan.romanov@uctel.co.uk</td>
+                </tr>
+              </tbody>
+            </table>
+            <h3 className="confidentiality-heading" style={{ marginTop: "10mm" }}>
+              Confidentiality
+            </h3>
+            <p>
+              This document contains proprietary information and solution designs developed by UCtel. We present it to you <strong>in confidence</strong> and appreciate your discretion in handling the details of our proposal.
+            </p>
+            <div className="footer">
+              <div className="footer-info">
+                <img src="/images/uctel_logo.png" alt="UCtel Logo" className="footer-logo" />
+                <div className="footer-text">
+                  <span>CEL-FI {getField("Solution", "Solution")} solution proposal for {getField("Account", "Customer")}</span>
+                  <span>www.uctel.co.uk | sales@uctel.co.uk</span>
+                </div>
+              </div>
+              <div className="page-number"></div>
+            </div>
+          </div>
+
+          <div className="page">
+            <div className="header">
+              <img src="/images/uctel_logo.png" alt="UCtel Logo" />
+            </div>
+            <h2 className="proposed-solution">
+              <i className="fa-solid fa-sitemap" /> Proposed Solution
+            </h2>
+            <div id="solution-architecture-section" dangerouslySetInnerHTML={{ __html: architectureHtml }} />
+            <div className="footer">
+              <div className="footer-info">
+                <img src="/images/uctel_logo.png" alt="UCtel Logo" className="footer-logo" />
+                <div className="footer-text">
+                  <span>CEL-FI {getField("Solution", "Solution")} solution proposal for {getField("Account", "Customer")}</span>
+                  <span>www.uctel.co.uk | sales@uctel.co.uk</span>
+                </div>
+              </div>
+              <div className="page-number"></div>
+            </div>
+          </div>
+
+          {hasAntennaPlacement && (
+            <div className="page antenna-page">
               <div className="header">
                 <img src="/images/uctel_logo.png" alt="UCtel Logo" />
               </div>
               <h2>
-                <i className="fa-solid fa-circle-info" /> Introduction
+                <i className="fa-solid fa-tower-cell" /> Provisional Antenna Placement
               </h2>
-              <p dangerouslySetInnerHTML={{ __html: introductionHtml }} />
-              <h3>About UCtel</h3>
-              <p>UCtel specialises in the design, installation and management of in-building mobile signal systems.</p>
-              <h4 className="no-number">Why UCtel:</h4>
-              <ul>
-                <li>We have been installing in building mobile signal systems since 2019 and have deployed over 300 systems in a wide range of buildings including private houses, offices, factories and hospitals</li>
-                <li>We only work with equipment that complies with Ofcom’s UK Interface Requirement 2102</li>
-                <li>We have developed our own survey tools which are tailored to the specific requirements of in-building signal boosters. This allows us to see the important information about the signals that matter to ensure the best result from the installation.</li>
-                <li>We deploy 5G Stand Alone (Up to 4.0GHz) ready DAS solutions so that when 5G SA can be boosted, the DAS elements of the solution do not need to be upgraded.</li>
-                <li>We provide a range of tailored support packages from break/fix maintenance to fully managed systems with onsite engineering support.</li>
-                <li>We use our own experienced UCtel engineering team for surveys, system design and installation, maintaining accountability without relying on subcontractors and ensuring a quality installation.</li>
-                <li>We are confident in our solutions and back them with a money-back guarantee if we do not deliver the agreed coverage outcomes. See pricing section for details.</li>
-              </ul>
-              <h3>Key Contacts</h3>
-              <p>The following team members are your <strong>primary points of contact</strong> for this proposal. We are here to answer any questions you may have.</p>
-              <table id="key-contacts-table">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Title</th>
-                    <th>Contact Details</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>Ivor Nicholls</td>
-                    <td>Sales Director</td>
-                    <td>ivor.nicholls@uctel.co.uk</td>
-                  </tr>
-                  <tr>
-                    <td>Ivan Romanov</td>
-                    <td>Technical Director</td>
-                    <td>ivan.romanov@uctel.co.uk</td>
-                  </tr>
-                </tbody>
-              </table>
-              <h3 className="confidentiality-heading" style={{ marginTop: "10mm" }}>
-                Confidentiality
-              </h3>
               <p>
-                This document contains proprietary information and solution designs developed by UCtel. We present it to you <strong>in confidence</strong> and appreciate your discretion in handling the details of our proposal.
+                This snapshot highlights the provisional antenna layout captured for {" "}
+                {antennaPlacement?.projectName ? <strong>{antennaPlacement.projectName}</strong> : "this project"}. It currently covers {formatCount(placementFloorCount)} {" "}
+                {placementFloorCount === 1 ? "floor" : "floors"} with {formatCount(placementAntennaCount)} antennas positioned across the building.
               </p>
-              <div className="footer">
-                <div className="footer-info">
-                  <img src="/images/uctel_logo.png" alt="UCtel Logo" className="footer-logo" />
-                  <div className="footer-text">
-                    <span>CEL-FI {getField("Solution", "Solution")} solution proposal for {getField("Account", "Customer")}</span>
-                    <span>www.uctel.co.uk | sales@uctel.co.uk</span>
-                  </div>
+              <div className="antenna-summary-grid">
+                <div className="antenna-summary-card">
+                  <span className="antenna-summary-label">Source Project</span>
+                  <span className="antenna-summary-value">{antennaPlacement?.projectName ?? "—"}</span>
+                  {placementProjectUpdatedAt ? (
+                    <span className="antenna-summary-sub">Updated {placementProjectUpdatedAt}</span>
+                  ) : null}
                 </div>
-                <div className="page-number"></div>
+                <div className="antenna-summary-card">
+                  <span className="antenna-summary-label">Snapshot Generated</span>
+                  <span className="antenna-summary-value">{placementGeneratedAt ?? "—"}</span>
+                  {placementGeneratedBy ? (
+                    <span className="antenna-summary-sub">by {placementGeneratedBy}</span>
+                  ) : null}
+                </div>
+                <div className="antenna-summary-card">
+                  <span className="antenna-summary-label">Floors Analysed</span>
+                  <span className="antenna-summary-value">{formatCount(placementFloorCount)}</span>
+                  <span className="antenna-summary-sub">
+                    {placementFloorCount === 1 ? "Single floor coverage" : "Multi-floor footprint"}
+                  </span>
+                </div>
+                <div className="antenna-summary-card">
+                  <span className="antenna-summary-label">Antennas</span>
+                  <span className="antenna-summary-value">{formatCount(placementAntennaCount)}</span>
+                </div>
+                <div className="antenna-summary-card">
+                  <span className="antenna-summary-label">Measured Coverage</span>
+                  <span className="antenna-summary-value">{placementAreaLabel}</span>
+                </div>
               </div>
-            </div>
-
-            <div className="page">
-              <div className="header">
-                <img src="/images/uctel_logo.png" alt="UCtel Logo" />
-              </div>
-              <h2 className="proposed-solution">
-                <i className="fa-solid fa-sitemap" /> Proposed Solution
-              </h2>
-              <div id="solution-architecture-section" dangerouslySetInnerHTML={{ __html: architectureHtml }} />
-              <div className="footer">
-                <div className="footer-info">
-                  <img src="/images/uctel_logo.png" alt="UCtel Logo" className="footer-logo" />
-                  <div className="footer-text">
-                    <span>CEL-FI {getField("Solution", "Solution")} solution proposal for {getField("Account", "Customer")}</span>
-                    <span>www.uctel.co.uk | sales@uctel.co.uk</span>
-                  </div>
+              {hasPlacementNotes ? (
+                <div className="antenna-notes">
+                  <span className="antenna-stat-label">Notes</span>
+                  <p>{placementNotes}</p>
                 </div>
-                <div className="page-number"></div>
-              </div>
-            </div>
+              ) : null}
+              {placementFloors.map((floor) => {
+                const coveragePolygons = (floor.coveragePolygons ?? []).filter(
+                  (polygon): polygon is AntennaPlacementCoveragePolygon =>
+                    Boolean(polygon) &&
+                    Array.isArray(polygon.points) &&
+                    polygon.points.length >= 3,
+                );
 
-            {hasAntennaPlacement && (
-              <div className="page antenna-page">
-                <div className="header">
-                  <img src="/images/uctel_logo.png" alt="UCtel Logo" />
-                </div>
-                <h2>
-                  <i className="fa-solid fa-tower-cell" /> Provisional Antenna Placement
-                </h2>
-                <p>
-                  This snapshot highlights the provisional antenna layout captured for {" "}
-                  {antennaPlacement?.projectName ? <strong>{antennaPlacement.projectName}</strong> : "this project"}. It currently covers {formatCount(placementFloorCount)} {" "}
-                  {placementFloorCount === 1 ? "floor" : "floors"} with {formatCount(placementAntennaCount)} antennas positioned across the building.
-                </p>
-                <div className="antenna-summary-grid">
-                  <div className="antenna-summary-card">
-                    <span className="antenna-summary-label">Source Project</span>
-                    <span className="antenna-summary-value">{antennaPlacement?.projectName ?? "—"}</span>
-                    {placementProjectUpdatedAt ? (
-                      <span className="antenna-summary-sub">Updated {placementProjectUpdatedAt}</span>
-                    ) : null}
-                  </div>
-                  <div className="antenna-summary-card">
-                    <span className="antenna-summary-label">Snapshot Generated</span>
-                    <span className="antenna-summary-value">{placementGeneratedAt ?? "—"}</span>
-                    {placementGeneratedBy ? (
-                      <span className="antenna-summary-sub">by {placementGeneratedBy}</span>
-                    ) : null}
-                  </div>
-                  <div className="antenna-summary-card">
-                    <span className="antenna-summary-label">Floors Analysed</span>
-                    <span className="antenna-summary-value">{formatCount(placementFloorCount)}</span>
-                    <span className="antenna-summary-sub">
-                      {placementFloorCount === 1 ? "Single floor coverage" : "Multi-floor footprint"}
-                    </span>
-                  </div>
-                  <div className="antenna-summary-card">
-                    <span className="antenna-summary-label">Antennas</span>
-                    <span className="antenna-summary-value">{formatCount(placementAntennaCount)}</span>
-                  </div>
-                  <div className="antenna-summary-card">
-                    <span className="antenna-summary-label">Measured Coverage</span>
-                    <span className="antenna-summary-value">{placementAreaLabel}</span>
-                  </div>
-                </div>
-                {hasPlacementNotes ? (
-                  <div className="antenna-notes">
-                    <span className="antenna-stat-label">Notes</span>
-                    <p>{placementNotes}</p>
-                  </div>
-                ) : null}
-                {placementFloors.map((floor) => {
-                  const coveragePolygons = (floor.coveragePolygons ?? []).filter(
-                    (polygon): polygon is AntennaPlacementCoveragePolygon =>
-                      Boolean(polygon) &&
-                      Array.isArray(polygon.points) &&
-                      polygon.points.length >= 3,
-                  );
+                const coveragePaths = coveragePolygons
+                  .map((polygon) => coveragePolygonToPath(polygon.points))
+                  .filter((path) => path.length > 0);
 
-                  const coveragePaths = coveragePolygons
-                    .map((polygon) => coveragePolygonToPath(polygon.points))
-                    .filter((path) => path.length > 0);
+                const resolvedCoverageBounds =
+                  (isValidCoverageBounds(floor.coverageBounds) ? floor.coverageBounds : null) ??
+                  computeCoverageBoundsFromPolygons(coveragePolygons);
 
-                  const resolvedCoverageBounds =
-                    (isValidCoverageBounds(floor.coverageBounds) ? floor.coverageBounds : null) ??
-                    computeCoverageBoundsFromPolygons(coveragePolygons);
+                const zoomStyle = computeFloorplanZoomStyle(
+                  floor.antennas,
+                  resolvedCoverageBounds ?? undefined,
+                );
 
-                  const zoomStyle = computeFloorplanZoomStyle(
-                    floor.antennas,
-                    resolvedCoverageBounds ?? undefined,
-                  );
+                const sanitizedFloorId = floor.floorId.replace(/[^a-zA-Z0-9_-]/g, "-");
+                const coverageMaskId = `coverage-mask-${sanitizedFloorId}`;
+                const hasCoverageOverlay = coveragePaths.length > 0;
 
-                  const sanitizedFloorId = floor.floorId.replace(/[^a-zA-Z0-9_-]/g, "-");
-                  const coverageMaskId = `coverage-mask-${sanitizedFloorId}`;
-                  const hasCoverageOverlay = coveragePaths.length > 0;
+                const validFloorAntennas = floor.antennas.filter(
+                  (antenna): antenna is AntennaPlacementAntenna =>
+                    Boolean(antenna) && isFiniteNumber(antenna.x) && isFiniteNumber(antenna.y),
+                );
 
-                  const validFloorAntennas = floor.antennas.filter(
-                    (antenna): antenna is AntennaPlacementAntenna =>
-                      Boolean(antenna) && isFiniteNumber(antenna.x) && isFiniteNumber(antenna.y),
-                  );
+                const sanitizedAntennas = validFloorAntennas.map((antenna) => ({
+                  ...antenna,
+                  x: clamp(antenna.x, 0, 1),
+                  y: clamp(antenna.y, 0, 1),
+                }));
 
-                  const sanitizedAntennas = validFloorAntennas.map((antenna) => ({
-                    ...antenna,
-                    x: clamp(antenna.x, 0, 1),
-                    y: clamp(antenna.y, 0, 1),
-                  }));
+                const antennasWithinCoverage = hasCoverageOverlay
+                  ? sanitizedAntennas.filter((antenna) =>
+                      isPointInsideCoverage({ x: antenna.x, y: antenna.y }, coveragePolygons),
+                    )
+                  : sanitizedAntennas;
 
-                  const antennasWithinCoverage = hasCoverageOverlay
-                    ? sanitizedAntennas.filter((antenna) =>
-                        isPointInsideCoverage({ x: antenna.x, y: antenna.y }, coveragePolygons),
-                      )
-                    : sanitizedAntennas;
+                const visibleAntennas = sanitizedAntennas;
+                const hasAnyAntennas = sanitizedAntennas.length > 0;
+                const showCoverageWarning = hasCoverageOverlay && hasAnyAntennas && antennasWithinCoverage.length === 0;
+                const emptyStateMessage = !hasAnyAntennas
+                  ? "No antennas have been plotted yet"
+                  : showCoverageWarning
+                    ? "No antennas inside the mapped coverage area yet"
+                    : null;
+                const shouldShowEmptyState = Boolean(emptyStateMessage);
 
-                  const visibleAntennas = sanitizedAntennas;
-                  const hasAnyAntennas = sanitizedAntennas.length > 0;
-                  const showCoverageWarning = hasCoverageOverlay && hasAnyAntennas && antennasWithinCoverage.length === 0;
-                  const emptyStateMessage = !hasAnyAntennas
-                    ? "No antennas have been plotted yet"
-                    : showCoverageWarning
-                      ? "No antennas inside the mapped coverage area yet"
-                      : null;
-                  const shouldShowEmptyState = Boolean(emptyStateMessage);
+                const rangeLabel =
+                  floor.stats.antennaRange && floor.stats.antennaRange > 0
+                    ? formatLengthValue(floor.stats.antennaRange, floor.stats.units)
+                    : null;
 
-                  const rangeLabel =
-                    floor.stats.antennaRange && floor.stats.antennaRange > 0
-                      ? formatLengthValue(floor.stats.antennaRange, floor.stats.units)
-                      : null;
-
-                  return (
-                    <div key={floor.floorId} className="antenna-floor">
-                      <h3>{floor.floorName}</h3>
-                      <div className="antenna-floor-card">
-                        <div className="floorplan-container">
-                          {floor.imageUrl ? (
-                            <div className="floorplan-wrapper">
-                              <div className="floorplan-zoom-layer">
-                                <div className="floorplan-zoom-inner" style={zoomStyle}>
-                                  <div className="floorplan-image-layer">
-                                    <img
-                                      src={floor.imageUrl}
-                                      alt={`${floor.floorName} provisional antenna placement`}
-                                    />
-                                    {hasCoverageOverlay ? (
-                                      <svg
-                                        className="floorplan-coverage-layer"
-                                        viewBox="0 0 1 1"
-                                        preserveAspectRatio="none"
-                                      >
-                                        <defs>
-                                          <mask id={coverageMaskId} maskUnits="objectBoundingBox">
-                                            <rect x="0" y="0" width="1" height="1" fill="white" />
-                                            {coveragePaths.map((pathD, pathIndex) => (
-                                              <path key={`${coverageMaskId}-mask-${pathIndex}`} d={pathD} fill="black" />
-                                            ))}
-                                          </mask>
-                                        </defs>
-                                        <rect
-                                          x="0"
-                                          y="0"
-                                          width="1"
-                                          height="1"
-                                          fill="#fdfdfd"
-                                          fillOpacity={0.94}
-                                          mask={`url(#${coverageMaskId})`}
+                return (
+                  <div key={floor.floorId} className="antenna-floor">
+                    <h3>{floor.floorName}</h3>
+                    <div className="antenna-floor-card">
+                      <div className="floorplan-container">
+                        {floor.imageUrl ? (
+                          <div className="floorplan-wrapper">
+                            <div className="floorplan-zoom-layer">
+                              <div className="floorplan-zoom-inner" style={zoomStyle}>
+                                <div className="floorplan-image-layer">
+                                  <img
+                                    src={floor.imageUrl}
+                                    alt={`${floor.floorName} provisional antenna placement`}
+                                  />
+                                  {hasCoverageOverlay ? (
+                                    <svg
+                                      className="floorplan-coverage-layer"
+                                      viewBox="0 0 1 1"
+                                      preserveAspectRatio="none"
+                                    >
+                                      <defs>
+                                        <mask id={coverageMaskId} maskUnits="objectBoundingBox">
+                                          <rect x="0" y="0" width="1" height="1" fill="white" />
+                                          {coveragePaths.map((pathD, pathIndex) => (
+                                            <path key={`${coverageMaskId}-mask-${pathIndex}`} d={pathD} fill="black" />
+                                          ))}
+                                        </mask>
+                                      </defs>
+                                      <rect
+                                        x="0"
+                                        y="0"
+                                        width="1"
+                                        height="1"
+                                        fill="#fdfdfd"
+                                        fillOpacity={0.94}
+                                        mask={`url(#${coverageMaskId})`}
+                                      />
+                                      {coveragePaths.map((pathD, pathIndex) => (
+                                        <path
+                                          key={`${coverageMaskId}-fill-${pathIndex}`}
+                                          d={pathD}
+                                          fill="none"
+                                          stroke="rgba(70, 70, 70, 0.55)"
+                                          strokeWidth={0.0025}
+                                          strokeLinejoin="round"
                                         />
-                                        {coveragePaths.map((pathD, pathIndex) => (
-                                          <path
-                                            key={`${coverageMaskId}-fill-${pathIndex}`}
-                                            d={pathD}
-                                            fill="none"
-                                            stroke="rgba(70, 70, 70, 0.55)"
-                                            strokeWidth={0.0025}
-                                            strokeLinejoin="round"
-                                          />
-                                        ))}
-                                      </svg>
-                                    ) : null}
-                                  </div>
-                                  <div className="antenna-markers">
-                                    {visibleAntennas.map((antenna, antennaIndex) => (
-                                      <div
-                                        key={antenna.id || `${floor.floorId}-antenna-${antennaIndex}`}
-                                        className="antenna-marker is-pulsing"
-                                        style={{ left: `${antenna.x * 100}%`, top: `${antenna.y * 100}%` }}
-                                        title={`Antenna ${antennaIndex + 1}`}
-                                        aria-hidden="true"
-                                      >
-                                        <span className="antenna-marker-core" />
-                                      </div>
-                                    ))}
-                                  </div>
+                                      ))}
+                                    </svg>
+                                  ) : null}
+                                </div>
+                                <div className="antenna-markers">
+                                  {visibleAntennas.map((antenna, antennaIndex) => (
+                                    <div
+                                      key={antenna.id || `${floor.floorId}-antenna-${antennaIndex}`}
+                                      className="antenna-marker is-pulsing"
+                                      style={{ left: `${antenna.x * 100}%`, top: `${antenna.y * 100}%` }}
+                                      title={`Antenna ${antennaIndex + 1}`}
+                                      aria-hidden="true"
+                                    >
+                                      <span className="antenna-marker-core" />
+                                    </div>
+                                  ))}
                                 </div>
                               </div>
-                              {shouldShowEmptyState && emptyStateMessage ? (
-                                <div className="antenna-marker-empty">{emptyStateMessage}</div>
-                              ) : null}
                             </div>
-                          ) : (
-                            <div className="floorplan-placeholder">Floorplan preview not available</div>
-                          )}
-                        </div>
-                        <div className="antenna-floor-details">
-                          <div className="antenna-floor-stats">
-                            <div className="antenna-floor-stat">
-                              <span className="antenna-stat-label">Antennas Placed</span>
-                              <span className="antenna-stat-value">
-                                  {formatCount(floor.stats.antennaCount)}
-                              </span>
-                            </div>
-                            <div className="antenna-floor-stat">
-                              <span className="antenna-stat-label">Measured Coverage</span>
-                              <span className="antenna-stat-value">
-                                {formatAreaValue(floor.stats.totalArea, floor.stats.units)}
-                              </span>
-                            </div>
-                            {rangeLabel ? (
-                              <div className="antenna-floor-stat">
-                                <span className="antenna-stat-label">Typical Radius</span>
-                                <span className="antenna-stat-value">{rangeLabel}</span>
-                              </div>
+                            {shouldShowEmptyState && emptyStateMessage ? (
+                              <div className="antenna-marker-empty">{emptyStateMessage}</div>
                             ) : null}
                           </div>
-                          {floor.stats.areaSummaries.length ? (
-                            <div className="antenna-area-breakdown">
-                              <span className="antenna-stat-label">Coverage Breakdown</span>
-                              <ul className="antenna-area-list">
-                                {floor.stats.areaSummaries.map((area) => (
-                                  <li key={area.id}>
-                                    <span>{area.label}</span>
-                                    <span>{formatAreaValue(area.area, floor.stats.units)}</span>
-                                  </li>
-                                ))}
-                              </ul>
+                        ) : (
+                          <div className="floorplan-placeholder">Floorplan preview not available</div>
+                        )}
+                      </div>
+                      <div className="antenna-floor-details">
+                        <div className="antenna-floor-stats">
+                          <div className="antenna-floor-stat">
+                            <span className="antenna-stat-label">Antennas Placed</span>
+                            <span className="antenna-stat-value">
+                                {formatCount(floor.stats.antennaCount)}
+                            </span>
+                          </div>
+                          <div className="antenna-floor-stat">
+                            <span className="antenna-stat-label">Measured Coverage</span>
+                            <span className="antenna-stat-value">
+                              {formatAreaValue(floor.stats.totalArea, floor.stats.units)}
+                            </span>
+                          </div>
+                          {rangeLabel ? (
+                            <div className="antenna-floor-stat">
+                              <span className="antenna-stat-label">Typical Radius</span>
+                              <span className="antenna-stat-value">{rangeLabel}</span>
                             </div>
                           ) : null}
-                          {shouldShowEmptyState && emptyStateMessage ? (
-                            <p className="antenna-floor-empty">{emptyStateMessage}.</p>
-                          ) : null}
                         </div>
+                        {floor.stats.areaSummaries.length ? (
+                          <div className="antenna-area-breakdown">
+                            <span className="antenna-stat-label">Coverage Breakdown</span>
+                            <ul className="antenna-area-list">
+                              {floor.stats.areaSummaries.map((area) => (
+                                <li key={area.id}>
+                                  <span>{area.label}</span>
+                                  <span>{formatAreaValue(area.area, floor.stats.units)}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
+                        {shouldShowEmptyState && emptyStateMessage ? (
+                          <p className="antenna-floor-empty">{emptyStateMessage}.</p>
+                        ) : null}
                       </div>
                     </div>
-                  );
-                })}
-                <div className="footer">
-                  <div className="footer-info">
-                    <img src="/images/uctel_logo.png" alt="UCtel Logo" className="footer-logo" />
-                    <div className="footer-text">
-                      <span>CEL-FI {getField("Solution", "Solution")} solution proposal for {getField("Account", "Customer")}</span>
-                      <span>www.uctel.co.uk | sales@uctel.co.uk</span>
-                    </div>
                   </div>
-                  <div className="page-number"></div>
+                );
+              })}
+              <div className="footer">
+                <div className="footer-info">
+                  <img src="/images/uctel_logo.png" alt="UCtel Logo" className="footer-logo" />
+                  <div className="footer-text">
+                    <span>CEL-FI {getField("Solution", "Solution")} solution proposal for {getField("Account", "Customer")}</span>
+                    <span>www.uctel.co.uk | sales@uctel.co.uk</span>
+                  </div>
                 </div>
+                <div className="page-number"></div>
               </div>
-            )}
+            </div>
+          )}
 
             <div className="page" id="components-page">
               <div className="header">
@@ -1620,13 +1800,24 @@ export default function ProposalClient({ slug, proposal, introduction, error, an
 
             <div className="download-container">
               <button id="download-pdf-btn" className="download-btn" type="button">
-                <i className="fa-solid fa-download" /> Download as PDF
+                <i className="fa-solid fa-file-arrow-down" /> Optional PDF copy
               </button>
-              <p className="download-note">Click to save this proposal as a PDF file</p>
+              <p className="download-note">Need an offline copy? Exporting to PDF is available, but the live version stays most up to date.</p>
             </div>
-          </div>
-        )}
-      </div>
+            {watermarkText ? (
+              <div className="pdf-watermark" aria-hidden="true">{watermarkText}</div>
+            ) : null}
+        </div>
+      </>
+    );
+  })();
+
+  return (
+    <>
+      <Head>
+        <title>{computedTitle}</title>
+      </Head>
+      <div className="proposal-root">{bodyContent}</div>
     </>
   );
 }

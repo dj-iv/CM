@@ -18,7 +18,7 @@ function sanitizeRedirect(target: string, origin: string): string {
       return '/'
     }
     return candidate.pathname + candidate.search + candidate.hash
-  } catch (error) {
+  } catch {
     if (typeof target === 'string' && target.startsWith('/')) {
       return target
     }
