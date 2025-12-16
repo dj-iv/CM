@@ -2,7 +2,8 @@
   {
     "origin": [
       "http://localhost:3302",
-      "https://proposal.uc-tel.co.uk"
+      "https://proposal.uc-tel.co.uk",
+      "https://prop.uctel.co.uk"
     ],
     "method": ["PUT", "OPTIONS"],
     "responseHeader": ["Content-Type", "X-Goog-Content-Length-Range"],

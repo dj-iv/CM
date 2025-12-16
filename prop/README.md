@@ -28,8 +28,8 @@ When a proposal produces more than roughly 3.5&nbsp;MB of compressed HTML, the b
 Uploads rely on signed URLs, so the target bucket must allow `PUT` requests from your browser origins. Follow these steps:
 
 1. Install the [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) if you do not already have it, then run `gcloud init` to authenticate.
-2. Review `docs/storage-cors.json`. Update the `origin` array if you host the proposal app on additional domains.
-3. Apply the policy with the helper script (replace the bucket name if needed):
+2. Review `docs/storage-cors.json`. Update the `origin` array if you host the proposal app on additional domains (for example `https://prop.uctel.co.uk`).
+3. Apply or re-apply the policy with the helper script whenever you change that file (replace the bucket name if needed):
 
 	```powershell
 	cd C:\Users\roman\Documents\Projects\CM\prop
