@@ -1411,13 +1411,11 @@ function updateDOM() {
                 const upliftVal = parseFloat(uplift) || 1;
                 
                 // Round unit sell price to avoid floating-point precision issues (e.g., £650.01 instead of £650)
+                // Calculate unit price first, then derive total to ensure Unit × Qty = Total exactly
                 const unitSellRounded = Math.round(finalCost * (1 + margin) * 100) / 100;
-                const baseTotalSell = (isSupport ? finalCost : unitSellRounded) * qty;
-                const finalTotalSell = Math.round(baseTotalSell * upliftVal * 100) / 100;
-                const trueLineMargin = baseTotalSell - (finalCost * qty);
-                // For consumables_misc, show the unit price even when qty is 0
-                const baseUnitSell = isSupport ? finalCost : Math.round(unitSellRounded * upliftVal * 100) / 100;
-                const finalUnitSell = qty > 0 ? finalTotalSell / qty : (isConsumablesMisc ? baseUnitSell : 0);
+                const finalUnitSell = isSupport ? finalCost : Math.round(unitSellRounded * upliftVal * 100) / 100;
+                const finalTotalSell = Math.round(finalUnitSell * qty * 100) / 100;
+                const trueLineMargin = (unitSellRounded * qty) - (finalCost * qty);
                 
                 // Add to sub-totals, ensuring they are numbers
                 subTotals[groupName].sell += isNaN(finalTotalSell) ? 0 : finalTotalSell;
