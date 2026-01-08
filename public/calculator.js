@@ -691,8 +691,8 @@ document.addEventListener('DOMContentLoaded', () => {
         for(const key of sortedKeys) {
             const item = priceData[key];
             const altItem = altPriceData[key] || { cost: item.cost, margin: item.margin };
-            const sellPrice = item.cost * (1 + item.margin);
-            const altSellPrice = altItem.cost * (1 + altItem.margin);
+            const sellPrice = Math.round(item.cost * (1 + item.margin) * 100) / 100;
+            const altSellPrice = Math.round(altItem.cost * (1 + altItem.margin) * 100) / 100;
             html += `<div class="setting-item">
                 <label for="cost-${key}">${item.label}</label>
                 <input type="number" step="0.01" id="cost-${key}" value="${item.cost.toFixed(2)}">
@@ -828,7 +828,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (altCostInput && altMarginInput && altSellDisplay) {
             const altCost = parseFloat(altCostInput.value) || 0;
             const altMargin = parseFloat(altMarginInput.value) / 100 || 0;
-            const altSellPrice = altCost * (1 + altMargin);
+            const altSellPrice = Math.round(altCost * (1 + altMargin) * 100) / 100;
             altSellDisplay.textContent = `£${altSellPrice.toFixed(2)}`;
         }
     };
@@ -1296,7 +1296,7 @@ function runFullCalculation() {
                 if (quantity > 0) {
                     totalHardwareUnits += quantity;
                     const priceInfo = priceData[key];
-                    totalHardwareSellPrice += quantity * priceInfo.cost * (1 + priceInfo.margin);
+                    totalHardwareSellPrice += quantity * Math.round(priceInfo.cost * (1 + priceInfo.margin) * 100) / 100;
                 }
             }
         }
@@ -1351,7 +1351,8 @@ function updateDOM() {
     const excludeHardware = document.getElementById('no-hardware-checkbox').checked;
     const referralPercent = parseFloat(document.getElementById('referral-fee-percent').value) || 0;
     const referralDecimal = referralPercent / 100;
-    const uplift = (referralDecimal > 0 && referralDecimal < 1) ? 1 / (1 - referralDecimal) : 1;
+    // Positive = referral fee (prices go up), Negative = discount (prices go down)
+    const uplift = (referralDecimal !== 0 && Math.abs(referralDecimal) < 1) ? 1 / (1 - referralDecimal) : 1;
     
     const systemTypeSelect = document.getElementById('system-type');
     const solutionName = systemTypeSelect.options[systemTypeSelect.selectedIndex].text;
@@ -1409,11 +1410,13 @@ function updateDOM() {
                 const qty = parseFloat(quantity) || 0;
                 const upliftVal = parseFloat(uplift) || 1;
                 
-                const baseTotalSell = (isSupport ? finalCost : (finalCost * (1 + margin))) * qty;
-                const finalTotalSell = baseTotalSell * upliftVal;
+                // Round unit sell price to avoid floating-point precision issues (e.g., £650.01 instead of £650)
+                const unitSellRounded = Math.round(finalCost * (1 + margin) * 100) / 100;
+                const baseTotalSell = (isSupport ? finalCost : unitSellRounded) * qty;
+                const finalTotalSell = Math.round(baseTotalSell * upliftVal * 100) / 100;
                 const trueLineMargin = baseTotalSell - (finalCost * qty);
                 // For consumables_misc, show the unit price even when qty is 0
-                const baseUnitSell = isSupport ? finalCost : (finalCost * (1 + margin)) * upliftVal;
+                const baseUnitSell = isSupport ? finalCost : Math.round(unitSellRounded * upliftVal * 100) / 100;
                 const finalUnitSell = qty > 0 ? finalTotalSell / qty : (isConsumablesMisc ? baseUnitSell : 0);
                 
                 // Add to sub-totals, ensuring they are numbers
@@ -1519,7 +1522,7 @@ function updateDOM() {
     function updateSupportTableSummaries(totalHardwareUnits) {
         const activePricing = getActivePriceData();
         if (!activePricing.install_internal) return; 
-        const dailyInstallRate = activePricing.install_internal.cost * (1 + activePricing.install_internal.margin);
+        const dailyInstallRate = Math.round(activePricing.install_internal.cost * (1 + activePricing.install_internal.margin) * 100) / 100;
         const tierPerSystemDPY = { bronze: 0, silver: 0, gold: 0 };
         const tierFixedAnnualDPY = { bronze: 0, silver: 0, gold: 0 };
         for (const tier of ['bronze', 'silver', 'gold']) {
@@ -1554,7 +1557,7 @@ function updateDOM() {
         }
     }
     const activePricing = getActivePriceData();
-    const dailyInstallRate = (parseFloat(activePricing.install_internal?.cost) * (1 + parseFloat(activePricing.install_internal?.margin))) || 0;
+    const dailyInstallRate = Math.round((parseFloat(activePricing.install_internal?.cost) * (1 + parseFloat(activePricing.install_internal?.margin))) * 100) / 100 || 0;
     const perSystemCost = (parseFloat(totalPerSystemDPY) || 0) * (parseFloat(dailyInstallRate) || 0) * (parseFloat(totalHardwareUnits) || 0);
     const fixedAnnualCost = (parseFloat(totalFixedAnnualDPY) || 0) * (parseFloat(dailyInstallRate) || 0);
     const maintenanceCost = (parseFloat(totalHardwareSellPrice) || 0) * (parseFloat(maintenancePercent) || 0) / 100;
@@ -1571,7 +1574,7 @@ function updateDOM() {
                 totalHardwareUnits += quantity;
                 const activePricing = getActivePriceData();
                 const priceInfo = activePricing[key];
-                totalHardwareSellPrice += quantity * priceInfo.cost * (1 + priceInfo.margin);
+                totalHardwareSellPrice += quantity * Math.round(priceInfo.cost * (1 + priceInfo.margin) * 100) / 100;
             }
         }
     }
@@ -1603,7 +1606,7 @@ function updateDOM() {
                 else totalFixedAnnualDPY += dpyValue;
             }
         });
-        const dailyInstallRate = (priceData.install_internal?.cost * (1 + priceData.install_internal?.margin)) || 0;
+        const dailyInstallRate = Math.round((priceData.install_internal?.cost * (1 + priceData.install_internal?.margin)) * 100) / 100 || 0;
         const perSystemCost = totalPerSystemDPY * dailyInstallRate * totalHardwareUnits;
         const fixedAnnualCost = totalFixedAnnualDPY * dailyInstallRate;
         const maintenanceCost = totalHardwareSellPrice * (maintenancePercent / 100);
@@ -1856,6 +1859,59 @@ function setupScreenshotButton() {
     document.getElementById('reset-overrides').addEventListener('click', () => { for (const key in currentResults) { if (currentResults[key].hasOwnProperty('override')) currentResults[key].override = null; } setSupportPreset('none'); runFullCalculation(); });
     document.getElementById('toggle-zero-qty-btn').addEventListener('click', (e) => { showZeroQuantityItems = !showZeroQuantityItems; e.target.textContent = showZeroQuantityItems ? 'Hide Zero Qty Items' : 'Show All Items'; runFullCalculation(); });
 
+    // Reset All button - resets all inputs to their default values
+    document.getElementById('reset-all-btn').addEventListener('click', () => {
+        if (!confirm('Reset all inputs to defaults? This will clear all your current settings.')) return;
+        
+        // Reset antenna calculator inputs
+        document.getElementById('floor-area').value = '1000';
+        document.getElementById('number-of-floors').value = '1';
+        document.querySelector('input[name="unit-switch"][value="sqm"]').checked = true;
+        document.querySelector('input[name="band-switch"][value="high_band"]').checked = true;
+        document.getElementById('percent-open').value = '25';
+        document.getElementById('percent-cubical').value = '25';
+        document.getElementById('percent-hollow').value = '25';
+        document.getElementById('percent-solid').value = '25';
+        document.getElementById('high-ceiling-warehouse').checked = false;
+        
+        // Reset system configuration
+        document.getElementById('system-type').value = 'G41';
+        document.getElementById('number-of-networks').value = '4';
+        document.getElementById('max-antennas').value = '12';
+        document.getElementById('no-hardware-checkbox').checked = false;
+        document.getElementById('total-service-antennas').value = '12';
+        
+        // Reset financial inputs
+        document.getElementById('referral-fee-percent').value = '0';
+        document.getElementById('maintenance-percent').value = '0';
+        
+        // Reset customer info
+        document.getElementById('customer-name').value = '';
+        document.getElementById('survey-price').value = '0';
+        document.getElementById('quote-number').value = '';
+        document.getElementById('include-survey-checkbox').checked = false;
+        
+        // Reset all overrides
+        for (const key in currentResults) {
+            if (currentResults[key].hasOwnProperty('override')) {
+                currentResults[key].override = null;
+            }
+        }
+        
+        // Reset support preset
+        setSupportPreset('none');
+        
+        // Reset support price overrides
+        supportPriceOverrides = {};
+        
+        // Reset view settings
+        showZeroQuantityItems = false;
+        document.getElementById('toggle-zero-qty-btn').textContent = 'Show All Items';
+        
+        // Recalculate
+        runFullCalculation();
+    });
+
     const altPricingToggle = document.getElementById('alt-pricing-toggle');
     if (altPricingToggle) {
         altPricingToggle.addEventListener('change', (event) => {
@@ -2070,7 +2126,7 @@ function setupHighCeilingControls() {
     try {
         let totalHardwareSellPrice = 0, totalHardwareUnits = 0;
         const hardwareKeys = ['G41', 'G43', 'QUATRA_NU', 'QUATRA_CU', 'QUATRA_HUB', 'QUATRA_EVO_NU', 'QUATRA_EVO_CU', 'QUATRA_EVO_HUB', 'extender_cat6', 'extender_fibre_cu', 'extender_fibre_nu'];
-        for (const key of hardwareKeys) { if (currentResults[key]) { const quantity = currentResults[key].override ?? currentResults[key].calculated; if (quantity > 0) { totalHardwareUnits += quantity; const priceInfo = priceData[key]; totalHardwareSellPrice += quantity * priceInfo.cost * (1 + priceInfo.margin); } } }
+        for (const key of hardwareKeys) { if (currentResults[key]) { const quantity = currentResults[key].override ?? currentResults[key].calculated; if (quantity > 0) { totalHardwareUnits += quantity; const priceInfo = priceData[key]; totalHardwareSellPrice += quantity * Math.round(priceInfo.cost * (1 + priceInfo.margin) * 100) / 100; } } }
         
         let selectedSupportTier = 'none';
         let selectedSupportName = "Please see the support options below";
@@ -2198,7 +2254,7 @@ function getTemplateData() {
             const quantity = currentResults[key].override ?? currentResults[key].calculated;
             if (quantity > 0) {
                 totalHardwareUnits += quantity;
-                totalHardwareSellPrice += quantity * priceData[key].cost * (1 + priceData[key].margin);
+                totalHardwareSellPrice += quantity * Math.round(priceData[key].cost * (1 + priceData[key].margin) * 100) / 100;
             }
         }
     });
@@ -2977,7 +3033,7 @@ window.updateSellPriceDisplay = (key) => {
     const sellDisplay = document.getElementById(`sell-${key}`);
     const cost = parseFloat(costInput.value) || 0;
     const margin = parseFloat(marginInput.value) || 0;
-    const sellPrice = cost * (1 + margin / 100);
+    const sellPrice = Math.round(cost * (1 + margin / 100) * 100) / 100;
     sellDisplay.textContent = `£${sellPrice.toFixed(2)}`;
 };
 // Trigger deployment - August 7, 2025

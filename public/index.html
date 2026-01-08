@@ -95,7 +95,7 @@
             display: flex;
             gap: 10px;
         }
-        #reset-overrides, #settings-btn, #toggle-zero-qty-btn, #generate-link-btn, #generate-proposal-btn, #quote-to-monday-btn {
+        #reset-all-btn, #reset-overrides, #settings-btn, #toggle-zero-qty-btn, #generate-link-btn, #generate-proposal-btn, #quote-to-monday-btn {
             padding: 8px 12px;
             border: 1px solid var(--uctel-blue);
             background-color: rgba(232, 226, 212, 0.5);
@@ -106,11 +106,12 @@
             font-size: 13px;
             transition: all 0.2s ease;
         }
-        #reset-overrides:hover, #settings-btn:hover, #toggle-zero-qty-btn:hover, #generate-link-btn:hover, #generate-proposal-btn:hover, #quote-to-monday-btn:hover {
+        #reset-all-btn:hover, #reset-overrides:hover, #settings-btn:hover, #toggle-zero-qty-btn:hover, #generate-link-btn:hover, #generate-proposal-btn:hover, #quote-to-monday-btn:hover {
             background-color: var(--uctel-teal);
             color: white;
             border-color: var(--uctel-teal);
         }
+        #reset-all-btn { background-color: #fff3cd; border-color: #ffc107; }
         #generate-link-btn { background-color: #d1ecf1; border-color: #bee5eb;}
         #generate-proposal-btn { background-color: #d4edda; border-color: #28a745;}
         #quote-to-monday-btn { background-color: #d6d8db; border-color: #6c757d;}
@@ -534,6 +535,7 @@
     <div class="calculator-container hidden" id="main-container">
         <div class="results-header">
             <div class="header-buttons">
+                <button id="reset-all-btn" title="Reset all inputs to defaults">Reset All ↻</button>
                 <button id="screenshot-btn">Screenshot 📸</button>
                 <button id="quote-to-monday-btn">Quote to Monday</button>
                 <button id="generate-link-btn">Generate Link 🔗</button>
@@ -704,8 +706,8 @@
         
     </div>
     <div class="referral-item">
-        <label for="referral-fee-percent">Referral Fee (%)</label>
-        <input type="number" id="referral-fee-percent" value="0" min="0" max="99">
+        <label for="referral-fee-percent">Referral Fee / Discount (%)</label>
+        <input type="number" id="referral-fee-percent" value="0" min="-99" max="99">
         <div class="fee-amount" id="referral-fee-amount">£0.00</div>
     </div>
 </div>
