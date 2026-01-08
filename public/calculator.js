@@ -1902,7 +1902,7 @@ function setupScreenshotButton() {
         setSupportPreset('none');
         
         // Reset support price overrides
-        supportPriceOverrides = {};
+        supportPriceOverrides = { bronze: null, silver: null, gold: null };
         
         // Reset view settings
         showZeroQuantityItems = false;
