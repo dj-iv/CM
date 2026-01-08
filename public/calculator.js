@@ -483,6 +483,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let showZeroQuantityItems = false;
     let subTotalsForProposal = {};
     let supportPriceOverrides = { bronze: null, silver: null, gold: null };
+    let unitSellOverrides = {};
     let isDataInitialized = false;
     let saveStatusMessageTimeout = null;
 
@@ -1425,19 +1426,35 @@ function updateDOM() {
                 const qtyDisplay = isSupport ? '1' : `<span class="value-display"></span><input type="number" step="any" class="value-input hidden" />`;
                 const qtyClass = isSupport ? '' : 'item-qty';
                 
-                let totalSellDisplay = `£${finalTotalSell.toFixed(2)}`;
+                // Check for unit sell override
+                const hasUnitSellOverride = unitSellOverrides[key] !== undefined && unitSellOverrides[key] !== null;
+                const displayUnitSell = hasUnitSellOverride ? unitSellOverrides[key] : finalUnitSell;
+                const displayTotalSell = Math.round(displayUnitSell * qty * 100) / 100;
+                const displayMargin = (displayUnitSell * qty) - (finalCost * qty);
+                
+                // Update sub-totals with actual displayed values
+                if (hasUnitSellOverride) {
+                    subTotals[groupName].sell = subTotals[groupName].sell - finalTotalSell + displayTotalSell;
+                    subTotals[groupName].margin = subTotals[groupName].margin - trueLineMargin + displayMargin;
+                }
+                
+                let totalSellDisplay = `£${displayTotalSell.toFixed(2)}`;
                 let totalSellClass = '';
                 if (isSupport) {
                     totalSellClass = 'price-override item-qty'; // Re-use item-qty class for event handling
                     totalSellDisplay = `<span class="value-display"></span><input type="number" step="any" class="value-input hidden" />`;
                 }
+                
+                // Make unit sell editable (not for support items)
+                const unitSellDisplay = isSupport ? `£${displayUnitSell.toFixed(2)}` : `<span class="value-display ${hasUnitSellOverride ? 'overridden' : ''}">£${displayUnitSell.toFixed(2)}</span><input type="number" step="0.01" class="value-input hidden" />`;
+                const unitSellClass = isSupport ? '' : 'item-unit-sell';
 
                 groupHTML += `<tr>
                     <td class="col-item item-name">${priceInfo.label}${itemResult.unit || ''}</td>
                     <td class="col-qty ${qtyClass}" data-key="${key}">${qtyDisplay}</td>
-                    <td class="col-sell">£${finalUnitSell.toFixed(2)}</td>
+                    <td class="col-sell ${unitSellClass}" data-key="${key}" data-calculated="${finalUnitSell.toFixed(2)}">${unitSellDisplay}</td>
                     <td class="col-total ${totalSellClass}" data-key="${key}">${totalSellDisplay}</td>
-                    <td class="col-margin">£${trueLineMargin.toFixed(2)}</td>
+                    <td class="col-margin">£${displayMargin.toFixed(2)}</td>
                 </tr>`;
             }
         });
@@ -1462,6 +1479,42 @@ function updateDOM() {
         inputField.addEventListener('keydown', e => {
             if (e.key === 'Enter') deactivateEditMode(cell, key, true);
             else if (e.key === 'Escape') deactivateEditMode(cell, key, false);
+        });
+    });
+    
+    // Unit sell editing
+    document.querySelectorAll('.item-unit-sell').forEach(cell => {
+        const key = cell.dataset.key;
+        const calculatedValue = parseFloat(cell.dataset.calculated) || 0;
+        cell.addEventListener('click', () => {
+            const displaySpan = cell.querySelector('.value-display');
+            const inputField = cell.querySelector('.value-input');
+            displaySpan.classList.add('hidden');
+            inputField.classList.remove('hidden');
+            const currentValue = unitSellOverrides[key] !== undefined && unitSellOverrides[key] !== null ? unitSellOverrides[key] : calculatedValue;
+            inputField.value = currentValue.toFixed(2);
+            inputField.focus();
+            inputField.select();
+        });
+        const inputField = cell.querySelector('.value-input');
+        inputField.addEventListener('click', (e) => e.stopPropagation());
+        inputField.addEventListener('blur', () => {
+            const newValue = parseFloat(inputField.value);
+            if (!isNaN(newValue)) {
+                unitSellOverrides[key] = Math.round(newValue * 100) / 100;
+                runFullCalculation();
+            } else {
+                inputField.classList.add('hidden');
+                cell.querySelector('.value-display').classList.remove('hidden');
+            }
+        });
+        inputField.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                inputField.blur();
+            } else if (e.key === 'Escape') {
+                inputField.classList.add('hidden');
+                cell.querySelector('.value-display').classList.remove('hidden');
+            }
         });
     });
     
@@ -1854,7 +1907,7 @@ function setupScreenshotButton() {
         input.addEventListener('change', runFullCalculation);
     });
 
-    document.getElementById('reset-overrides').addEventListener('click', () => { for (const key in currentResults) { if (currentResults[key].hasOwnProperty('override')) currentResults[key].override = null; } setSupportPreset('none'); runFullCalculation(); });
+    document.getElementById('reset-overrides').addEventListener('click', () => { for (const key in currentResults) { if (currentResults[key].hasOwnProperty('override')) currentResults[key].override = null; } unitSellOverrides = {}; setSupportPreset('none'); runFullCalculation(); });
     document.getElementById('toggle-zero-qty-btn').addEventListener('click', (e) => { showZeroQuantityItems = !showZeroQuantityItems; e.target.textContent = showZeroQuantityItems ? 'Hide Zero Qty Items' : 'Show All Items'; runFullCalculation(); });
 
     // Reset All button - resets all inputs to their default values
@@ -1895,6 +1948,9 @@ function setupScreenshotButton() {
                 currentResults[key].override = null;
             }
         }
+        
+        // Reset unit sell overrides
+        unitSellOverrides = {};
         
         // Reset support preset
         setSupportPreset('none');
