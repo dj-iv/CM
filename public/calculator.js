@@ -1416,7 +1416,12 @@ function updateDOM() {
                 const unitSellRounded = Math.round(finalCost * (1 + margin) * 100) / 100;
                 const finalUnitSell = isSupport ? finalCost : Math.round(unitSellRounded * upliftVal * 100) / 100;
                 const finalTotalSell = Math.round(finalUnitSell * qty * 100) / 100;
-                const trueLineMargin = (unitSellRounded * qty) - (finalCost * qty);
+                
+                // Margin calculation:
+                // - For referral fees (positive %): margin stays the same (referral comes from our margin)
+                // - For discounts (negative %): margin is reduced (we get less money)
+                const baseMargin = (unitSellRounded * qty) - (finalCost * qty);
+                const trueLineMargin = referralDecimal < 0 ? (finalTotalSell - (finalCost * qty)) : baseMargin;
                 
                 // Add to sub-totals, ensuring they are numbers
                 subTotals[groupName].sell += isNaN(finalTotalSell) ? 0 : finalTotalSell;
@@ -1430,7 +1435,8 @@ function updateDOM() {
                 const hasUnitSellOverride = unitSellOverrides[key] !== undefined && unitSellOverrides[key] !== null;
                 const displayUnitSell = hasUnitSellOverride ? unitSellOverrides[key] : finalUnitSell;
                 const displayTotalSell = Math.round(displayUnitSell * qty * 100) / 100;
-                const displayMargin = (displayUnitSell * qty) - (finalCost * qty);
+                // For display margin with overrides, always use the actual sell - cost difference
+                const displayMargin = displayTotalSell - (finalCost * qty);
                 
                 // Update sub-totals with actual displayed values
                 if (hasUnitSellOverride) {
