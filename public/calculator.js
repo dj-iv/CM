@@ -235,6 +235,20 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const defaultAltPriceData = normalizeConsumableLabels(JSON.parse(JSON.stringify(defaultPriceData)));
+    
+    // Create default Old Price Data with same cost but margin reduced by 10% (absolute)
+    const createDefaultOldPriceData = () => {
+        const oldData = normalizeConsumableLabels(JSON.parse(JSON.stringify(defaultPriceData)));
+        Object.keys(oldData).forEach(key => {
+            if (oldData[key] && typeof oldData[key].margin === 'number') {
+                // Reduce margin by 0.1 (10% absolute), but don't go below 0
+                oldData[key].margin = Math.max(0, oldData[key].margin - 0.1);
+            }
+        });
+        return oldData;
+    };
+    const defaultOldPriceData = createDefaultOldPriceData();
+    
     const applyAlternativeOverrides = (target) => {
         Object.entries(alternativePriceOverrides).forEach(([key, override]) => {
             const defaultItem = defaultPriceData[key];
@@ -477,8 +491,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let priceData = {};
     let altPriceData = {};
+    let oldPriceData = {};
     let useAltPricing = false;
+    let useOldPricing = false;
     let lastPersistedUseAltPricing = false;
+    let lastPersistedUseOldPricing = false;
     let currentResults = {};
     let showZeroQuantityItems = false;
     let subTotalsForProposal = {};
@@ -513,12 +530,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const updateAltPricingIndicator = () => {
         const indicator = document.getElementById('alt-pricing-indicator');
         const altPricingToggle = document.getElementById('alt-pricing-toggle');
+        const oldPricingToggle = document.getElementById('old-pricing-toggle');
+        
         if (altPricingToggle && altPricingToggle.checked !== useAltPricing) {
             altPricingToggle.checked = useAltPricing;
         }
+        if (oldPricingToggle && oldPricingToggle.checked !== useOldPricing) {
+            oldPricingToggle.checked = useOldPricing;
+        }
+        
         if (!indicator) return;
-        if (useAltPricing && isDataInitialized) {
+        if ((useAltPricing || useOldPricing) && isDataInitialized) {
             indicator.classList.remove('hidden');
+            indicator.textContent = useOldPricing ? 'Old Margin pricing is ON' : 'Alternative pricing is ON';
         } else {
             indicator.classList.add('hidden');
         }
@@ -601,6 +625,7 @@ document.addEventListener('DOMContentLoaded', () => {
             saveBtn.addEventListener('click', async () => {
                 const newPriceData = JSON.parse(JSON.stringify(priceData));
                 const newAltPriceData = {};
+                const newOldPriceData = {};
                 const newCoverageData = JSON.parse(JSON.stringify(coverageData));
                 let allValid = true;
 
@@ -609,19 +634,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     const marginInput = document.getElementById(`margin-${key}`);
                     const altCostInput = document.getElementById(`alt-cost-${key}`);
                     const altMarginInput = document.getElementById(`alt-margin-${key}`);
+                    const oldCostInput = document.getElementById(`old-cost-${key}`);
+                    const oldMarginInput = document.getElementById(`old-margin-${key}`);
 
                     const newCost = costInput ? parseFloat(costInput.value) : NaN;
                     const newMargin = marginInput ? parseFloat(marginInput.value) / 100 : NaN;
                     const newAltCost = altCostInput ? parseFloat(altCostInput.value) : NaN;
                     const newAltMargin = altMarginInput ? parseFloat(altMarginInput.value) / 100 : NaN;
+                    const newOldCost = oldCostInput ? parseFloat(oldCostInput.value) : NaN;
+                    const newOldMargin = oldMarginInput ? parseFloat(oldMarginInput.value) / 100 : NaN;
 
-                    if (!isNaN(newCost) && !isNaN(newMargin) && !isNaN(newAltCost) && !isNaN(newAltMargin)) {
+                    if (!isNaN(newCost) && !isNaN(newMargin) && !isNaN(newAltCost) && !isNaN(newAltMargin) && !isNaN(newOldCost) && !isNaN(newOldMargin)) {
                         newPriceData[key].cost = newCost;
                         newPriceData[key].margin = newMargin;
                         newAltPriceData[key] = {
                             label: newPriceData[key].label,
                             cost: newAltCost,
                             margin: newAltMargin
+                        };
+                        newOldPriceData[key] = {
+                            label: newPriceData[key].label,
+                            cost: newOldCost,
+                            margin: newOldMargin
                         };
                     } else {
                         allValid = false;
@@ -648,10 +682,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 const altPricingCheckbox = document.getElementById('alt-pricing-toggle');
+                const oldPricingCheckbox = document.getElementById('old-pricing-toggle');
                 const newUseAltPricing = altPricingCheckbox ? altPricingCheckbox.checked : false;
+                const newUseOldPricing = oldPricingCheckbox ? oldPricingCheckbox.checked : false;
 
                 if (allValid) {
-                    await savePrices(newPriceData, newAltPriceData, newUseAltPricing);
+                    await savePrices(newPriceData, newAltPriceData, newOldPriceData, newUseAltPricing, newUseOldPricing);
                     await saveCoverageData(newCoverageData);
                     registerInitialSnapshot();
                     updateSaveButtonState();
@@ -687,13 +723,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span>Alt Cost (£)</span>
                 <span>Alt Margin (%)</span>
                 <span>Alt Sell (£)</span>
+                <span>Old Cost (£)</span>
+                <span>Old Margin (%)</span>
+                <span>Old Sell (£)</span>
             </div>`;
         const sortedKeys = Object.keys(priceData).sort((a, b) => priceData[a].label.localeCompare(priceData[b].label));
         for(const key of sortedKeys) {
             const item = priceData[key];
             const altItem = altPriceData[key] || { cost: item.cost, margin: item.margin };
+            const oldItem = oldPriceData[key] || { cost: item.cost, margin: Math.max(0, item.margin - 0.1) };
             const sellPrice = Math.round(item.cost * (1 + item.margin) * 100) / 100;
             const altSellPrice = Math.round(altItem.cost * (1 + altItem.margin) * 100) / 100;
+            const oldSellPrice = Math.round(oldItem.cost * (1 + oldItem.margin) * 100) / 100;
             html += `<div class="setting-item">
                 <label for="cost-${key}">${item.label}</label>
                 <input type="number" step="0.01" id="cost-${key}" value="${item.cost.toFixed(2)}">
@@ -702,6 +743,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 <input type="number" step="0.01" id="alt-cost-${key}" value="${altItem.cost.toFixed(2)}">
                 <input type="number" step="0.01" id="alt-margin-${key}" value="${(altItem.margin * 100).toFixed(2)}">
                 <span id="alt-sell-${key}" class="sell-price-display">£${altSellPrice.toFixed(2)}</span>
+                <input type="number" step="0.01" id="old-cost-${key}" value="${oldItem.cost.toFixed(2)}">
+                <input type="number" step="0.01" id="old-margin-${key}" value="${(oldItem.margin * 100).toFixed(2)}">
+                <span id="old-sell-${key}" class="sell-price-display">£${oldSellPrice.toFixed(2)}</span>
             </div>`;
         }
         container.innerHTML = html;
@@ -711,14 +755,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const marginInput = document.getElementById(`margin-${key}`);
             const altCostInput = document.getElementById(`alt-cost-${key}`);
             const altMarginInput = document.getElementById(`alt-margin-${key}`);
+            const oldCostInput = document.getElementById(`old-cost-${key}`);
+            const oldMarginInput = document.getElementById(`old-margin-${key}`);
             
             const handler = () => window.updateSellPriceDisplay(key);
             const altHandler = () => window.updateAltSellPriceDisplay(key);
+            const oldHandler = () => window.updateOldSellPriceDisplay(key);
             
             if(costInput) costInput.addEventListener('input', handler);
             if(marginInput) marginInput.addEventListener('input', handler);
             if(altCostInput) altCostInput.addEventListener('input', altHandler);
             if(altMarginInput) altMarginInput.addEventListener('input', altHandler);
+            if(oldCostInput) oldCostInput.addEventListener('input', oldHandler);
+            if(oldMarginInput) oldMarginInput.addEventListener('input', oldHandler);
         }
 
         updateAltPricingIndicator();
@@ -834,6 +883,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // Helper function for updating old margin sell price displays
+    window.updateOldSellPriceDisplay = function(key) {
+        const oldCostInput = document.getElementById(`old-cost-${key}`);
+        const oldMarginInput = document.getElementById(`old-margin-${key}`);
+        const oldSellDisplay = document.getElementById(`old-sell-${key}`);
+        
+        if (oldCostInput && oldMarginInput && oldSellDisplay) {
+            const oldCost = parseFloat(oldCostInput.value) || 0;
+            const oldMargin = parseFloat(oldMarginInput.value) / 100 || 0;
+            const oldSellPrice = Math.round(oldCost * (1 + oldMargin) * 100) / 100;
+            oldSellDisplay.textContent = `£${oldSellPrice.toFixed(2)}`;
+        }
+    };
+
     function populateSupportTable() {
         const table = document.getElementById('support-table');
         if (!table) return;
@@ -874,6 +937,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function loadPrices() {
     const pricesDocRef = firebase.firestore().collection('settings').doc('prices');
     const altPricesDocRef = firebase.firestore().collection('settings').doc('altPrices');
+    const oldPricesDocRef = firebase.firestore().collection('settings').doc('oldPrices');
     const settingsDocRef = firebase.firestore().collection('settings').doc('general');
     
     try {
@@ -903,16 +967,30 @@ async function loadPrices() {
             altPriceData = altDefaults;
         }
 
-        // Load settings (including useAltPricing flag)
+        // Load old margin prices
+        const oldDoc = await oldPricesDocRef.get();
+        if (oldDoc.exists) {
+            console.log("Old margin prices loaded from Firestore.");
+            const firestoreOldPrices = oldDoc.data() || {};
+            oldPriceData = mergePricingData(defaultOldPriceData, firestoreOldPrices);
+        } else {
+            console.log("No old margin prices document, initializing with default data.");
+            oldPriceData = normalizeConsumableLabels(JSON.parse(JSON.stringify(defaultOldPriceData)));
+        }
+
+        // Load settings (including useAltPricing and useOldPricing flags)
         const settingsDoc = await settingsDocRef.get();
         if (settingsDoc.exists) {
             const settings = settingsDoc.data();
             useAltPricing = settings.useAltPricing || false;
-            console.log("Settings loaded from Firestore. Use Alt Pricing:", useAltPricing);
+            useOldPricing = settings.useOldPricing || false;
+            console.log("Settings loaded from Firestore. Use Alt Pricing:", useAltPricing, "Use Old Pricing:", useOldPricing);
         } else {
             useAltPricing = false;
+            useOldPricing = false;
         }
         lastPersistedUseAltPricing = useAltPricing;
+        lastPersistedUseOldPricing = useOldPricing;
         updateAltPricingIndicator();
         
     } catch (e) {
@@ -920,26 +998,32 @@ async function loadPrices() {
         throw e;
     }
 }
-   async function savePrices(newPriceData, newAltPriceData, newUseAltPricing) {
+   async function savePrices(newPriceData, newAltPriceData, newOldPriceData, newUseAltPricing, newUseOldPricing) {
     const pricesDocRef = firebase.firestore().collection('settings').doc('prices');
     const altPricesDocRef = firebase.firestore().collection('settings').doc('altPrices');
+    const oldPricesDocRef = firebase.firestore().collection('settings').doc('oldPrices');
     const settingsDocRef = firebase.firestore().collection('settings').doc('general');
     
     try {
         normalizeConsumableLabels(newPriceData);
         normalizeConsumableLabels(newAltPriceData);
+        normalizeConsumableLabels(newOldPriceData);
         // Save all the data in parallel
         await Promise.all([
             pricesDocRef.set(newPriceData),
             altPricesDocRef.set(newAltPriceData),
-            settingsDocRef.set({ useAltPricing: newUseAltPricing }, { merge: true })
+            oldPricesDocRef.set(newOldPriceData),
+            settingsDocRef.set({ useAltPricing: newUseAltPricing, useOldPricing: newUseOldPricing }, { merge: true })
         ]);
         
         // Update local variables
     priceData = normalizeConsumableLabels(newPriceData);
     altPriceData = normalizeConsumableLabels(newAltPriceData);
+    oldPriceData = normalizeConsumableLabels(newOldPriceData);
     useAltPricing = newUseAltPricing;
+    useOldPricing = newUseOldPricing;
     lastPersistedUseAltPricing = newUseAltPricing;
+    lastPersistedUseOldPricing = newUseOldPricing;
     updateAltPricingIndicator();
         
         runFullCalculation();
@@ -989,7 +1073,9 @@ async function saveCoverageData(newCoverageData) {
 
     // Helper function to get the active pricing data
     function getActivePriceData() {
-        return useAltPricing ? altPriceData : priceData;
+        if (useOldPricing) return oldPriceData;
+        if (useAltPricing) return altPriceData;
+        return priceData;
     }
 
     function getSplitterCascade(k) { if (k <= 1) return { d4: 0, d3: 0, d2: 0 }; const d4_dist = (k === 6) ? 0 : ((k % 4 === 1) ? Math.max(0, Math.floor(k / 4) - 1) : Math.floor(k / 4)); const d3_dist = Math.floor((k - 4 * d4_dist) / 3); const d2_dist = Math.ceil((k - 4 * d4_dist - 3 * d3_dist) / 2); const num_dist = d4_dist + d3_dist + d2_dist; return { d4: d4_dist + ((num_dist === 4) ? 1 : 0), d3: d3_dist + ((num_dist === 3) ? 1 : 0), d2: d2_dist + ((num_dist === 2) ? 1 : 0) }; }
@@ -1973,9 +2059,32 @@ function setupScreenshotButton() {
     });
 
     const altPricingToggle = document.getElementById('alt-pricing-toggle');
+    const oldPricingToggle = document.getElementById('old-pricing-toggle');
+    
     if (altPricingToggle) {
         altPricingToggle.addEventListener('change', (event) => {
             useAltPricing = event.target.checked;
+            // Make mutually exclusive with Old Pricing
+            if (useAltPricing && useOldPricing) {
+                useOldPricing = false;
+                if (oldPricingToggle) oldPricingToggle.checked = false;
+            }
+            updateAltPricingIndicator();
+            runFullCalculation();
+            if (typeof window.__updateSettingsSaveState === 'function') {
+                window.__updateSettingsSaveState();
+            }
+        });
+    }
+    
+    if (oldPricingToggle) {
+        oldPricingToggle.addEventListener('change', (event) => {
+            useOldPricing = event.target.checked;
+            // Make mutually exclusive with Alt Pricing
+            if (useOldPricing && useAltPricing) {
+                useAltPricing = false;
+                if (altPricingToggle) altPricingToggle.checked = false;
+            }
             updateAltPricingIndicator();
             runFullCalculation();
             if (typeof window.__updateSettingsSaveState === 'function') {

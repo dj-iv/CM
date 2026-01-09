@@ -259,7 +259,7 @@
 
         /* Modal Styles */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
-        .modal-content { background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 900px; border-radius: 8px; }
+        .modal-content { background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 95%; max-width: 1200px; border-radius: 8px; }
         .modal-header, .modal-footer { padding: 10px 16px; color: white; background: linear-gradient(135deg, var(--uctel-teal), var(--uctel-blue)); }
         .modal-header { display: flex; justify-content: space-between; align-items: center; border-top-left-radius: 7px; border-top-right-radius: 7px; }
         .modal-footer { display: flex; justify-content: flex-end; gap: 10px; border-bottom-left-radius: 7px; border-bottom-right-radius: 7px; }
@@ -268,10 +268,10 @@
         .modal-footer button { padding: 10px 20px; border-radius: 5px; border: none; cursor: pointer; font-weight: 600; }
         #modal-save { background-color: #28a745; color: white; }
         #modal-cancel { background-color: #dc3545; color: white; }
-        #settings-form-container .setting-item { display: grid; grid-template-columns: 2.5fr 1fr 1fr 1fr 1fr 1fr 1fr; gap: 15px; padding: 8px 0; border-bottom: 1px solid #eee; align-items: center; }
-        #settings-form-container .setting-header { font-weight: bold; color: var(--uctel-blue); }
-        #settings-form-container .setting-item input { width: 100%; padding: 8px; border: 1px solid var(--uctel-teal); border-radius: 4px; }
-        #settings-form-container .setting-item .sell-price-display { font-weight: bold; text-align: right; padding-right: 10px; }
+        #settings-form-container .setting-item { display: grid; grid-template-columns: 2fr 0.8fr 0.8fr 0.8fr 0.8fr 0.8fr 0.8fr 0.8fr 0.8fr 0.8fr; gap: 10px; padding: 8px 0; border-bottom: 1px solid #eee; align-items: center; }
+        #settings-form-container .setting-header { font-weight: bold; color: var(--uctel-blue); font-size: 12px; }
+        #settings-form-container .setting-item input { width: 100%; padding: 6px; border: 1px solid var(--uctel-teal); border-radius: 4px; font-size: 13px; }
+        #settings-form-container .setting-item .sell-price-display { font-weight: bold; text-align: right; padding-right: 5px; font-size: 13px; }
         
         .pricing-controls {
             margin-bottom: 20px;
@@ -655,6 +655,10 @@
                     <div class="checkbox-group">
                         <input type="checkbox" id="alt-pricing-toggle">
                         <label for="alt-pricing-toggle">Alt Pricing</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="old-pricing-toggle">
+                        <label for="old-pricing-toggle">Old Margin</label>
                     </div>
                 </div>
                 <input type="hidden" id="total-service-antennas" value="12">
