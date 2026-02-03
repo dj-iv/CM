@@ -1466,7 +1466,7 @@ function runFullCalculation() {
                 const tierName = tier.charAt(0).toUpperCase() + tier.slice(1);
                 activePricing['support_package'].label = `Annual ${tierName} Support Package`;
             } else {
-                 activePricing['support_package'].label = `Annual Custom Support Package`;
+                activePricing['support_package'].label = "Annual Support Package";
             }
         } else {
             activePricing['support_package'].label = "Annual Support Package";
@@ -1539,7 +1539,12 @@ function updateDOM() {
             
             let isRelevant = true;
             if (groupName === 'hardware' || groupName === 'consumables') { isRelevant = false; if (componentRelevance.all.includes(key)) isRelevant = true; if (componentRelevance[systemType]?.includes(key)) isRelevant = true; if (systemType.includes('G4') && componentRelevance.go.includes(key)) isRelevant = true; if (systemType.includes('QUATRA') && componentRelevance.quatra.includes(key)) isRelevant = true; }
-            if (isSupport && priceInfo.cost === 0 && itemResult.override === null) isRelevant = false;
+            // Only show support package if a tier (Bronze, Silver, Gold) is selected
+            if (isSupport) {
+                const activeBtn = document.querySelector('.support-presets-main button.active-preset');
+                const hasTierSelected = activeBtn && activeBtn.id !== 'support-preset-none';
+                if (!hasTierSelected) isRelevant = false;
+            }
 
             if (isRelevant && (quantity > 0 || showZeroQuantityItems)) {
                 itemsInGroupDisplayed++;
@@ -1740,7 +1745,17 @@ function updateDOM() {
     const perSystemCost = (parseFloat(totalPerSystemDPY) || 0) * (parseFloat(dailyInstallRate) || 0) * (parseFloat(totalHardwareUnits) || 0);
     const fixedAnnualCost = (parseFloat(totalFixedAnnualDPY) || 0) * (parseFloat(dailyInstallRate) || 0);
     const maintenanceCost = (parseFloat(totalHardwareSellPrice) || 0) * (parseFloat(maintenancePercent) || 0) / 100;
-    const result = (parseFloat(perSystemCost) || 0) + (parseFloat(fixedAnnualCost) || 0) + (parseFloat(maintenanceCost) || 0);
+    let result = (parseFloat(perSystemCost) || 0) + (parseFloat(fixedAnnualCost) || 0) + (parseFloat(maintenanceCost) || 0);
+    
+    // Special case: Single G43 Silver support gets 1.5x multiplier
+    if (tier === 'silver') {
+        const g43Qty = currentResults['G43'] ? (currentResults['G43'].override ?? currentResults['G43'].calculated) : 0;
+        const systemType = document.getElementById('system-type')?.value;
+        if (systemType === 'G43' && g43Qty === 1) {
+            result = result * 1.5;
+        }
+    }
+    
     return isNaN(result) ? 0 : result;
 }
    function updateAllSupportTierPrices() {
