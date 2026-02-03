@@ -17,6 +17,7 @@ import type { FloorSummary, ProjectSummary } from "@/lib/antennaProjects";
 
 type ProposalMetadata = {
   customerName?: string;
+  description?: string | null;
   solutionType?: string;
   quoteNumber?: string | null;
   totalPrice?: number | null;
@@ -1464,6 +1465,7 @@ export default function Home() {
                     />
                   </th>
                   <th className="px-3 py-2 font-semibold">Customer</th>
+                  <th className="px-3 py-2 font-semibold">Description</th>
                   <th className="px-3 py-2 font-semibold">Solution</th>
                   <th className="px-3 py-2 font-semibold">Networks</th>
                   <th className="px-3 py-2 font-semibold">Total</th>
@@ -1516,6 +1518,7 @@ export default function Home() {
                           {isArchived && <span className="mt-1 inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium uppercase uctel-badge-accent">Archived</span>}
                         </div>
                       </td>
+                        <td className="px-3 py-3 text-[var(--muted-foreground)]">{proposal.metadata?.description ?? "—"}</td>
                         <td className="px-3 py-3 text-[var(--muted-foreground)]">{proposal.metadata?.solutionType ?? "—"}</td>
                       <td className="px-3 py-3 text-[var(--muted-foreground)]">{typeof proposal.metadata?.numberOfNetworks === "number" ? proposal.metadata.numberOfNetworks : "—"}</td>
                       <td className="px-3 py-3 text-[var(--muted-foreground)]">{formatCurrency(proposal.metadata?.totalPrice ?? null)}</td>

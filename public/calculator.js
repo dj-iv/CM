@@ -187,8 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'adapters_n':{label:"4.3/10 to N Adapter",cost:4.61,margin:5.0},
         'install_internal':{label:"Installation (Internal)",cost:150,margin:3},'install_external':{label:"Installation (External)",cost:600,margin:0.5},'cherry_picker':{label:"Cherry Picker",cost:480,margin:0.3},'travel_expenses':{label:"Travel Expenses",cost:150,margin:0},
         'support_package': {label: "Annual Support Package", cost: 0, margin: 0},
-'survey_price_item': {label: "Site Survey", cost: 0, margin: 0},
-'consumables_misc': {label: "Miscellaneous", cost: 0, margin: 0}
+'survey_price_item': {label: "Site Survey", cost: 0, margin: 0}
     };
 
     const normalizeConsumableLabels = (target) => {
@@ -198,9 +197,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (target.cable_cat) {
             target.cable_cat.label = "CAT6 Cable (m)";
-        }
-        if (target.consumables_misc) {
-            target.consumables_misc.label = "Miscellaneous";
         }
         return target;
     };
@@ -235,20 +231,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const defaultAltPriceData = normalizeConsumableLabels(JSON.parse(JSON.stringify(defaultPriceData)));
-    
-    // Create default Old Price Data with same cost but margin reduced by 10% (absolute)
-    const createDefaultOldPriceData = () => {
-        const oldData = normalizeConsumableLabels(JSON.parse(JSON.stringify(defaultPriceData)));
-        Object.keys(oldData).forEach(key => {
-            if (oldData[key] && typeof oldData[key].margin === 'number') {
-                // Reduce margin by 0.1 (10% absolute), but don't go below 0
-                oldData[key].margin = Math.max(0, oldData[key].margin - 0.1);
-            }
-        });
-        return oldData;
-    };
-    const defaultOldPriceData = createDefaultOldPriceData();
-    
     const applyAlternativeOverrides = (target) => {
         Object.entries(alternativePriceOverrides).forEach(([key, override]) => {
             const defaultItem = defaultPriceData[key];
@@ -285,7 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const systemCalculators = {
         'G41': params => { const { B_SA, C_Net, D_DA, E_Max } = params; let r = getBaseCalculations(params, 'G41'); const num_systems = (B_SA === 0 || E_Max === 0) ? 0 : Math.ceil(B_SA / E_Max); r.G41 = num_systems * C_Net; const G_DonorPorts = C_Net * num_systems; const SA_per_set = (num_systems === 0) ? 0 : Math.ceil(B_SA / num_systems); const is_4x4 = (C_Net === 4 && SA_per_set >= 3), is_2x2 = (C_Net === 2 && SA_per_set >= 2); let s4=0,s3=0,s2=0; if (is_4x4 || is_2x2) { const num_outputs=is_4x4?4:2,antennas_per_output=Math.ceil(SA_per_set/num_outputs),splitters=getSplitterCascade(antennas_per_output); s4=splitters.d4*num_outputs;s3=splitters.d3*num_outputs;s2=splitters.d2*num_outputs;} else { const d4=(SA_per_set<=1)?0:((SA_per_set===6)?0:((SA_per_set%4===1)?Math.max(0,Math.floor(SA_per_set/4)-1):Math.floor(SA_per_set/4))),d3=(SA_per_set<=1)?0:Math.floor((SA_per_set-4*d4)/3),d2=(SA_per_set<=1)?0:Math.ceil((SA_per_set-4*d4-3*d3)/2),nd=d4+d3+d2; s4=d4+((C_Net===4)?1:0)+((nd===4)?1:0);s3=d3+((C_Net===3)?1:0)+((nd===3)?1:0);s2=d2+((C_Net===2)?1:0)+((nd===2)?1:0);} let d4_way=0,d3_way=0,d2_way=0; if(G_DonorPorts>D_DA&&D_DA>0){ const p_ceil=Math.ceil(G_DonorPorts/D_DA),p_floor=Math.floor(G_DonorPorts/D_DA),n_ceil=(G_DonorPorts%D_DA===0)?0:(G_DonorPorts%D_DA),n_floor=D_DA-n_ceil; const s_ceil=getSplitterCascade(p_ceil),s_floor=getSplitterCascade(p_floor); d4_way=n_ceil*s_ceil.d4+n_floor*s_floor.d4;d3_way=n_ceil*s_ceil.d3+n_floor*s_floor.d3;d2_way=n_ceil*s_ceil.d2+n_floor*s_floor.d2;} r.hybrids_4x4=is_4x4?num_systems:0;r.hybrids_2x2=is_2x2?num_systems:0; r.splitters_4way=(s4*num_systems)+d4_way;r.splitters_3way=(s3*num_systems)+d3_way;r.splitters_2way=(s2*num_systems)+d2_way; r.pigtails=r.G41+G_DonorPorts; r.connectors=(B_SA+D_DA)+(r.splitters_4way*5+r.splitters_3way*4+r.splitters_2way*3)+(r.hybrids_4x4*8+r.hybrids_2x2*4); r.install_internal=Math.ceil((B_SA/3)+(D_DA/3)+(r.G41/4)+1); return r; },
-        'G43': params => { const { B_SA, C_Net, D_DA, E_Max } = params; let r = getBaseCalculations(params, 'G43'); const is_4_nets=(C_Net===4); const max_antennas_per_set=36; const num_sets=(B_SA>0)?Math.ceil(B_SA/max_antennas_per_set):0; r.G43=is_4_nets?(num_sets*2):num_sets;r.hybrids_2x2=is_4_nets?(num_sets*3):0;r.hybrids_4x4=0; const outputs_per_set=is_4_nets?6:3; const G_DonorPorts=num_sets*outputs_per_set; let s4_t=0,s3_t=0,s2_t=0; if(B_SA>0){const total_outputs=num_sets*outputs_per_set,antennas_per_output=total_outputs>0?Math.ceil(B_SA/total_outputs):0; const splitters=getSplitterCascade(antennas_per_output); s4_t=splitters.d4*total_outputs;s3_t=splitters.d3*total_outputs;s2_t=splitters.d2*total_outputs;} let d4_t=0,d3_t=0,d2_t=0; if(G_DonorPorts>D_DA&&D_DA>0){const p_ceil=Math.ceil(G_DonorPorts/D_DA),p_floor=Math.floor(G_DonorPorts/D_DA),n_ceil=(G_DonorPorts%D_DA===0)?0:(G_DonorPorts%D_DA),n_floor=D_DA-n_ceil; const s_ceil=getSplitterCascade(p_ceil),s_floor=getSplitterCascade(p_floor); d4_t=n_ceil*s_ceil.d4+n_floor*s_floor.d4;d3_t=n_ceil*s_ceil.d3+n_floor*s_floor.d3;d2_t=n_ceil*s_ceil.d2+n_floor*s_floor.d2;} r.splitters_4way=s4_t+d4_t;r.splitters_3way=s3_t+d3_t;r.splitters_2way=s2_t+d2_t; r.pigtails=is_4_nets?(num_sets*6):0; r.connectors=(B_SA+D_DA)+(r.splitters_4way*5+r.splitters_3way*4+r.splitters_2way*3)+(r.hybrids_4x4*8+r.hybrids_2x2*4); r.install_internal=Math.ceil((B_SA/3)+(D_DA/3)+(r.G43/4)+1); return r; },
+        'G43': params => { const { B_SA, C_Net, D_DA, E_Max } = params; let r = getBaseCalculations(params, 'G43'); const is_4_nets=(C_Net===4),outputs_per_set=is_4_nets?6:3,max_antennas_per_set=outputs_per_set*E_Max; const num_sets=(B_SA>0&&max_antennas_per_set>0)?Math.ceil(B_SA/max_antennas_per_set):0; r.G43=is_4_nets?(num_sets*2):num_sets;r.hybrids_2x2=is_4_nets?(num_sets*3):0;r.hybrids_4x4=0; const G_DonorPorts=is_4_nets?(num_sets*6):(num_sets*3); let s4_t=0,s3_t=0,s2_t=0; if(B_SA>0&&E_Max>0){const total_outputs=num_sets*outputs_per_set,antennas_per_output=total_outputs>0?Math.ceil(B_SA/total_outputs):0; const splitters=getSplitterCascade(antennas_per_output); s4_t=splitters.d4*total_outputs;s3_t=splitters.d3*total_outputs;s2_t=splitters.d2*total_outputs;} let d4_t=0,d3_t=0,d2_t=0; if(G_DonorPorts>D_DA&&D_DA>0){const p_ceil=Math.ceil(G_DonorPorts/D_DA),p_floor=Math.floor(G_DonorPorts/D_DA),n_ceil=(G_DonorPorts%D_DA===0)?0:(G_DonorPorts%D_DA),n_floor=D_DA-n_ceil; const s_ceil=getSplitterCascade(p_ceil),s_floor=getSplitterCascade(p_floor); d4_t=n_ceil*s_ceil.d4+n_floor*s_floor.d4;d3_t=n_ceil*s_ceil.d3+n_floor*s_floor.d3;d2_t=n_ceil*s_ceil.d2+n_floor*s_floor.d2;} r.splitters_4way=s4_t+d4_t;r.splitters_3way=s3_t+d3_t;r.splitters_2way=s2_t+d2_t; r.pigtails=is_4_nets?(num_sets*6):0; r.connectors=(B_SA+D_DA)+(r.splitters_4way*5+r.splitters_3way*4+r.splitters_2way*3)+(r.hybrids_4x4*8+r.hybrids_2x2*4); r.install_internal=Math.ceil((B_SA/3)+(D_DA/3)+(r.G43/4)+1); return r; },
     'QUATRA': params => { const { B_SA, C_Net, D_DA } = params; let r=getBaseCalculations(params, 'QUATRA'); r.QUATRA_CU=B_SA; const num_full=Math.floor(r.QUATRA_CU/12),rem_cus=r.QUATRA_CU%12; r.QUATRA_NU=num_full+(rem_cus>0?1:0);r.QUATRA_HUB=num_full+(rem_cus>6?1:0); const G_DonorPorts=4*r.QUATRA_NU;let d4=0,d3=0,d2=0; if(G_DonorPorts>D_DA&&D_DA>0){const p_c=Math.ceil(G_DonorPorts/D_DA),p_f=Math.floor(G_DonorPorts/D_DA),n_c=(G_DonorPorts%D_DA===0)?0:(G_DonorPorts%D_DA),n_f=D_DA-n_c; const s_c=getSplitterCascade(p_c),s_f=getSplitterCascade(p_f); d4=n_c*s_c.d4+n_f*s_f.d4;d3=n_c*s_c.d3+n_f*s_f.d3;d2=n_c*s_c.d2+n_f*s_f.d2;} r.splitters_4way=d4;r.splitters_3way=d3;r.splitters_2way=d2; r.adapters_n=r.QUATRA_CU+r.QUATRA_NU*C_Net;r.connectors_rg45=r.QUATRA_CU*4; r.cable_fibre=0;r.adapters_sfp=0;r.cable_cat=r.QUATRA_CU*200; r.connectors=(D_DA*2)+(r.QUATRA_CU*2)+(r.splitters_4way*5+r.splitters_3way*4+r.splitters_2way*3)+G_DonorPorts; r.install_internal=Math.ceil((r.QUATRA_CU/2)+(D_DA/2)+(r.QUATRA_NU/7)+1); r.extender_cat6=0;r.extender_fibre_cu=0;r.extender_fibre_nu=0; return r;},
     'QUATRA_DAS': params => { const { B_SA, C_Net, D_DA, E_Max } = params; let r=getBaseCalculations(params, 'QUATRA_DAS'); r.QUATRA_CU=(B_SA===0||E_Max===0)?0:Math.ceil(B_SA/E_Max); const SA_per_set=(r.QUATRA_CU===0)?0:Math.ceil(B_SA/r.QUATRA_CU); const s_per_cu=getSplitterCascade(SA_per_set); const s_4W=s_per_cu.d4*r.QUATRA_CU,s_3W=s_per_cu.d3*r.QUATRA_CU,s_2W=s_per_cu.d2*r.QUATRA_CU; const num_full=Math.floor(r.QUATRA_CU/12),rem_cus=r.QUATRA_CU%12; r.QUATRA_NU=num_full+(rem_cus>0?1:0);r.QUATRA_HUB=num_full+(rem_cus>6?1:0); const G_DonorPorts=4*r.QUATRA_NU;let d4=0,d3=0,d2=0; if(G_DonorPorts>D_DA&&D_DA>0){const p_c=Math.ceil(G_DonorPorts/D_DA),p_f=Math.floor(G_DonorPorts/D_DA),n_c=(G_DonorPorts%D_DA===0)?0:(G_DonorPorts%D_DA),n_f=D_DA-n_c; const s_c=getSplitterCascade(p_c),s_f=getSplitterCascade(p_f); d4=n_c*s_c.d4+n_f*s_f.d4;d3=n_c*s_c.d3+n_f*s_f.d3;d2=n_c*s_c.d2+n_f*s_f.d2;} r.splitters_4way=s_4W+d4;r.splitters_3way=s_3W+d3;r.splitters_2way=s_2W+d2; r.adapters_n=r.QUATRA_CU+r.QUATRA_NU*C_Net;r.connectors_rg45=r.QUATRA_CU*4; r.cable_fibre=0;r.adapters_sfp=0;r.cable_cat=r.QUATRA_CU*200; r.connectors=(B_SA+(D_DA*2)+(r.QUATRA_CU*2))+(r.splitters_4way*5+r.splitters_3way*4+r.splitters_2way*3)+G_DonorPorts; r.install_internal=Math.ceil((B_SA/3)+(r.QUATRA_CU/2)+(D_DA/2)+(r.QUATRA_NU/7)+1); r.extender_cat6=0;r.extender_fibre_cu=0;r.extender_fibre_nu=0; return r;},
     'QUATRA_EVO': params => { const { B_SA, C_Net, D_DA } = params; let r=getBaseCalculations(params, 'QUATRA_EVO'); r.QUATRA_EVO_CU=B_SA; const num_full=Math.floor(r.QUATRA_EVO_CU/12),rem_cus=r.QUATRA_EVO_CU%12; r.QUATRA_EVO_NU=num_full+(rem_cus>0?1:0);r.QUATRA_EVO_HUB=num_full+(rem_cus>6?1:0); const G_DonorPorts=2*r.QUATRA_EVO_NU;let d4=0,d3=0,d2=0; if(G_DonorPorts>D_DA&&D_DA>0){const p_c=Math.ceil(G_DonorPorts/D_DA),p_f=Math.floor(G_DonorPorts/D_DA),n_c=(G_DonorPorts%D_DA===0)?0:(G_DonorPorts%D_DA),n_f=D_DA-n_c; const s_c=getSplitterCascade(p_c),s_f=getSplitterCascade(p_f); d4=n_c*s_c.d4+n_f*s_f.d4;d3=n_c*s_c.d3+n_f*s_f.d3;d2=n_c*s_c.d2+n_f*s_f.d2;} r.splitters_4way=d4;r.splitters_3way=d3;r.splitters_2way=d2; r.adapters_n=r.QUATRA_EVO_CU+r.QUATRA_EVO_NU*C_Net;r.connectors_rg45=r.QUATRA_EVO_CU*4; r.cable_fibre=0;r.adapters_sfp=0;r.cable_cat=r.QUATRA_EVO_CU*200; r.connectors=(D_DA*2)+(r.QUATRA_EVO_CU*2)+(r.splitters_4way*5+r.splitters_3way*4+r.splitters_2way*3)+G_DonorPorts; r.install_internal=Math.ceil((r.QUATRA_EVO_CU/2)+(D_DA/2)+(r.QUATRA_EVO_NU/7)+1); r.extender_cat6=0;r.extender_fibre_cu=0;r.extender_fibre_nu=0; return r;},
@@ -491,16 +473,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let priceData = {};
     let altPriceData = {};
-    let oldPriceData = {};
     let useAltPricing = false;
-    let useOldPricing = false;
     let lastPersistedUseAltPricing = false;
-    let lastPersistedUseOldPricing = false;
     let currentResults = {};
     let showZeroQuantityItems = false;
     let subTotalsForProposal = {};
     let supportPriceOverrides = { bronze: null, silver: null, gold: null };
-    let unitSellOverrides = {};
     let isDataInitialized = false;
     let saveStatusMessageTimeout = null;
 
@@ -530,19 +508,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const updateAltPricingIndicator = () => {
         const indicator = document.getElementById('alt-pricing-indicator');
         const altPricingToggle = document.getElementById('alt-pricing-toggle');
-        const oldPricingToggle = document.getElementById('old-pricing-toggle');
-        
         if (altPricingToggle && altPricingToggle.checked !== useAltPricing) {
             altPricingToggle.checked = useAltPricing;
         }
-        if (oldPricingToggle && oldPricingToggle.checked !== useOldPricing) {
-            oldPricingToggle.checked = useOldPricing;
-        }
-        
         if (!indicator) return;
-        if ((useAltPricing || useOldPricing) && isDataInitialized) {
+        if (useAltPricing && isDataInitialized) {
             indicator.classList.remove('hidden');
-            indicator.textContent = useOldPricing ? 'Old Margin pricing is ON' : 'Alternative pricing is ON';
         } else {
             indicator.classList.add('hidden');
         }
@@ -625,7 +596,6 @@ document.addEventListener('DOMContentLoaded', () => {
             saveBtn.addEventListener('click', async () => {
                 const newPriceData = JSON.parse(JSON.stringify(priceData));
                 const newAltPriceData = {};
-                const newOldPriceData = {};
                 const newCoverageData = JSON.parse(JSON.stringify(coverageData));
                 let allValid = true;
 
@@ -634,28 +604,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     const marginInput = document.getElementById(`margin-${key}`);
                     const altCostInput = document.getElementById(`alt-cost-${key}`);
                     const altMarginInput = document.getElementById(`alt-margin-${key}`);
-                    const oldCostInput = document.getElementById(`old-cost-${key}`);
-                    const oldMarginInput = document.getElementById(`old-margin-${key}`);
 
                     const newCost = costInput ? parseFloat(costInput.value) : NaN;
                     const newMargin = marginInput ? parseFloat(marginInput.value) / 100 : NaN;
                     const newAltCost = altCostInput ? parseFloat(altCostInput.value) : NaN;
                     const newAltMargin = altMarginInput ? parseFloat(altMarginInput.value) / 100 : NaN;
-                    const newOldCost = oldCostInput ? parseFloat(oldCostInput.value) : NaN;
-                    const newOldMargin = oldMarginInput ? parseFloat(oldMarginInput.value) / 100 : NaN;
 
-                    if (!isNaN(newCost) && !isNaN(newMargin) && !isNaN(newAltCost) && !isNaN(newAltMargin) && !isNaN(newOldCost) && !isNaN(newOldMargin)) {
+                    if (!isNaN(newCost) && !isNaN(newMargin) && !isNaN(newAltCost) && !isNaN(newAltMargin)) {
                         newPriceData[key].cost = newCost;
                         newPriceData[key].margin = newMargin;
                         newAltPriceData[key] = {
                             label: newPriceData[key].label,
                             cost: newAltCost,
                             margin: newAltMargin
-                        };
-                        newOldPriceData[key] = {
-                            label: newPriceData[key].label,
-                            cost: newOldCost,
-                            margin: newOldMargin
                         };
                     } else {
                         allValid = false;
@@ -682,12 +643,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 const altPricingCheckbox = document.getElementById('alt-pricing-toggle');
-                const oldPricingCheckbox = document.getElementById('old-pricing-toggle');
                 const newUseAltPricing = altPricingCheckbox ? altPricingCheckbox.checked : false;
-                const newUseOldPricing = oldPricingCheckbox ? oldPricingCheckbox.checked : false;
 
                 if (allValid) {
-                    await savePrices(newPriceData, newAltPriceData, newOldPriceData, newUseAltPricing, newUseOldPricing);
+                    await savePrices(newPriceData, newAltPriceData, newUseAltPricing);
                     await saveCoverageData(newCoverageData);
                     registerInitialSnapshot();
                     updateSaveButtonState();
@@ -723,18 +682,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span>Alt Cost (£)</span>
                 <span>Alt Margin (%)</span>
                 <span>Alt Sell (£)</span>
-                <span>Old Cost (£)</span>
-                <span>Old Margin (%)</span>
-                <span>Old Sell (£)</span>
             </div>`;
         const sortedKeys = Object.keys(priceData).sort((a, b) => priceData[a].label.localeCompare(priceData[b].label));
         for(const key of sortedKeys) {
             const item = priceData[key];
             const altItem = altPriceData[key] || { cost: item.cost, margin: item.margin };
-            const oldItem = oldPriceData[key] || { cost: item.cost, margin: Math.max(0, item.margin - 0.1) };
-            const sellPrice = Math.round(item.cost * (1 + item.margin) * 100) / 100;
-            const altSellPrice = Math.round(altItem.cost * (1 + altItem.margin) * 100) / 100;
-            const oldSellPrice = Math.round(oldItem.cost * (1 + oldItem.margin) * 100) / 100;
+            const sellPrice = item.cost * (1 + item.margin);
+            const altSellPrice = altItem.cost * (1 + altItem.margin);
             html += `<div class="setting-item">
                 <label for="cost-${key}">${item.label}</label>
                 <input type="number" step="0.01" id="cost-${key}" value="${item.cost.toFixed(2)}">
@@ -743,9 +697,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 <input type="number" step="0.01" id="alt-cost-${key}" value="${altItem.cost.toFixed(2)}">
                 <input type="number" step="0.01" id="alt-margin-${key}" value="${(altItem.margin * 100).toFixed(2)}">
                 <span id="alt-sell-${key}" class="sell-price-display">£${altSellPrice.toFixed(2)}</span>
-                <input type="number" step="0.01" id="old-cost-${key}" value="${oldItem.cost.toFixed(2)}">
-                <input type="number" step="0.01" id="old-margin-${key}" value="${(oldItem.margin * 100).toFixed(2)}">
-                <span id="old-sell-${key}" class="sell-price-display">£${oldSellPrice.toFixed(2)}</span>
             </div>`;
         }
         container.innerHTML = html;
@@ -755,19 +706,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const marginInput = document.getElementById(`margin-${key}`);
             const altCostInput = document.getElementById(`alt-cost-${key}`);
             const altMarginInput = document.getElementById(`alt-margin-${key}`);
-            const oldCostInput = document.getElementById(`old-cost-${key}`);
-            const oldMarginInput = document.getElementById(`old-margin-${key}`);
             
             const handler = () => window.updateSellPriceDisplay(key);
             const altHandler = () => window.updateAltSellPriceDisplay(key);
-            const oldHandler = () => window.updateOldSellPriceDisplay(key);
             
             if(costInput) costInput.addEventListener('input', handler);
             if(marginInput) marginInput.addEventListener('input', handler);
             if(altCostInput) altCostInput.addEventListener('input', altHandler);
             if(altMarginInput) altMarginInput.addEventListener('input', altHandler);
-            if(oldCostInput) oldCostInput.addEventListener('input', oldHandler);
-            if(oldMarginInput) oldMarginInput.addEventListener('input', oldHandler);
         }
 
         updateAltPricingIndicator();
@@ -878,22 +824,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (altCostInput && altMarginInput && altSellDisplay) {
             const altCost = parseFloat(altCostInput.value) || 0;
             const altMargin = parseFloat(altMarginInput.value) / 100 || 0;
-            const altSellPrice = Math.round(altCost * (1 + altMargin) * 100) / 100;
+            const altSellPrice = altCost * (1 + altMargin);
             altSellDisplay.textContent = `£${altSellPrice.toFixed(2)}`;
-        }
-    };
-
-    // Helper function for updating old margin sell price displays
-    window.updateOldSellPriceDisplay = function(key) {
-        const oldCostInput = document.getElementById(`old-cost-${key}`);
-        const oldMarginInput = document.getElementById(`old-margin-${key}`);
-        const oldSellDisplay = document.getElementById(`old-sell-${key}`);
-        
-        if (oldCostInput && oldMarginInput && oldSellDisplay) {
-            const oldCost = parseFloat(oldCostInput.value) || 0;
-            const oldMargin = parseFloat(oldMarginInput.value) / 100 || 0;
-            const oldSellPrice = Math.round(oldCost * (1 + oldMargin) * 100) / 100;
-            oldSellDisplay.textContent = `£${oldSellPrice.toFixed(2)}`;
         }
     };
 
@@ -937,7 +869,6 @@ document.addEventListener('DOMContentLoaded', () => {
 async function loadPrices() {
     const pricesDocRef = firebase.firestore().collection('settings').doc('prices');
     const altPricesDocRef = firebase.firestore().collection('settings').doc('altPrices');
-    const oldPricesDocRef = firebase.firestore().collection('settings').doc('oldPrices');
     const settingsDocRef = firebase.firestore().collection('settings').doc('general');
     
     try {
@@ -967,30 +898,16 @@ async function loadPrices() {
             altPriceData = altDefaults;
         }
 
-        // Load old margin prices
-        const oldDoc = await oldPricesDocRef.get();
-        if (oldDoc.exists) {
-            console.log("Old margin prices loaded from Firestore.");
-            const firestoreOldPrices = oldDoc.data() || {};
-            oldPriceData = mergePricingData(defaultOldPriceData, firestoreOldPrices);
-        } else {
-            console.log("No old margin prices document, initializing with default data.");
-            oldPriceData = normalizeConsumableLabels(JSON.parse(JSON.stringify(defaultOldPriceData)));
-        }
-
-        // Load settings (including useAltPricing and useOldPricing flags)
+        // Load settings (including useAltPricing flag)
         const settingsDoc = await settingsDocRef.get();
         if (settingsDoc.exists) {
             const settings = settingsDoc.data();
             useAltPricing = settings.useAltPricing || false;
-            useOldPricing = settings.useOldPricing || false;
-            console.log("Settings loaded from Firestore. Use Alt Pricing:", useAltPricing, "Use Old Pricing:", useOldPricing);
+            console.log("Settings loaded from Firestore. Use Alt Pricing:", useAltPricing);
         } else {
             useAltPricing = false;
-            useOldPricing = false;
         }
         lastPersistedUseAltPricing = useAltPricing;
-        lastPersistedUseOldPricing = useOldPricing;
         updateAltPricingIndicator();
         
     } catch (e) {
@@ -998,32 +915,26 @@ async function loadPrices() {
         throw e;
     }
 }
-   async function savePrices(newPriceData, newAltPriceData, newOldPriceData, newUseAltPricing, newUseOldPricing) {
+   async function savePrices(newPriceData, newAltPriceData, newUseAltPricing) {
     const pricesDocRef = firebase.firestore().collection('settings').doc('prices');
     const altPricesDocRef = firebase.firestore().collection('settings').doc('altPrices');
-    const oldPricesDocRef = firebase.firestore().collection('settings').doc('oldPrices');
     const settingsDocRef = firebase.firestore().collection('settings').doc('general');
     
     try {
         normalizeConsumableLabels(newPriceData);
         normalizeConsumableLabels(newAltPriceData);
-        normalizeConsumableLabels(newOldPriceData);
         // Save all the data in parallel
         await Promise.all([
             pricesDocRef.set(newPriceData),
             altPricesDocRef.set(newAltPriceData),
-            oldPricesDocRef.set(newOldPriceData),
-            settingsDocRef.set({ useAltPricing: newUseAltPricing, useOldPricing: newUseOldPricing }, { merge: true })
+            settingsDocRef.set({ useAltPricing: newUseAltPricing }, { merge: true })
         ]);
         
         // Update local variables
     priceData = normalizeConsumableLabels(newPriceData);
     altPriceData = normalizeConsumableLabels(newAltPriceData);
-    oldPriceData = normalizeConsumableLabels(newOldPriceData);
     useAltPricing = newUseAltPricing;
-    useOldPricing = newUseOldPricing;
     lastPersistedUseAltPricing = newUseAltPricing;
-    lastPersistedUseOldPricing = newUseOldPricing;
     updateAltPricingIndicator();
         
         runFullCalculation();
@@ -1073,9 +984,7 @@ async function saveCoverageData(newCoverageData) {
 
     // Helper function to get the active pricing data
     function getActivePriceData() {
-        if (useOldPricing) return oldPriceData;
-        if (useAltPricing) return altPriceData;
-        return priceData;
+        return useAltPricing ? altPriceData : priceData;
     }
 
     function getSplitterCascade(k) { if (k <= 1) return { d4: 0, d3: 0, d2: 0 }; const d4_dist = (k === 6) ? 0 : ((k % 4 === 1) ? Math.max(0, Math.floor(k / 4) - 1) : Math.floor(k / 4)); const d3_dist = Math.floor((k - 4 * d4_dist) / 3); const d2_dist = Math.ceil((k - 4 * d4_dist - 3 * d3_dist) / 2); const num_dist = d4_dist + d3_dist + d2_dist; return { d4: d4_dist + ((num_dist === 4) ? 1 : 0), d3: d3_dist + ((num_dist === 3) ? 1 : 0), d2: d2_dist + ((num_dist === 2) ? 1 : 0) }; }
@@ -1372,9 +1281,6 @@ function runFullCalculation() {
         const internal_days = currentResults['install_internal']?.override ?? currentResults['install_internal']?.calculated ?? 0;
         if(currentResults['travel_expenses']) { currentResults['travel_expenses'].calculated = internal_days; } else { currentResults['travel_expenses'] = { calculated: internal_days, override: null, decimals: 0, unit: ' (Days)'}; }
         
-        // Initialize consumables_misc - always present even with 0 value
-        if(!currentResults['consumables_misc']) { currentResults['consumables_misc'] = { calculated: 0, override: null, decimals: 0, unit: '' }; }
-        
         let totalHardwareSellPrice = 0, totalHardwareUnits = 0;
     const hardwareKeys = ['G41', 'G43', 'QUATRA_NU', 'QUATRA_CU', 'QUATRA_HUB', 'QUATRA_EVO_NU', 'QUATRA_EVO_CU', 'QUATRA_EVO_HUB', 'QUATRA_100M_NU', 'QUATRA_100M_CU', 'QUATRA_100M_PU', 'extender_cat6', 'extender_fibre_cu', 'extender_fibre_nu'];
         for (const key of hardwareKeys) {
@@ -1383,7 +1289,7 @@ function runFullCalculation() {
                 if (quantity > 0) {
                     totalHardwareUnits += quantity;
                     const priceInfo = priceData[key];
-                    totalHardwareSellPrice += quantity * Math.round(priceInfo.cost * (1 + priceInfo.margin) * 100) / 100;
+                    totalHardwareSellPrice += quantity * priceInfo.cost * (1 + priceInfo.margin);
                 }
             }
         }
@@ -1438,8 +1344,7 @@ function updateDOM() {
     const excludeHardware = document.getElementById('no-hardware-checkbox').checked;
     const referralPercent = parseFloat(document.getElementById('referral-fee-percent').value) || 0;
     const referralDecimal = referralPercent / 100;
-    // Positive = referral fee (prices go up), Negative = discount (prices go down)
-    const uplift = (referralDecimal !== 0 && Math.abs(referralDecimal) < 1) ? 1 / (1 - referralDecimal) : 1;
+    const uplift = (referralDecimal > 0 && referralDecimal < 1) ? 1 / (1 - referralDecimal) : 1;
     
     const systemTypeSelect = document.getElementById('system-type');
     const solutionName = systemTypeSelect.options[systemTypeSelect.selectedIndex].text;
@@ -1453,12 +1358,12 @@ function updateDOM() {
     
     const itemGroups = {
         hardware: ['G41', 'G43', 'QUATRA_NU', 'QUATRA_CU', 'QUATRA_HUB', 'QUATRA_EVO_NU', 'QUATRA_EVO_CU', 'QUATRA_EVO_HUB', 'QUATRA_100M_NU', 'QUATRA_100M_CU', 'QUATRA_100M_PU', 'extender_cat6', 'extender_fibre_cu', 'extender_fibre_nu'],
-        consumables: ['service_antennas', 'donor_wideband', 'donor_lpda', 'antenna_bracket', 'hybrids_4x4', 'hybrids_2x2', 'splitters_4way', 'splitters_3way', 'splitters_2way', 'pigtails', 'coax_lmr400', 'coax_half', 'cable_cat', 'cable_fibre', 'connectors', 'connectors_rg45', 'adapters_sfp', 'adapters_n', 'consumables_misc'],
+        consumables: ['service_antennas', 'donor_wideband', 'donor_lpda', 'antenna_bracket', 'hybrids_4x4', 'hybrids_2x2', 'splitters_4way', 'splitters_3way', 'splitters_2way', 'pigtails', 'coax_lmr400', 'coax_half', 'cable_cat', 'cable_fibre', 'connectors', 'connectors_rg45', 'adapters_sfp', 'adapters_n'],
         services: ['install_internal', 'install_external', 'cherry_picker', 'travel_expenses', 'support_package', 'survey_price_item']
 };
 
     const componentRelevance = {
-        all: ['service_antennas', 'donor_wideband', 'donor_lpda', 'antenna_bracket', 'splitters_4way', 'splitters_3way', 'splitters_2way', 'coax_lmr400', 'coax_half', 'connectors', 'install_internal', 'install_external', 'cherry_picker', 'travel_expenses', 'support_package', 'consumables_misc'],
+        all: ['service_antennas', 'donor_wideband', 'donor_lpda', 'antenna_bracket', 'splitters_4way', 'splitters_3way', 'splitters_2way', 'coax_lmr400', 'coax_half', 'connectors', 'install_internal', 'install_external', 'cherry_picker', 'travel_expenses', 'support_package'],
         go: ['hybrids_4x4', 'hybrids_2x2', 'pigtails'],
         quatra: ['cable_cat', 'cable_fibre', 'connectors_rg45', 'adapters_sfp', 'adapters_n', 'extender_cat6', 'extender_fibre_cu', 'extender_fibre_nu'],
         G41: ['G41'], G43: ['G43'],
@@ -1481,15 +1386,13 @@ function updateDOM() {
             const priceInfo = activePricing[key] || { cost: 0, margin: 0, label: 'N/A' };
             
             const isSupport = key === 'support_package';
-            const isConsumablesMisc = key === 'consumables_misc';
             const quantity = isSupport ? 1 : (itemResult.override !== null ? itemResult.override : itemResult.calculated);
             
             let isRelevant = true;
             if (groupName === 'hardware' || groupName === 'consumables') { isRelevant = false; if (componentRelevance.all.includes(key)) isRelevant = true; if (componentRelevance[systemType]?.includes(key)) isRelevant = true; if (systemType.includes('G4') && componentRelevance.go.includes(key)) isRelevant = true; if (systemType.includes('QUATRA') && componentRelevance.quatra.includes(key)) isRelevant = true; }
             if (isSupport && priceInfo.cost === 0 && itemResult.override === null) isRelevant = false;
 
-            // consumables_misc should always be shown even with 0 value
-            if (isRelevant && (quantity > 0 || showZeroQuantityItems || isConsumablesMisc)) {
+            if (isRelevant && (quantity > 0 || showZeroQuantityItems)) {
                 itemsInGroupDisplayed++;
 
                 const finalCost = parseFloat(priceInfo.cost) || 0;
@@ -1497,17 +1400,10 @@ function updateDOM() {
                 const qty = parseFloat(quantity) || 0;
                 const upliftVal = parseFloat(uplift) || 1;
                 
-                // Round unit sell price to avoid floating-point precision issues (e.g., £650.01 instead of £650)
-                // Calculate unit price first, then derive total to ensure Unit × Qty = Total exactly
-                const unitSellRounded = Math.round(finalCost * (1 + margin) * 100) / 100;
-                const finalUnitSell = isSupport ? finalCost : Math.round(unitSellRounded * upliftVal * 100) / 100;
-                const finalTotalSell = Math.round(finalUnitSell * qty * 100) / 100;
-                
-                // Margin calculation:
-                // - For referral fees (positive %): margin stays the same (referral comes from our margin)
-                // - For discounts (negative %): margin is reduced (we get less money)
-                const baseMargin = (unitSellRounded * qty) - (finalCost * qty);
-                const trueLineMargin = referralDecimal < 0 ? (finalTotalSell - (finalCost * qty)) : baseMargin;
+                const baseTotalSell = (isSupport ? finalCost : (finalCost * (1 + margin))) * qty;
+                const finalTotalSell = baseTotalSell * upliftVal;
+                const trueLineMargin = baseTotalSell - (finalCost * qty);
+                const finalUnitSell = qty > 0 ? finalTotalSell / qty : 0;
                 
                 // Add to sub-totals, ensuring they are numbers
                 subTotals[groupName].sell += isNaN(finalTotalSell) ? 0 : finalTotalSell;
@@ -1517,36 +1413,19 @@ function updateDOM() {
                 const qtyDisplay = isSupport ? '1' : `<span class="value-display"></span><input type="number" step="any" class="value-input hidden" />`;
                 const qtyClass = isSupport ? '' : 'item-qty';
                 
-                // Check for unit sell override
-                const hasUnitSellOverride = unitSellOverrides[key] !== undefined && unitSellOverrides[key] !== null;
-                const displayUnitSell = hasUnitSellOverride ? unitSellOverrides[key] : finalUnitSell;
-                const displayTotalSell = Math.round(displayUnitSell * qty * 100) / 100;
-                // For display margin with overrides, always use the actual sell - cost difference
-                const displayMargin = displayTotalSell - (finalCost * qty);
-                
-                // Update sub-totals with actual displayed values
-                if (hasUnitSellOverride) {
-                    subTotals[groupName].sell = subTotals[groupName].sell - finalTotalSell + displayTotalSell;
-                    subTotals[groupName].margin = subTotals[groupName].margin - trueLineMargin + displayMargin;
-                }
-                
-                let totalSellDisplay = `£${displayTotalSell.toFixed(2)}`;
+                let totalSellDisplay = `£${finalTotalSell.toFixed(2)}`;
                 let totalSellClass = '';
                 if (isSupport) {
                     totalSellClass = 'price-override item-qty'; // Re-use item-qty class for event handling
                     totalSellDisplay = `<span class="value-display"></span><input type="number" step="any" class="value-input hidden" />`;
                 }
-                
-                // Make unit sell editable (not for support items)
-                const unitSellDisplay = isSupport ? `£${displayUnitSell.toFixed(2)}` : `<span class="value-display ${hasUnitSellOverride ? 'overridden' : ''}">£${displayUnitSell.toFixed(2)}</span><input type="number" step="0.01" class="value-input hidden" />`;
-                const unitSellClass = isSupport ? '' : 'item-unit-sell';
 
                 groupHTML += `<tr>
                     <td class="col-item item-name">${priceInfo.label}${itemResult.unit || ''}</td>
                     <td class="col-qty ${qtyClass}" data-key="${key}">${qtyDisplay}</td>
-                    <td class="col-sell ${unitSellClass}" data-key="${key}" data-calculated="${finalUnitSell.toFixed(2)}">${unitSellDisplay}</td>
+                    <td class="col-sell">£${finalUnitSell.toFixed(2)}</td>
                     <td class="col-total ${totalSellClass}" data-key="${key}">${totalSellDisplay}</td>
-                    <td class="col-margin">£${displayMargin.toFixed(2)}</td>
+                    <td class="col-margin">£${trueLineMargin.toFixed(2)}</td>
                 </tr>`;
             }
         });
@@ -1571,42 +1450,6 @@ function updateDOM() {
         inputField.addEventListener('keydown', e => {
             if (e.key === 'Enter') deactivateEditMode(cell, key, true);
             else if (e.key === 'Escape') deactivateEditMode(cell, key, false);
-        });
-    });
-    
-    // Unit sell editing
-    document.querySelectorAll('.item-unit-sell').forEach(cell => {
-        const key = cell.dataset.key;
-        const calculatedValue = parseFloat(cell.dataset.calculated) || 0;
-        cell.addEventListener('click', () => {
-            const displaySpan = cell.querySelector('.value-display');
-            const inputField = cell.querySelector('.value-input');
-            displaySpan.classList.add('hidden');
-            inputField.classList.remove('hidden');
-            const currentValue = unitSellOverrides[key] !== undefined && unitSellOverrides[key] !== null ? unitSellOverrides[key] : calculatedValue;
-            inputField.value = currentValue.toFixed(2);
-            inputField.focus();
-            inputField.select();
-        });
-        const inputField = cell.querySelector('.value-input');
-        inputField.addEventListener('click', (e) => e.stopPropagation());
-        inputField.addEventListener('blur', () => {
-            const newValue = parseFloat(inputField.value);
-            if (!isNaN(newValue)) {
-                unitSellOverrides[key] = Math.round(newValue * 100) / 100;
-                runFullCalculation();
-            } else {
-                inputField.classList.add('hidden');
-                cell.querySelector('.value-display').classList.remove('hidden');
-            }
-        });
-        inputField.addEventListener('keydown', e => {
-            if (e.key === 'Enter') {
-                inputField.blur();
-            } else if (e.key === 'Escape') {
-                inputField.classList.add('hidden');
-                cell.querySelector('.value-display').classList.remove('hidden');
-            }
         });
     });
     
@@ -1665,7 +1508,7 @@ function updateDOM() {
     function updateSupportTableSummaries(totalHardwareUnits) {
         const activePricing = getActivePriceData();
         if (!activePricing.install_internal) return; 
-        const dailyInstallRate = Math.round(activePricing.install_internal.cost * (1 + activePricing.install_internal.margin) * 100) / 100;
+        const dailyInstallRate = activePricing.install_internal.cost * (1 + activePricing.install_internal.margin);
         const tierPerSystemDPY = { bronze: 0, silver: 0, gold: 0 };
         const tierFixedAnnualDPY = { bronze: 0, silver: 0, gold: 0 };
         for (const tier of ['bronze', 'silver', 'gold']) {
@@ -1700,7 +1543,7 @@ function updateDOM() {
         }
     }
     const activePricing = getActivePriceData();
-    const dailyInstallRate = Math.round((parseFloat(activePricing.install_internal?.cost) * (1 + parseFloat(activePricing.install_internal?.margin))) * 100) / 100 || 0;
+    const dailyInstallRate = (parseFloat(activePricing.install_internal?.cost) * (1 + parseFloat(activePricing.install_internal?.margin))) || 0;
     const perSystemCost = (parseFloat(totalPerSystemDPY) || 0) * (parseFloat(dailyInstallRate) || 0) * (parseFloat(totalHardwareUnits) || 0);
     const fixedAnnualCost = (parseFloat(totalFixedAnnualDPY) || 0) * (parseFloat(dailyInstallRate) || 0);
     const maintenanceCost = (parseFloat(totalHardwareSellPrice) || 0) * (parseFloat(maintenancePercent) || 0) / 100;
@@ -1717,7 +1560,7 @@ function updateDOM() {
                 totalHardwareUnits += quantity;
                 const activePricing = getActivePriceData();
                 const priceInfo = activePricing[key];
-                totalHardwareSellPrice += quantity * Math.round(priceInfo.cost * (1 + priceInfo.margin) * 100) / 100;
+                totalHardwareSellPrice += quantity * priceInfo.cost * (1 + priceInfo.margin);
             }
         }
     }
@@ -1749,7 +1592,7 @@ function updateDOM() {
                 else totalFixedAnnualDPY += dpyValue;
             }
         });
-        const dailyInstallRate = Math.round((priceData.install_internal?.cost * (1 + priceData.install_internal?.margin)) * 100) / 100 || 0;
+        const dailyInstallRate = (priceData.install_internal?.cost * (1 + priceData.install_internal?.margin)) || 0;
         const perSystemCost = totalPerSystemDPY * dailyInstallRate * totalHardwareUnits;
         const fixedAnnualCost = totalFixedAnnualDPY * dailyInstallRate;
         const maintenanceCost = totalHardwareSellPrice * (maintenancePercent / 100);
@@ -1994,97 +1837,18 @@ function setupScreenshotButton() {
         calculateCoverageRequirements();
     });
 
-   document.querySelectorAll('#number-of-networks, #max-antennas, #no-hardware-checkbox, #referral-fee-percent, #maintenance-percent, #customer-name, #survey-price, #quote-number, #total-service-antennas, #include-survey-checkbox').forEach(input => {
+   document.querySelectorAll('#number-of-networks, #max-antennas, #no-hardware-checkbox, #referral-fee-percent, #maintenance-percent, #customer-name, #survey-price, #quote-number, #proposal-description, #total-service-antennas, #include-survey-checkbox').forEach(input => {
         input.addEventListener('input', runFullCalculation);
         input.addEventListener('change', runFullCalculation);
     });
 
-    document.getElementById('reset-overrides').addEventListener('click', () => { for (const key in currentResults) { if (currentResults[key].hasOwnProperty('override')) currentResults[key].override = null; } unitSellOverrides = {}; setSupportPreset('none'); runFullCalculation(); });
+    document.getElementById('reset-overrides').addEventListener('click', () => { for (const key in currentResults) { if (currentResults[key].hasOwnProperty('override')) currentResults[key].override = null; } setSupportPreset('none'); runFullCalculation(); });
     document.getElementById('toggle-zero-qty-btn').addEventListener('click', (e) => { showZeroQuantityItems = !showZeroQuantityItems; e.target.textContent = showZeroQuantityItems ? 'Hide Zero Qty Items' : 'Show All Items'; runFullCalculation(); });
 
-    // Reset All button - resets all inputs to their default values
-    document.getElementById('reset-all-btn').addEventListener('click', () => {
-        if (!confirm('Reset all inputs to defaults? This will clear all your current settings.')) return;
-        
-        // Reset antenna calculator inputs
-        document.getElementById('floor-area').value = '1000';
-        document.getElementById('number-of-floors').value = '1';
-        document.querySelector('input[name="unit-switch"][value="sqm"]').checked = true;
-        document.querySelector('input[name="band-switch"][value="high_band"]').checked = true;
-        document.getElementById('percent-open').value = '25';
-        document.getElementById('percent-cubical').value = '25';
-        document.getElementById('percent-hollow').value = '25';
-        document.getElementById('percent-solid').value = '25';
-        document.getElementById('high-ceiling-warehouse').checked = false;
-        
-        // Reset system configuration
-        document.getElementById('system-type').value = 'G41';
-        document.getElementById('number-of-networks').value = '4';
-        document.getElementById('max-antennas').value = '12';
-        document.getElementById('no-hardware-checkbox').checked = false;
-        document.getElementById('total-service-antennas').value = '12';
-        
-        // Reset financial inputs
-        document.getElementById('referral-fee-percent').value = '0';
-        document.getElementById('maintenance-percent').value = '0';
-        
-        // Reset customer info
-        document.getElementById('customer-name').value = '';
-        document.getElementById('survey-price').value = '0';
-        document.getElementById('quote-number').value = '';
-        document.getElementById('include-survey-checkbox').checked = false;
-        
-        // Reset all overrides
-        for (const key in currentResults) {
-            if (currentResults[key].hasOwnProperty('override')) {
-                currentResults[key].override = null;
-            }
-        }
-        
-        // Reset unit sell overrides
-        unitSellOverrides = {};
-        
-        // Reset support preset
-        setSupportPreset('none');
-        
-        // Reset support price overrides
-        supportPriceOverrides = { bronze: null, silver: null, gold: null };
-        
-        // Reset view settings
-        showZeroQuantityItems = false;
-        document.getElementById('toggle-zero-qty-btn').textContent = 'Show All Items';
-        
-        // Recalculate
-        runFullCalculation();
-    });
-
     const altPricingToggle = document.getElementById('alt-pricing-toggle');
-    const oldPricingToggle = document.getElementById('old-pricing-toggle');
-    
     if (altPricingToggle) {
         altPricingToggle.addEventListener('change', (event) => {
             useAltPricing = event.target.checked;
-            // Make mutually exclusive with Old Pricing
-            if (useAltPricing && useOldPricing) {
-                useOldPricing = false;
-                if (oldPricingToggle) oldPricingToggle.checked = false;
-            }
-            updateAltPricingIndicator();
-            runFullCalculation();
-            if (typeof window.__updateSettingsSaveState === 'function') {
-                window.__updateSettingsSaveState();
-            }
-        });
-    }
-    
-    if (oldPricingToggle) {
-        oldPricingToggle.addEventListener('change', (event) => {
-            useOldPricing = event.target.checked;
-            // Make mutually exclusive with Alt Pricing
-            if (useOldPricing && useAltPricing) {
-                useAltPricing = false;
-                if (altPricingToggle) altPricingToggle.checked = false;
-            }
             updateAltPricingIndicator();
             runFullCalculation();
             if (typeof window.__updateSettingsSaveState === 'function') {
@@ -2295,7 +2059,7 @@ function setupHighCeilingControls() {
     try {
         let totalHardwareSellPrice = 0, totalHardwareUnits = 0;
         const hardwareKeys = ['G41', 'G43', 'QUATRA_NU', 'QUATRA_CU', 'QUATRA_HUB', 'QUATRA_EVO_NU', 'QUATRA_EVO_CU', 'QUATRA_EVO_HUB', 'extender_cat6', 'extender_fibre_cu', 'extender_fibre_nu'];
-        for (const key of hardwareKeys) { if (currentResults[key]) { const quantity = currentResults[key].override ?? currentResults[key].calculated; if (quantity > 0) { totalHardwareUnits += quantity; const priceInfo = priceData[key]; totalHardwareSellPrice += quantity * Math.round(priceInfo.cost * (1 + priceInfo.margin) * 100) / 100; } } }
+        for (const key of hardwareKeys) { if (currentResults[key]) { const quantity = currentResults[key].override ?? currentResults[key].calculated; if (quantity > 0) { totalHardwareUnits += quantity; const priceInfo = priceData[key]; totalHardwareSellPrice += quantity * priceInfo.cost * (1 + priceInfo.margin); } } }
         
         let selectedSupportTier = 'none';
         let selectedSupportName = "Please see the support options below";
@@ -2423,7 +2187,7 @@ function getTemplateData() {
             const quantity = currentResults[key].override ?? currentResults[key].calculated;
             if (quantity > 0) {
                 totalHardwareUnits += quantity;
-                totalHardwareSellPrice += quantity * Math.round(priceData[key].cost * (1 + priceData[key].margin) * 100) / 100;
+                totalHardwareSellPrice += quantity * priceData[key].cost * (1 + priceData[key].margin);
             }
         }
     });
@@ -2446,6 +2210,7 @@ function getTemplateData() {
     // Return final data object matching placeholders
     return {
         Account: document.getElementById('customer-name').value,
+        Description: document.getElementById('proposal-description').value,
         Solution: solutionName,
         NumberOfNetworks: document.getElementById('number-of-networks').value,
         SurveyPrice: `£${(parseFloat(document.getElementById('survey-price').value) || 0).toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
@@ -2589,6 +2354,7 @@ async function generatePdf() {
                 'customer-name': document.getElementById('customer-name').value,
                 'survey-price': document.getElementById('survey-price').value,
                 'quote-number': document.getElementById('quote-number').value,
+                'proposal-description': document.getElementById('proposal-description').value,
                 'floor-area': document.getElementById('floor-area').value,
                 'number-of-floors': document.getElementById('number-of-floors').value,
                 'unit-switch': document.querySelector('input[name="unit-switch"]:checked').value,
@@ -3202,7 +2968,7 @@ window.updateSellPriceDisplay = (key) => {
     const sellDisplay = document.getElementById(`sell-${key}`);
     const cost = parseFloat(costInput.value) || 0;
     const margin = parseFloat(marginInput.value) || 0;
-    const sellPrice = Math.round(cost * (1 + margin / 100) * 100) / 100;
+    const sellPrice = cost * (1 + margin / 100);
     sellDisplay.textContent = `£${sellPrice.toFixed(2)}`;
 };
 // Trigger deployment - August 7, 2025

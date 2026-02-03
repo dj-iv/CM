@@ -7,6 +7,7 @@ export type ProposalPayload = Record<string, unknown>;
 export interface ProposalMetadata {
   customerName: string;
   customerNameLower: string;
+  description: string | null;
   solutionType: string;
   numberOfNetworks: number | null;
   quoteNumber: string | null;
@@ -110,6 +111,12 @@ export const buildMetadata = (proposal: ProposalPayload, state: DecodedState | n
     "";
   const customerName = customerNameRaw.trim();
 
+  const descriptionRaw =
+    (typeof proposal.Description === "string" && proposal.Description) ||
+    getInputString(state, "proposal-description") ||
+    "";
+  const description = descriptionRaw.trim() || null;
+
   const solutionTypeRaw =
     (typeof proposal.Solution === "string" && proposal.Solution) ||
     (typeof proposal.systemType === "string" && proposal.systemType) ||
@@ -124,6 +131,7 @@ export const buildMetadata = (proposal: ProposalPayload, state: DecodedState | n
   return {
     customerName,
     customerNameLower: customerName.toLowerCase(),
+    description,
     solutionType,
     numberOfNetworks,
     quoteNumber,

@@ -297,6 +297,7 @@ export const POST = async (request: NextRequest) => {
     metadata: {
       customerName: metadata.customerName,
       customerNameLower: metadata.customerNameLower,
+      description: metadata.description,
       solutionType: metadata.solutionType,
       numberOfNetworks: metadata.numberOfNetworks,
       quoteNumber: metadata.quoteNumber,
