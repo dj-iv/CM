@@ -253,7 +253,7 @@ document.addEventListener('DOMContentLoaded', () => {
         normalizeConsumableLabels(target);
     };
     applyAlternativeOverrides(defaultAltPriceData);
-    const supportData = {
+    const defaultSupportData = {
         'remote_monitoring': { label: 'Remote Monitoring', description: 'Alerts and events captured on the management portal', dpm: 0.005, tiers: ['silver', 'gold'], type: 'per_system' },
         'reactive_support': { label: 'Reactive Support', description: 'Customer identifies issue and reports to UCtel', dpm: 0.005, tiers: ['bronze', 'silver', 'gold'], type: 'per_system' },
         'proactive_alerting': { label: 'Proactive Alerting', description: 'Events and alerts received from management portal proactively investigated', dpm: 0.005, tiers: ['silver', 'gold'], type: 'per_system' },
@@ -265,6 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'maintenance_parts': { label: 'Maintenance (Parts only)', description: 'Break/Fix maintenance - parts to site', dpm: 0.0025, tiers: ['bronze', 'silver'], type: 'fixed_annual' },
         'maintenance_engineer': { label: 'Maintenance (with engineer)', description: 'Break / fix maintenance with engineer to site', dpm: 0.1, tiers: ['gold'], type: 'fixed_annual' }
     };
+    let supportData = JSON.parse(JSON.stringify(defaultSupportData));
     const systemCalculators = {
         'G41': params => { const { B_SA, C_Net, D_DA, E_Max } = params; let r = getBaseCalculations(params, 'G41'); const num_systems = (B_SA === 0 || E_Max === 0) ? 0 : Math.ceil(B_SA / E_Max); r.G41 = num_systems * C_Net; const G_DonorPorts = C_Net * num_systems; const SA_per_set = (num_systems === 0) ? 0 : Math.ceil(B_SA / num_systems); const is_4x4 = (C_Net === 4 && SA_per_set >= 3), is_2x2 = (C_Net === 2 && SA_per_set >= 2); let s4=0,s3=0,s2=0; if (is_4x4 || is_2x2) { const num_outputs=is_4x4?4:2,antennas_per_output=Math.ceil(SA_per_set/num_outputs),splitters=getSplitterCascade(antennas_per_output); s4=splitters.d4*num_outputs;s3=splitters.d3*num_outputs;s2=splitters.d2*num_outputs;} else { const d4=(SA_per_set<=1)?0:((SA_per_set===6)?0:((SA_per_set%4===1)?Math.max(0,Math.floor(SA_per_set/4)-1):Math.floor(SA_per_set/4))),d3=(SA_per_set<=1)?0:Math.floor((SA_per_set-4*d4)/3),d2=(SA_per_set<=1)?0:Math.ceil((SA_per_set-4*d4-3*d3)/2),nd=d4+d3+d2; s4=d4+((C_Net===4)?1:0)+((nd===4)?1:0);s3=d3+((C_Net===3)?1:0)+((nd===3)?1:0);s2=d2+((C_Net===2)?1:0)+((nd===2)?1:0);} let d4_way=0,d3_way=0,d2_way=0; if(G_DonorPorts>D_DA&&D_DA>0){ const p_ceil=Math.ceil(G_DonorPorts/D_DA),p_floor=Math.floor(G_DonorPorts/D_DA),n_ceil=(G_DonorPorts%D_DA===0)?0:(G_DonorPorts%D_DA),n_floor=D_DA-n_ceil; const s_ceil=getSplitterCascade(p_ceil),s_floor=getSplitterCascade(p_floor); d4_way=n_ceil*s_ceil.d4+n_floor*s_floor.d4;d3_way=n_ceil*s_ceil.d3+n_floor*s_floor.d3;d2_way=n_ceil*s_ceil.d2+n_floor*s_floor.d2;} r.hybrids_4x4=is_4x4?num_systems:0;r.hybrids_2x2=is_2x2?num_systems:0; r.splitters_4way=(s4*num_systems)+d4_way;r.splitters_3way=(s3*num_systems)+d3_way;r.splitters_2way=(s2*num_systems)+d2_way; r.pigtails=r.G41+G_DonorPorts; r.connectors=(B_SA+D_DA)+(r.splitters_4way*5+r.splitters_3way*4+r.splitters_2way*3)+(r.hybrids_4x4*8+r.hybrids_2x2*4); r.install_internal=Math.ceil((B_SA/3)+(D_DA/3)+(r.G41/4)+1); return r; },
         'G43': params => { const { B_SA, C_Net, D_DA, E_Max } = params; let r = getBaseCalculations(params, 'G43'); const is_4_nets=(C_Net===4),outputs_per_set=is_4_nets?6:3,max_antennas_per_set=outputs_per_set*E_Max; const num_sets=(B_SA>0&&max_antennas_per_set>0)?Math.ceil(B_SA/max_antennas_per_set):0; r.G43=is_4_nets?(num_sets*2):num_sets;r.hybrids_2x2=is_4_nets?(num_sets*3):0;r.hybrids_4x4=0; const G_DonorPorts=is_4_nets?(num_sets*6):(num_sets*3); let s4_t=0,s3_t=0,s2_t=0; if(B_SA>0&&E_Max>0){const total_outputs=num_sets*outputs_per_set,antennas_per_output=total_outputs>0?Math.ceil(B_SA/total_outputs):0; const splitters=getSplitterCascade(antennas_per_output); s4_t=splitters.d4*total_outputs;s3_t=splitters.d3*total_outputs;s2_t=splitters.d2*total_outputs;} let d4_t=0,d3_t=0,d2_t=0; if(G_DonorPorts>D_DA&&D_DA>0){const p_ceil=Math.ceil(G_DonorPorts/D_DA),p_floor=Math.floor(G_DonorPorts/D_DA),n_ceil=(G_DonorPorts%D_DA===0)?0:(G_DonorPorts%D_DA),n_floor=D_DA-n_ceil; const s_ceil=getSplitterCascade(p_ceil),s_floor=getSplitterCascade(p_floor); d4_t=n_ceil*s_ceil.d4+n_floor*s_floor.d4;d3_t=n_ceil*s_ceil.d3+n_floor*s_floor.d3;d2_t=n_ceil*s_ceil.d2+n_floor*s_floor.d2;} r.splitters_4way=s4_t+d4_t;r.splitters_3way=s3_t+d3_t;r.splitters_2way=s2_t+d2_t; r.pigtails=is_4_nets?(num_sets*6):0; r.connectors=(B_SA+D_DA)+(r.splitters_4way*5+r.splitters_3way*4+r.splitters_2way*3)+(r.hybrids_4x4*8+r.hybrids_2x2*4); r.install_internal=Math.ceil((B_SA/3)+(D_DA/3)+(r.G43/4)+1); return r; },
@@ -471,10 +472,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // Create default Old Price Data with same cost but margin reduced by 10% (absolute)
+    const createDefaultOldPriceData = () => {
+        const oldData = normalizeConsumableLabels(JSON.parse(JSON.stringify(defaultPriceData)));
+        for (const key in oldData) {
+            oldData[key].margin = Math.max(0, oldData[key].margin - 0.1);
+        }
+        return oldData;
+    };
+    const defaultOldPriceData = createDefaultOldPriceData();
+
     let priceData = {};
     let altPriceData = {};
+    let oldPriceData = {};
     let useAltPricing = false;
+    let useOldPricing = false;
     let lastPersistedUseAltPricing = false;
+    let lastPersistedUseOldPricing = false;
     let currentResults = {};
     let showZeroQuantityItems = false;
     let subTotalsForProposal = {};
@@ -508,12 +522,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const updateAltPricingIndicator = () => {
         const indicator = document.getElementById('alt-pricing-indicator');
         const altPricingToggle = document.getElementById('alt-pricing-toggle');
+        const oldPricingToggle = document.getElementById('old-pricing-toggle');
         if (altPricingToggle && altPricingToggle.checked !== useAltPricing) {
             altPricingToggle.checked = useAltPricing;
         }
+        if (oldPricingToggle && oldPricingToggle.checked !== useOldPricing) {
+            oldPricingToggle.checked = useOldPricing;
+        }
         if (!indicator) return;
-        if (useAltPricing && isDataInitialized) {
+        if ((useAltPricing || useOldPricing) && isDataInitialized) {
             indicator.classList.remove('hidden');
+            indicator.textContent = useOldPricing ? 'Old Margin pricing is ON' : 'Alternative pricing is ON';
         } else {
             indicator.classList.add('hidden');
         }
@@ -596,7 +615,9 @@ document.addEventListener('DOMContentLoaded', () => {
             saveBtn.addEventListener('click', async () => {
                 const newPriceData = JSON.parse(JSON.stringify(priceData));
                 const newAltPriceData = {};
+                const newOldPriceData = {};
                 const newCoverageData = JSON.parse(JSON.stringify(coverageData));
+                const newSupportData = JSON.parse(JSON.stringify(supportData));
                 let allValid = true;
 
                 for (const key in newPriceData) {
@@ -604,19 +625,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     const marginInput = document.getElementById(`margin-${key}`);
                     const altCostInput = document.getElementById(`alt-cost-${key}`);
                     const altMarginInput = document.getElementById(`alt-margin-${key}`);
+                    const oldCostInput = document.getElementById(`old-cost-${key}`);
+                    const oldMarginInput = document.getElementById(`old-margin-${key}`);
 
                     const newCost = costInput ? parseFloat(costInput.value) : NaN;
                     const newMargin = marginInput ? parseFloat(marginInput.value) / 100 : NaN;
                     const newAltCost = altCostInput ? parseFloat(altCostInput.value) : NaN;
                     const newAltMargin = altMarginInput ? parseFloat(altMarginInput.value) / 100 : NaN;
+                    const newOldCost = oldCostInput ? parseFloat(oldCostInput.value) : NaN;
+                    const newOldMargin = oldMarginInput ? parseFloat(oldMarginInput.value) / 100 : NaN;
 
-                    if (!isNaN(newCost) && !isNaN(newMargin) && !isNaN(newAltCost) && !isNaN(newAltMargin)) {
+                    if (!isNaN(newCost) && !isNaN(newMargin) && !isNaN(newAltCost) && !isNaN(newAltMargin) && !isNaN(newOldCost) && !isNaN(newOldMargin)) {
                         newPriceData[key].cost = newCost;
                         newPriceData[key].margin = newMargin;
                         newAltPriceData[key] = {
                             label: newPriceData[key].label,
                             cost: newAltCost,
                             margin: newAltMargin
+                        };
+                        newOldPriceData[key] = {
+                            label: newPriceData[key].label,
+                            cost: newOldCost,
+                            margin: newOldMargin
                         };
                     } else {
                         allValid = false;
@@ -642,11 +672,37 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 });
 
+                // Collect support data from checkboxes and dpm inputs
+                const maintenancePercent = parseFloat(document.getElementById('maintenance-percent').value) || 5;
+                for (const key in newSupportData) {
+                    const dpmInput = document.querySelector(`.dpm-input[data-key="${key}"]`);
+                    if (dpmInput) {
+                        const dpmValue = parseFloat(dpmInput.value);
+                        if (!isNaN(dpmValue)) {
+                            newSupportData[key].dpm = dpmValue;
+                        }
+                    }
+                    // Collect which tiers are checked for this service
+                    const tiers = [];
+                    ['bronze', 'silver', 'gold'].forEach(tier => {
+                        const checkbox = document.querySelector(`.support-checkbox[data-key="${key}"][data-tier="${tier}"]`);
+                        if (checkbox && checkbox.checked) {
+                            tiers.push(tier);
+                        }
+                    });
+                    newSupportData[key].tiers = tiers;
+                }
+
                 const altPricingCheckbox = document.getElementById('alt-pricing-toggle');
+                const oldPricingCheckbox = document.getElementById('old-pricing-toggle');
                 const newUseAltPricing = altPricingCheckbox ? altPricingCheckbox.checked : false;
+                const newUseOldPricing = oldPricingCheckbox ? oldPricingCheckbox.checked : false;
+
+                // Add maintenance percent to support data for saving
+                newSupportData.maintenancePercent = maintenancePercent;
 
                 if (allValid) {
-                    await savePrices(newPriceData, newAltPriceData, newUseAltPricing);
+                    await savePrices(newPriceData, newAltPriceData, newOldPriceData, newSupportData, newUseAltPricing, newUseOldPricing);
                     await saveCoverageData(newCoverageData);
                     registerInitialSnapshot();
                     updateSaveButtonState();
@@ -682,13 +738,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span>Alt Cost (£)</span>
                 <span>Alt Margin (%)</span>
                 <span>Alt Sell (£)</span>
+                <span>Old Cost (£)</span>
+                <span>Old Margin (%)</span>
+                <span>Old Sell (£)</span>
             </div>`;
         const sortedKeys = Object.keys(priceData).sort((a, b) => priceData[a].label.localeCompare(priceData[b].label));
         for(const key of sortedKeys) {
             const item = priceData[key];
             const altItem = altPriceData[key] || { cost: item.cost, margin: item.margin };
+            const oldItem = oldPriceData[key] || { cost: item.cost, margin: Math.max(0, item.margin - 0.1) };
             const sellPrice = item.cost * (1 + item.margin);
             const altSellPrice = altItem.cost * (1 + altItem.margin);
+            const oldSellPrice = oldItem.cost * (1 + oldItem.margin);
             html += `<div class="setting-item">
                 <label for="cost-${key}">${item.label}</label>
                 <input type="number" step="0.01" id="cost-${key}" value="${item.cost.toFixed(2)}">
@@ -697,6 +758,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 <input type="number" step="0.01" id="alt-cost-${key}" value="${altItem.cost.toFixed(2)}">
                 <input type="number" step="0.01" id="alt-margin-${key}" value="${(altItem.margin * 100).toFixed(2)}">
                 <span id="alt-sell-${key}" class="sell-price-display">£${altSellPrice.toFixed(2)}</span>
+                <input type="number" step="0.01" id="old-cost-${key}" value="${oldItem.cost.toFixed(2)}">
+                <input type="number" step="0.01" id="old-margin-${key}" value="${(oldItem.margin * 100).toFixed(2)}">
+                <span id="old-sell-${key}" class="sell-price-display">£${oldSellPrice.toFixed(2)}</span>
             </div>`;
         }
         container.innerHTML = html;
@@ -706,14 +770,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const marginInput = document.getElementById(`margin-${key}`);
             const altCostInput = document.getElementById(`alt-cost-${key}`);
             const altMarginInput = document.getElementById(`alt-margin-${key}`);
+            const oldCostInput = document.getElementById(`old-cost-${key}`);
+            const oldMarginInput = document.getElementById(`old-margin-${key}`);
             
             const handler = () => window.updateSellPriceDisplay(key);
             const altHandler = () => window.updateAltSellPriceDisplay(key);
+            const oldHandler = () => window.updateOldSellPriceDisplay(key);
             
             if(costInput) costInput.addEventListener('input', handler);
             if(marginInput) marginInput.addEventListener('input', handler);
             if(altCostInput) altCostInput.addEventListener('input', altHandler);
             if(altMarginInput) altMarginInput.addEventListener('input', altHandler);
+            if(oldCostInput) oldCostInput.addEventListener('input', oldHandler);
+            if(oldMarginInput) oldMarginInput.addEventListener('input', oldHandler);
         }
 
         updateAltPricingIndicator();
@@ -829,27 +898,50 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // Helper function for updating old margin sell price displays
+    window.updateOldSellPriceDisplay = function(key) {
+        const oldCostInput = document.getElementById(`old-cost-${key}`);
+        const oldMarginInput = document.getElementById(`old-margin-${key}`);
+        const oldSellDisplay = document.getElementById(`old-sell-${key}`);
+        
+        if (oldCostInput && oldMarginInput && oldSellDisplay) {
+            const oldCost = parseFloat(oldCostInput.value) || 0;
+            const oldMargin = parseFloat(oldMarginInput.value) / 100 || 0;
+            const oldSellPrice = oldCost * (1 + oldMargin);
+            oldSellDisplay.textContent = `£${oldSellPrice.toFixed(2)}`;
+        }
+    };
+
     function populateSupportTable() {
         const table = document.getElementById('support-table');
         if (!table) return;
+        console.log('populateSupportTable called, supportData:', JSON.stringify(supportData, null, 2));
         let html = `<thead><tr><th>Included Services</th><th>Description</th><th>Bronze</th><th>Silver</th><th>Gold</th><th>dpm/sys</th><th>dpy/sys</th></tr></thead><tbody>`;
         for (const key in supportData) {
+            if (key === 'maintenancePercent') continue; // Skip non-service keys
             const item = supportData[key];
             const dpy = item.dpm * 12;
+            const bronzeChecked = item.tiers.includes('bronze') ? 'checked' : '';
+            const silverChecked = item.tiers.includes('silver') ? 'checked' : '';
+            const goldChecked = item.tiers.includes('gold') ? 'checked' : '';
+            console.log(`${key}: tiers=${JSON.stringify(item.tiers)}, bronze=${bronzeChecked}, silver=${silverChecked}, gold=${goldChecked}`);
             html += `<tr><td>${item.label}</td><td>${item.description}</td>
-                <td><input type="checkbox" class="support-checkbox" data-key="${key}" data-tier="bronze"></td>
-                <td><input type="checkbox" class="support-checkbox" data-key="${key}" data-tier="silver"></td>
-                <td><input type="checkbox" class="support-checkbox" data-key="${key}" data-tier="gold"></td>
+                <td><input type="checkbox" class="support-checkbox" data-key="${key}" data-tier="bronze" ${bronzeChecked}></td>
+                <td><input type="checkbox" class="support-checkbox" data-key="${key}" data-tier="silver" ${silverChecked}></td>
+                <td><input type="checkbox" class="support-checkbox" data-key="${key}" data-tier="gold" ${goldChecked}></td>
                 <td><input type="number" class="dpm-input" data-key="${key}" value="${item.dpm.toFixed(4)}" step="0.0001"></td>
                 <td><span id="dpy-${key}">${dpy.toFixed(4)}</span></td></tr>`;
         }
         html += `</tbody><tfoot>
-            <tr class="summary-row"><td colspan="2" style="text-align:right;">Summary per system per year (£)</td><td id="bronze-sys-summary">£0.00</td><td id="silver-sys-summary">£0.00</td><td id="gold-sys-summary">£0.00</td><td colspan="2"></td></tr>
-            <tr class="summary-row"><td colspan="2" style="text-align:right;">Summary per year (£)</td><td id="bronze-year-summary">£0.00</td><td id="silver-year-summary">£0.00</td><td id="gold-year-summary">£0.00</td><td colspan="2"></td></tr>
+            <tr class="summary-row"><td colspan="2" style="text-align:right;">Services per system (×<span id="hardware-units-count">0</span> units)</td><td id="bronze-sys-summary">£0.00</td><td id="silver-sys-summary">£0.00</td><td id="gold-sys-summary">£0.00</td><td colspan="2"></td></tr>
+            <tr class="summary-row"><td colspan="2" style="text-align:right;">Fixed annual services</td><td id="bronze-year-summary">£0.00</td><td id="silver-year-summary">£0.00</td><td id="gold-year-summary">£0.00</td><td colspan="2"></td></tr>
+            <tr class="summary-row"><td colspan="2" style="text-align:right;">Maintenance (<span id="maint-percent-display">5</span>% of hardware)</td><td id="bronze-maint-summary">£0.00</td><td id="silver-maint-summary">£0.00</td><td id="gold-maint-summary">£0.00</td><td colspan="2"></td></tr>
+            <tr class="summary-row" style="font-weight:bold;background:#f0f0f0;"><td colspan="2" style="text-align:right;">Total annual support cost</td><td id="bronze-total-summary">£0.00</td><td id="silver-total-summary">£0.00</td><td id="gold-total-summary">£0.00</td><td colspan="2"></td></tr>
         </tfoot>`;
         table.innerHTML = html;
         document.querySelectorAll('.support-checkbox').forEach(box => box.addEventListener('change', () => {
             document.querySelectorAll('.support-presets-main button').forEach(b => b.classList.remove('active-preset'));
+            updateSupportTableSummaries();
             runFullCalculation();
         }));
         document.querySelectorAll('.dpm-input').forEach(el => {
@@ -858,9 +950,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 const dpySpan = document.getElementById(`dpy-${key}`);
                 const dpmValue = parseFloat(e.target.value) || 0;
                 if (dpySpan) dpySpan.textContent = (dpmValue * 12).toFixed(4);
+                updateSupportTableSummaries();
             });
             el.addEventListener('change', runFullCalculation);
         });
+        // Add listener for maintenance percent input
+        const maintInput = document.getElementById('maintenance-percent');
+        if (maintInput) {
+            maintInput.addEventListener('input', updateSupportTableSummaries);
+            maintInput.addEventListener('change', runFullCalculation);
+        }
+        // Calculate initial summaries
+        updateSupportTableSummaries();
     }
 
   // calculator.js
@@ -869,6 +970,8 @@ document.addEventListener('DOMContentLoaded', () => {
 async function loadPrices() {
     const pricesDocRef = firebase.firestore().collection('settings').doc('prices');
     const altPricesDocRef = firebase.firestore().collection('settings').doc('altPrices');
+    const oldPricesDocRef = firebase.firestore().collection('settings').doc('oldPrices');
+    const supportDocRef = firebase.firestore().collection('settings').doc('support');
     const settingsDocRef = firebase.firestore().collection('settings').doc('general');
     
     try {
@@ -898,16 +1001,51 @@ async function loadPrices() {
             altPriceData = altDefaults;
         }
 
-        // Load settings (including useAltPricing flag)
+        // Load old margin prices
+        const oldDoc = await oldPricesDocRef.get();
+        if (oldDoc.exists) {
+            console.log("Old margin prices loaded from Firestore.");
+            const firestoreOldPrices = oldDoc.data() || {};
+            oldPriceData = mergePricingData(defaultOldPriceData, firestoreOldPrices);
+        } else {
+            console.log("No old margin prices document, initializing with default data.");
+            oldPriceData = normalizeConsumableLabels(JSON.parse(JSON.stringify(defaultOldPriceData)));
+        }
+
+        // Load support data
+        const supportDoc = await supportDocRef.get();
+        if (supportDoc.exists) {
+            console.log("Support data loaded from Firestore.");
+            const firestoreSupport = supportDoc.data() || {};
+            // Load maintenance percentage if it exists
+            if (firestoreSupport.maintenancePercent !== undefined) {
+                document.getElementById('maintenance-percent').value = firestoreSupport.maintenancePercent;
+            }
+            // Merge with defaults to ensure all keys exist
+            supportData = JSON.parse(JSON.stringify(defaultSupportData));
+            for (const key in firestoreSupport) {
+                if (key !== 'maintenancePercent' && supportData[key]) {
+                    supportData[key] = { ...supportData[key], ...firestoreSupport[key] };
+                }
+            }
+        } else {
+            console.log("No support document in Firestore, using default data.");
+            supportData = JSON.parse(JSON.stringify(defaultSupportData));
+        }
+
+        // Load settings (including useAltPricing and useOldPricing flags)
         const settingsDoc = await settingsDocRef.get();
         if (settingsDoc.exists) {
             const settings = settingsDoc.data();
             useAltPricing = settings.useAltPricing || false;
-            console.log("Settings loaded from Firestore. Use Alt Pricing:", useAltPricing);
+            useOldPricing = settings.useOldPricing || false;
+            console.log("Settings loaded from Firestore. Use Alt Pricing:", useAltPricing, "Use Old Pricing:", useOldPricing);
         } else {
             useAltPricing = false;
+            useOldPricing = false;
         }
         lastPersistedUseAltPricing = useAltPricing;
+        lastPersistedUseOldPricing = useOldPricing;
         updateAltPricingIndicator();
         
     } catch (e) {
@@ -915,33 +1053,42 @@ async function loadPrices() {
         throw e;
     }
 }
-   async function savePrices(newPriceData, newAltPriceData, newUseAltPricing) {
+   async function savePrices(newPriceData, newAltPriceData, newOldPriceData, newSupportData, newUseAltPricing, newUseOldPricing) {
     const pricesDocRef = firebase.firestore().collection('settings').doc('prices');
     const altPricesDocRef = firebase.firestore().collection('settings').doc('altPrices');
+    const oldPricesDocRef = firebase.firestore().collection('settings').doc('oldPrices');
+    const supportDocRef = firebase.firestore().collection('settings').doc('support');
     const settingsDocRef = firebase.firestore().collection('settings').doc('general');
     
     try {
         normalizeConsumableLabels(newPriceData);
         normalizeConsumableLabels(newAltPriceData);
+        normalizeConsumableLabels(newOldPriceData);
         // Save all the data in parallel
         await Promise.all([
             pricesDocRef.set(newPriceData),
             altPricesDocRef.set(newAltPriceData),
-            settingsDocRef.set({ useAltPricing: newUseAltPricing }, { merge: true })
+            oldPricesDocRef.set(newOldPriceData),
+            supportDocRef.set(newSupportData),
+            settingsDocRef.set({ useAltPricing: newUseAltPricing, useOldPricing: newUseOldPricing }, { merge: true })
         ]);
         
         // Update local variables
     priceData = normalizeConsumableLabels(newPriceData);
     altPriceData = normalizeConsumableLabels(newAltPriceData);
+    oldPriceData = normalizeConsumableLabels(newOldPriceData);
+    supportData = JSON.parse(JSON.stringify(newSupportData));
     useAltPricing = newUseAltPricing;
+    useOldPricing = newUseOldPricing;
     lastPersistedUseAltPricing = newUseAltPricing;
+    lastPersistedUseOldPricing = newUseOldPricing;
     updateAltPricingIndicator();
         
         runFullCalculation();
-        alert('Pricing settings saved successfully to the database!');
+        alert('Settings saved successfully to the database!');
     } catch (e) {
-        console.error("Could not save pricing data to Firestore.", e);
-        alert('Error: Could not save pricing data to the database.');
+        console.error("Could not save data to Firestore.", e);
+        alert('Error: Could not save data to the database.');
     }
 }
 
@@ -984,6 +1131,7 @@ async function saveCoverageData(newCoverageData) {
 
     // Helper function to get the active pricing data
     function getActivePriceData() {
+        if (useOldPricing) return oldPriceData;
         return useAltPricing ? altPriceData : priceData;
     }
 
@@ -1326,6 +1474,7 @@ function runFullCalculation() {
 
         updateDOM();
         updateAllSupportTierPrices();
+        updateSupportTableSummaries();
     } catch (error) {
         console.error("A critical error occurred during calculation:", error);
         const resultsBody = document.getElementById('results-tbody');
@@ -1497,18 +1646,41 @@ function updateDOM() {
     }
     
     // --- SUPPORT & MODAL FUNCTIONS ---
-    function setSupportPreset(tier) {
+    function setSupportPreset(tier, isInitialLoad = false) {
         document.querySelectorAll('.support-presets-main button').forEach(b => b.classList.remove('active-preset'));
         const presetBtn = document.getElementById(`support-preset-${tier}`);
         if(presetBtn) presetBtn.classList.add('active-preset');
-        document.querySelectorAll('.support-checkbox').forEach(box => { const key = box.dataset.key; const boxTier = box.dataset.tier; box.checked = supportData[key].tiers.includes(tier) && boxTier === tier; });
-        document.getElementById('maintenance-percent').value = (tier === 'none') ? 0 : 5;
+        // Store the active preset for calculations - don't modify config checkboxes
+        window.activeSupportPreset = tier;
+        // Only change maintenance value if user explicitly selects a preset, not on initial load
+        if (!isInitialLoad) {
+            document.getElementById('maintenance-percent').value = (tier === 'none') ? 0 : 5;
+        }
         runFullCalculation();
     }
-    function updateSupportTableSummaries(totalHardwareUnits) {
+    function updateSupportTableSummaries() {
         const activePricing = getActivePriceData();
         if (!activePricing.install_internal) return; 
         const dailyInstallRate = activePricing.install_internal.cost * (1 + activePricing.install_internal.margin);
+        
+        // Calculate hardware units and sell price
+        let totalHardwareUnits = 0, totalHardwareSellPrice = 0;
+        const hardwareKeys = ['G41', 'G43', 'QUATRA_NU', 'QUATRA_CU', 'QUATRA_HUB', 'QUATRA_EVO_NU', 'QUATRA_EVO_CU', 'QUATRA_EVO_HUB', 'QUATRA_100M_NU', 'QUATRA_100M_CU', 'QUATRA_100M_PU', 'extender_cat6', 'extender_fibre_cu', 'extender_fibre_nu'];
+        for (const key of hardwareKeys) {
+            if (currentResults[key]) {
+                const quantity = currentResults[key].override ?? currentResults[key].calculated;
+                if (quantity > 0) {
+                    totalHardwareUnits += quantity;
+                    const priceInfo = activePricing[key];
+                    if (priceInfo) totalHardwareSellPrice += quantity * priceInfo.cost * (1 + priceInfo.margin);
+                }
+            }
+        }
+        
+        // Update hardware units display
+        const unitsSpan = document.getElementById('hardware-units-count');
+        if (unitsSpan) unitsSpan.textContent = totalHardwareUnits;
+        
         const tierPerSystemDPY = { bronze: 0, silver: 0, gold: 0 };
         const tierFixedAnnualDPY = { bronze: 0, silver: 0, gold: 0 };
         for (const tier of ['bronze', 'silver', 'gold']) {
@@ -1521,12 +1693,28 @@ function updateDOM() {
                 }
             });
         }
+        
+        const maintenancePercent = parseFloat(document.getElementById('maintenance-percent').value) || 0;
+        const maintenanceCost = totalHardwareSellPrice * (maintenancePercent / 100);
+        
+        // Update maintenance percent display in table
+        const maintPercentDisplay = document.getElementById('maint-percent-display');
+        if (maintPercentDisplay) maintPercentDisplay.textContent = maintenancePercent;
+        
         for (const tier of ['bronze', 'silver', 'gold']) {
             const sysSummaryCell = document.getElementById(`${tier}-sys-summary`);
             const yearSummaryCell = document.getElementById(`${tier}-year-summary`);
-            if(sysSummaryCell) sysSummaryCell.textContent = `£${(tierPerSystemDPY[tier] * dailyInstallRate).toFixed(2)}`;
+            const maintSummaryCell = document.getElementById(`${tier}-maint-summary`);
+            const totalSummaryCell = document.getElementById(`${tier}-total-summary`);
+            
+            const perSystemCost = tierPerSystemDPY[tier] * dailyInstallRate * totalHardwareUnits;
             const fixedServicesCost = tierFixedAnnualDPY[tier] * dailyInstallRate;
+            const totalCost = perSystemCost + fixedServicesCost + maintenanceCost;
+            
+            if(sysSummaryCell) sysSummaryCell.textContent = `£${perSystemCost.toFixed(2)}`;
             if(yearSummaryCell) yearSummaryCell.textContent = `£${fixedServicesCost.toFixed(2)}`;
+            if(maintSummaryCell) maintSummaryCell.textContent = `£${maintenanceCost.toFixed(2)}`;
+            if(totalSummaryCell) totalSummaryCell.textContent = `£${totalCost.toFixed(2)}`;
         }
     }
    function getSpecificSupportCost(tier, totalHardwareUnits, totalHardwareSellPrice) {
@@ -1534,10 +1722,15 @@ function updateDOM() {
         return parseFloat(supportPriceOverrides[tier]) || 0;
     }
     let totalPerSystemDPY = 0, totalFixedAnnualDPY = 0;
-    const maintenancePercent = (tier === 'none') ? 0 : 5;
+    const maintenancePercent = (tier === 'none') ? 0 : (parseFloat(document.getElementById('maintenance-percent').value) || 0);
+    
+    // Read current dpm values from input fields if they exist, otherwise use supportData
     for (const key in supportData) {
+        if (key === 'maintenancePercent') continue; // Skip non-service keys
         if (supportData[key].tiers.includes(tier)) {
-            const dpyValue = (parseFloat(supportData[key].dpm) || 0) * 12;
+            const dpmInput = document.querySelector(`.dpm-input[data-key="${key}"]`);
+            const dpmValue = dpmInput ? (parseFloat(dpmInput.value) || 0) : (parseFloat(supportData[key].dpm) || 0);
+            const dpyValue = dpmValue * 12;
             if (supportData[key].type === 'per_system') totalPerSystemDPY += dpyValue;
             else totalFixedAnnualDPY += dpyValue;
         }
@@ -1849,6 +2042,30 @@ function setupScreenshotButton() {
     if (altPricingToggle) {
         altPricingToggle.addEventListener('change', (event) => {
             useAltPricing = event.target.checked;
+            // Make Alt and Old mutually exclusive
+            if (useAltPricing && useOldPricing) {
+                useOldPricing = false;
+                const oldToggle = document.getElementById('old-pricing-toggle');
+                if (oldToggle) oldToggle.checked = false;
+            }
+            updateAltPricingIndicator();
+            runFullCalculation();
+            if (typeof window.__updateSettingsSaveState === 'function') {
+                window.__updateSettingsSaveState();
+            }
+        });
+    }
+
+    const oldPricingToggle = document.getElementById('old-pricing-toggle');
+    if (oldPricingToggle) {
+        oldPricingToggle.addEventListener('change', (event) => {
+            useOldPricing = event.target.checked;
+            // Make Alt and Old mutually exclusive
+            if (useOldPricing && useAltPricing) {
+                useAltPricing = false;
+                const altToggle = document.getElementById('alt-pricing-toggle');
+                if (altToggle) altToggle.checked = false;
+            }
             updateAltPricingIndicator();
             runFullCalculation();
             if (typeof window.__updateSettingsSaveState === 'function') {
@@ -1938,7 +2155,7 @@ function setupScreenshotButton() {
 
     // --- Final Calculation Logic ---
     if (!stateLoaded) {
-        setSupportPreset('none');
+        setSupportPreset('none', true);
     }
 
     calculateCoverageRequirements(); 
