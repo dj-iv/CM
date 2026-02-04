@@ -1140,6 +1140,9 @@ async function saveCoverageData(newCoverageData) {
     function activateEditMode(cell, key) { const displaySpan = cell.querySelector('.value-display'), inputField = cell.querySelector('.value-input'); displaySpan.classList.add('hidden'); inputField.classList.remove('hidden'); const currentValue = currentResults[key].override !== null ? currentResults[key].override : currentResults[key].calculated; inputField.value = currentValue; inputField.focus(); inputField.select(); }
     function deactivateEditMode(cell, key, save) { const displaySpan = cell.querySelector('.value-display'), inputField = cell.querySelector('.value-input'); if (save) { const newValue = parseFloat(inputField.value); if (!isNaN(newValue)) { currentResults[key].override = newValue; runFullCalculation(); } } else { inputField.classList.add('hidden'); displaySpan.classList.remove('hidden'); } }
     function updateCellDisplay(cell, key) { const item = currentResults[key], displaySpan = cell.querySelector('.value-display'), isOverridden = item.override !== null, value = isOverridden ? item.override : item.calculated; displaySpan.textContent = `${value.toFixed(item.decimals || 0)}`; displaySpan.classList.toggle('overridden', isOverridden); }
+    function activateUnitSellEditMode(cell, key) { const displaySpan = cell.querySelector('.value-display'), inputField = cell.querySelector('.value-input'); displaySpan.classList.add('hidden'); inputField.classList.remove('hidden'); const currentValue = currentResults[key].unitSellOverride !== null ? currentResults[key].unitSellOverride : currentResults[key].calculatedUnitSell; inputField.value = currentValue.toFixed(2); inputField.focus(); inputField.select(); }
+    function deactivateUnitSellEditMode(cell, key, save) { const displaySpan = cell.querySelector('.value-display'), inputField = cell.querySelector('.value-input'); if (save) { const newValue = parseFloat(inputField.value); if (!isNaN(newValue)) { currentResults[key].unitSellOverride = newValue; runFullCalculation(); } } else { inputField.classList.add('hidden'); displaySpan.classList.remove('hidden'); } }
+    function updateUnitSellCellDisplay(cell, key) { const item = currentResults[key], displaySpan = cell.querySelector('.value-display'), isOverridden = item.unitSellOverride !== null, value = isOverridden ? item.unitSellOverride : item.calculatedUnitSell; displaySpan.textContent = `£${value.toFixed(2)}`; displaySpan.classList.toggle('overridden', isOverridden); }
     
    function calculateCoverageRequirements() {
     console.log('calculateCoverageRequirements called');
@@ -1342,10 +1345,10 @@ function runFullCalculation() {
             if (currentResults[key]) {
                 currentResults[key].calculated = calculatedValues[key];
             } else {
-                currentResults[key] = { calculated: calculatedValues[key], override: null, decimals: 0, unit: { coax_half: ' (m)', coax_lmr400: ' (m)', cable_cat: ' (m)', install_internal: ' (Days)', install_external: ' (Days)' }[key] || '' };
+                currentResults[key] = { calculated: calculatedValues[key], override: null, decimals: 0, unit: { coax_half: ' (m)', coax_lmr400: ' (m)', cable_cat: ' (m)', install_internal: ' (Days)', install_external: ' (Days)' }[key] || '', unitSellOverride: null, calculatedUnitSell: 0 };
             }
         }
-    if(!currentResults['service_antennas']) { currentResults['service_antennas'] = { calculated: 0, override: null, decimals: 0, unit: '' }; }
+    if(!currentResults['service_antennas']) { currentResults['service_antennas'] = { calculated: 0, override: null, decimals: 0, unit: '', unitSellOverride: null, calculatedUnitSell: 0 }; }
     currentResults['service_antennas'].calculated = preserveDisplayedServiceAntennas ? baseServiceAntennaInput : params.B_SA;
         if (quatraConfig) {
             const cuEntry = currentResults[quatraConfig.cuKey];
@@ -1529,7 +1532,7 @@ function updateDOM() {
         let itemsInGroupDisplayed = 0;
 
         itemGroups[groupName].forEach(key => {
-            if (!currentResults[key]) currentResults[key] = { calculated: 0, override: null, decimals: 0, unit: '' };
+            if (!currentResults[key]) currentResults[key] = { calculated: 0, override: null, decimals: 0, unit: '', unitSellOverride: null, calculatedUnitSell: 0 };
             const itemResult = currentResults[key];
             const activePricing = getActivePriceData();
             const priceInfo = activePricing[key] || { cost: 0, margin: 0, label: 'N/A' };
@@ -1554,10 +1557,17 @@ function updateDOM() {
                 const qty = parseFloat(quantity) || 0;
                 const upliftVal = parseFloat(uplift) || 1;
                 
-                const baseTotalSell = (isSupport ? finalCost : (finalCost * (1 + margin))) * qty;
-                const finalTotalSell = baseTotalSell * upliftVal;
-                const trueLineMargin = baseTotalSell - (finalCost * qty);
-                const finalUnitSell = qty > 0 ? finalTotalSell / qty : 0;
+                // Calculate the base unit sell price (before any override)
+                const baseUnitSell = isSupport ? finalCost : (finalCost * (1 + margin) * upliftVal);
+                
+                // Store calculated unit sell and check for override
+                itemResult.calculatedUnitSell = baseUnitSell;
+                const effectiveUnitSell = itemResult.unitSellOverride !== null ? itemResult.unitSellOverride : baseUnitSell;
+                
+                // Calculate final total sell using effective unit sell
+                const finalTotalSell = effectiveUnitSell * qty;
+                const trueLineMargin = finalTotalSell - (finalCost * qty);
+                const finalUnitSell = effectiveUnitSell;
                 
                 // Add to sub-totals, ensuring they are numbers
                 subTotals[groupName].sell += isNaN(finalTotalSell) ? 0 : finalTotalSell;
@@ -1566,6 +1576,10 @@ function updateDOM() {
 
                 const qtyDisplay = isSupport ? '1' : `<span class="value-display"></span><input type="number" step="any" class="value-input hidden" />`;
                 const qtyClass = isSupport ? '' : 'item-qty';
+                
+                // Unit Sell is editable for non-support items
+                const unitSellDisplay = isSupport ? `£${finalUnitSell.toFixed(2)}` : `<span class="value-display"></span><input type="number" step="0.01" class="value-input hidden" />`;
+                const unitSellClass = isSupport ? '' : 'item-unit-sell';
                 
                 let totalSellDisplay = `£${finalTotalSell.toFixed(2)}`;
                 let totalSellClass = '';
@@ -1577,7 +1591,7 @@ function updateDOM() {
                 groupHTML += `<tr>
                     <td class="col-item item-name">${priceInfo.label}${itemResult.unit || ''}</td>
                     <td class="col-qty ${qtyClass}" data-key="${key}">${qtyDisplay}</td>
-                    <td class="col-sell">£${finalUnitSell.toFixed(2)}</td>
+                    <td class="col-sell ${unitSellClass}" data-key="${key}">${unitSellDisplay}</td>
                     <td class="col-total ${totalSellClass}" data-key="${key}">${totalSellDisplay}</td>
                     <td class="col-margin">£${trueLineMargin.toFixed(2)}</td>
                 </tr>`;
@@ -1604,6 +1618,19 @@ function updateDOM() {
         inputField.addEventListener('keydown', e => {
             if (e.key === 'Enter') deactivateEditMode(cell, key, true);
             else if (e.key === 'Escape') deactivateEditMode(cell, key, false);
+        });
+    });
+
+    document.querySelectorAll('.item-unit-sell').forEach(cell => {
+        const key = cell.dataset.key;
+        updateUnitSellCellDisplay(cell, key);
+        cell.addEventListener('click', () => activateUnitSellEditMode(cell, key));
+        const inputField = cell.querySelector('.value-input');
+        inputField.addEventListener('click', (e) => e.stopPropagation());
+        inputField.addEventListener('blur', () => deactivateUnitSellEditMode(cell, key, true));
+        inputField.addEventListener('keydown', e => {
+            if (e.key === 'Enter') deactivateUnitSellEditMode(cell, key, true);
+            else if (e.key === 'Escape') deactivateUnitSellEditMode(cell, key, false);
         });
     });
     
@@ -2050,7 +2077,7 @@ function setupScreenshotButton() {
         input.addEventListener('change', runFullCalculation);
     });
 
-    document.getElementById('reset-overrides').addEventListener('click', () => { for (const key in currentResults) { if (currentResults[key].hasOwnProperty('override')) currentResults[key].override = null; } setSupportPreset('none'); runFullCalculation(); });
+    document.getElementById('reset-overrides').addEventListener('click', () => { for (const key in currentResults) { if (currentResults[key].hasOwnProperty('override')) currentResults[key].override = null; if (currentResults[key].hasOwnProperty('unitSellOverride')) currentResults[key].unitSellOverride = null; } setSupportPreset('none'); runFullCalculation(); });
     document.getElementById('toggle-zero-qty-btn').addEventListener('click', (e) => { showZeroQuantityItems = !showZeroQuantityItems; e.target.textContent = showZeroQuantityItems ? 'Hide Zero Qty Items' : 'Show All Items'; runFullCalculation(); });
 
     const altPricingToggle = document.getElementById('alt-pricing-toggle');
@@ -2606,6 +2633,7 @@ async function generatePdf() {
                 'total-service-antennas': document.getElementById('total-service-antennas').value,
             },
             overrides: {},
+            unitSellOverrides: {},
             support: {
                 activePreset: activePresetButton ? activePresetButton.id.replace('support-preset-', '') : null,
                 priceOverrides: filteredSupportOverrides,
@@ -2623,6 +2651,9 @@ async function generatePdf() {
             if (Object.prototype.hasOwnProperty.call(currentResults, key)) {
                 if (currentResults[key].override !== null) {
                     state.overrides[key] = currentResults[key].override;
+                }
+                if (currentResults[key].unitSellOverride !== null) {
+                    state.unitSellOverrides[key] = currentResults[key].unitSellOverride;
                 }
             }
         }
@@ -3102,9 +3133,18 @@ async function generateInteractiveLink() {
             isApplyingShareState = true;
             for (const key in state.overrides) {
                 if (!currentResults[key]) {
-                    currentResults[key] = { calculated: 0, override: null, decimals: 0, unit: '' };
+                    currentResults[key] = { calculated: 0, override: null, decimals: 0, unit: '', unitSellOverride: null, calculatedUnitSell: 0 };
                 }
                 currentResults[key].override = state.overrides[key];
+            }
+        }
+
+        if (state.unitSellOverrides) {
+            for (const key in state.unitSellOverrides) {
+                if (!currentResults[key]) {
+                    currentResults[key] = { calculated: 0, override: null, decimals: 0, unit: '', unitSellOverride: null, calculatedUnitSell: 0 };
+                }
+                currentResults[key].unitSellOverride = state.unitSellOverrides[key];
             }
         }
 
@@ -3168,7 +3208,7 @@ function applyPendingShareOverrides() {
         if (!Object.prototype.hasOwnProperty.call(pendingShareOverrides, key)) continue;
         const overrideValue = pendingShareOverrides[key];
         if (!currentResults[key]) {
-            currentResults[key] = { calculated: 0, override: null, decimals: 0, unit: '' };
+            currentResults[key] = { calculated: 0, override: null, decimals: 0, unit: '', unitSellOverride: null, calculatedUnitSell: 0 };
         }
         currentResults[key].override = overrideValue;
         appliedAny = true;
