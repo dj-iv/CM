@@ -2078,6 +2078,63 @@ function setupScreenshotButton() {
     });
 
     document.getElementById('reset-overrides').addEventListener('click', () => { for (const key in currentResults) { if (currentResults[key].hasOwnProperty('override')) currentResults[key].override = null; if (currentResults[key].hasOwnProperty('unitSellOverride')) currentResults[key].unitSellOverride = null; } setSupportPreset('none'); runFullCalculation(); });
+    
+    document.getElementById('reset-all-btn').addEventListener('click', () => {
+        // Reset all overrides
+        for (const key in currentResults) {
+            if (currentResults[key].hasOwnProperty('override')) currentResults[key].override = null;
+            if (currentResults[key].hasOwnProperty('unitSellOverride')) currentResults[key].unitSellOverride = null;
+        }
+        
+        // Reset form inputs to defaults
+        document.getElementById('floor-area').value = '1000';
+        document.getElementById('number-of-floors').value = '1';
+        document.getElementById('unit-sqm').checked = true;
+        document.getElementById('band-high').checked = true;
+        document.getElementById('percent-open').value = '30';
+        document.getElementById('percent-cubical').value = '30';
+        document.getElementById('percent-hollow').value = '30';
+        document.getElementById('percent-solid').value = '10';
+        document.getElementById('high-ceiling-warehouse').checked = false;
+        document.getElementById('system-type').value = 'G41';
+        document.getElementById('number-of-networks').value = '4';
+        document.getElementById('max-antennas').value = '12';
+        document.getElementById('no-hardware-checkbox').checked = false;
+        document.getElementById('referral-fee-percent').value = '0';
+        document.getElementById('maintenance-percent').value = '5';
+        document.getElementById('customer-name').value = '';
+        document.getElementById('survey-price').value = '';
+        document.getElementById('quote-number').value = '';
+        document.getElementById('total-service-antennas').value = '12';
+        
+        const includeSurvey = document.getElementById('include-survey-checkbox');
+        if (includeSurvey) includeSurvey.checked = false;
+        
+        const altPricingToggle = document.getElementById('alt-pricing-toggle');
+        if (altPricingToggle) altPricingToggle.checked = false;
+        useAltPricing = false;
+        
+        const oldPricingToggle = document.getElementById('old-pricing-toggle');
+        if (oldPricingToggle) oldPricingToggle.checked = false;
+        useOldPricing = false;
+        
+        const proposalDescription = document.getElementById('proposal-description');
+        if (proposalDescription) proposalDescription.value = '';
+        
+        // Reset support package
+        supportPriceOverrides = {};
+        setSupportPreset('none');
+        updateAllSupportTierPrices();
+        
+        // Reset zero qty toggle
+        showZeroQuantityItems = false;
+        const toggleBtn = document.getElementById('toggle-zero-qty-btn');
+        if (toggleBtn) toggleBtn.textContent = 'Show All Items';
+        
+        updateAltPricingIndicator();
+        runFullCalculation();
+    });
+    
     document.getElementById('toggle-zero-qty-btn').addEventListener('click', (e) => { showZeroQuantityItems = !showZeroQuantityItems; e.target.textContent = showZeroQuantityItems ? 'Hide Zero Qty Items' : 'Show All Items'; runFullCalculation(); });
 
     const altPricingToggle = document.getElementById('alt-pricing-toggle');
