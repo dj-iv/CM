@@ -2105,7 +2105,7 @@ function setupScreenshotButton() {
         document.getElementById('customer-name').value = '';
         document.getElementById('survey-price').value = '';
         document.getElementById('quote-number').value = '';
-        document.getElementById('total-service-antennas').value = '12';
+        // Note: total-service-antennas is calculated automatically by runFullCalculation()
         
         const includeSurvey = document.getElementById('include-survey-checkbox');
         if (includeSurvey) includeSurvey.checked = false;
