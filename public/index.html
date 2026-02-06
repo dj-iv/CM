@@ -854,8 +854,17 @@
         loginMessage.textContent = 'Checking your UCtel portal session…';
     }
 
+    const PORTAL_URL = 'https://portal.uctel.co.uk';
+    const APP_ID = 'cost';
+
+    const buildLaunchUrl = () => {
+        const launchUrl = new URL(`/launch/${APP_ID}`, PORTAL_URL);
+        launchUrl.searchParams.set('redirect', window.location.href);
+        return launchUrl.toString();
+    };
+
     const redirectToPortal = (launchUrl) => {
-        window.location.href = launchUrl || '/portal/callback';
+        window.location.href = launchUrl || buildLaunchUrl();
     };
 
     const establishPortalSession = async () => {
