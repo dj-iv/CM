@@ -2122,7 +2122,7 @@ function setupScreenshotButton() {
         if (proposalDescription) proposalDescription.value = '';
         
         // Reset support package
-        supportPriceOverrides = {};
+        supportPriceOverrides = { bronze: null, silver: null, gold: null };
         setSupportPreset('none');
         updateAllSupportTierPrices();
         
