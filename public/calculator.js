@@ -187,7 +187,8 @@ document.addEventListener('DOMContentLoaded', () => {
         'adapters_n':{label:"4.3/10 to N Adapter",cost:4.61,margin:5.0},
         'install_internal':{label:"Installation (Internal)",cost:150,margin:3},'install_external':{label:"Installation (External)",cost:600,margin:0.5},'cherry_picker':{label:"Cherry Picker",cost:480,margin:0.3},'travel_expenses':{label:"Travel Expenses",cost:150,margin:0},
         'support_package': {label: "Annual Support Package", cost: 0, margin: 0},
-'survey_price_item': {label: "Site Survey", cost: 0, margin: 0}
+'survey_price_item': {label: "Site Survey", cost: 0, margin: 0},
+'consumables_misc': {label: "Miscellaneous", cost: 0, margin: 0}
     };
 
     const normalizeConsumableLabels = (target) => {
@@ -197,6 +198,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (target.cable_cat) {
             target.cable_cat.label = "CAT6 Cable (m)";
+        }
+        if (target.consumables_misc) {
+            target.consumables_misc.label = "Miscellaneous";
         }
         return target;
     };
@@ -1432,6 +1436,9 @@ function runFullCalculation() {
         const internal_days = currentResults['install_internal']?.override ?? currentResults['install_internal']?.calculated ?? 0;
         if(currentResults['travel_expenses']) { currentResults['travel_expenses'].calculated = internal_days; } else { currentResults['travel_expenses'] = { calculated: internal_days, override: null, decimals: 0, unit: ' (Days)'}; }
         
+        // Initialize consumables_misc - always present even with 0 value
+        if(!currentResults['consumables_misc']) { currentResults['consumables_misc'] = { calculated: 0, override: null, decimals: 0, unit: '', unitSellOverride: null, calculatedUnitSell: 0 }; }
+        
         let totalHardwareSellPrice = 0, totalHardwareUnits = 0;
     const hardwareKeys = ['G41', 'G43', 'QUATRA_NU', 'QUATRA_CU', 'QUATRA_HUB', 'QUATRA_EVO_NU', 'QUATRA_EVO_CU', 'QUATRA_EVO_HUB', 'QUATRA_100M_NU', 'QUATRA_100M_CU', 'QUATRA_100M_PU', 'extender_cat6', 'extender_fibre_cu', 'extender_fibre_nu'];
         for (const key of hardwareKeys) {
@@ -1510,12 +1517,12 @@ function updateDOM() {
     
     const itemGroups = {
         hardware: ['G41', 'G43', 'QUATRA_NU', 'QUATRA_CU', 'QUATRA_HUB', 'QUATRA_EVO_NU', 'QUATRA_EVO_CU', 'QUATRA_EVO_HUB', 'QUATRA_100M_NU', 'QUATRA_100M_CU', 'QUATRA_100M_PU', 'extender_cat6', 'extender_fibre_cu', 'extender_fibre_nu'],
-        consumables: ['service_antennas', 'donor_wideband', 'donor_lpda', 'antenna_bracket', 'hybrids_4x4', 'hybrids_2x2', 'splitters_4way', 'splitters_3way', 'splitters_2way', 'pigtails', 'coax_lmr400', 'coax_half', 'cable_cat', 'cable_fibre', 'connectors', 'connectors_rg45', 'adapters_sfp', 'adapters_n'],
+        consumables: ['service_antennas', 'donor_wideband', 'donor_lpda', 'antenna_bracket', 'hybrids_4x4', 'hybrids_2x2', 'splitters_4way', 'splitters_3way', 'splitters_2way', 'pigtails', 'coax_lmr400', 'coax_half', 'cable_cat', 'cable_fibre', 'connectors', 'connectors_rg45', 'adapters_sfp', 'adapters_n', 'consumables_misc'],
         services: ['install_internal', 'install_external', 'cherry_picker', 'travel_expenses', 'support_package', 'survey_price_item']
 };
 
     const componentRelevance = {
-        all: ['service_antennas', 'donor_wideband', 'donor_lpda', 'antenna_bracket', 'splitters_4way', 'splitters_3way', 'splitters_2way', 'coax_lmr400', 'coax_half', 'connectors', 'install_internal', 'install_external', 'cherry_picker', 'travel_expenses', 'support_package'],
+        all: ['service_antennas', 'donor_wideband', 'donor_lpda', 'antenna_bracket', 'splitters_4way', 'splitters_3way', 'splitters_2way', 'coax_lmr400', 'coax_half', 'connectors', 'install_internal', 'install_external', 'cherry_picker', 'travel_expenses', 'support_package', 'consumables_misc'],
         go: ['hybrids_4x4', 'hybrids_2x2', 'pigtails'],
         quatra: ['cable_cat', 'cable_fibre', 'connectors_rg45', 'adapters_sfp', 'adapters_n', 'extender_cat6', 'extender_fibre_cu', 'extender_fibre_nu'],
         G41: ['G41'], G43: ['G43'],
@@ -1538,6 +1545,7 @@ function updateDOM() {
             const priceInfo = activePricing[key] || { cost: 0, margin: 0, label: 'N/A' };
             
             const isSupport = key === 'support_package';
+            const isConsumablesMisc = key === 'consumables_misc';
             const quantity = isSupport ? 1 : (itemResult.override !== null ? itemResult.override : itemResult.calculated);
             
             let isRelevant = true;
@@ -1549,7 +1557,8 @@ function updateDOM() {
                 if (!hasTierSelected) isRelevant = false;
             }
 
-            if (isRelevant && (quantity > 0 || showZeroQuantityItems)) {
+            // consumables_misc should always be shown even with 0 value
+            if (isRelevant && (quantity > 0 || showZeroQuantityItems || isConsumablesMisc)) {
                 itemsInGroupDisplayed++;
 
                 const finalCost = parseFloat(priceInfo.cost) || 0;
