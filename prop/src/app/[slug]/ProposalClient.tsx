@@ -25,6 +25,7 @@ interface ProposalClientProps {
   error: string | null;
   antennaPlacement: AntennaPlacementSnapshot | null;
   isInternalViewer: boolean;
+  expiresAt: string | null;
 }
 
 interface SolutionContent {
@@ -633,7 +634,7 @@ const updateProposalOutline = (container: HTMLElement, tocList: HTMLElement): vo
   });
 };
 
-export default function ProposalClient({ slug, proposal, introduction, error, antennaPlacement, isInternalViewer }: ProposalClientProps) {
+export default function ProposalClient({ slug, proposal, introduction, error, antennaPlacement, isInternalViewer, expiresAt }: ProposalClientProps) {
   const [selectedTier, setSelectedTier] = useState<SupportTier | null>(null);
   const [viewerEmail, setViewerEmail] = useState<string | null>(null);
   const [emailInput, setEmailInput] = useState("");
@@ -644,6 +645,17 @@ export default function ProposalClient({ slug, proposal, introduction, error, an
   const openEventLogRef = useRef<Set<string>>(new Set());
   const supportRowClass = (tier: SupportTier) =>
     selectedTier === tier ? "support-tier-option selected" : "support-tier-option";
+
+  // Check if proposal has expired
+  const isExpired = useMemo(() => {
+    if (!expiresAt) return false;
+    const expiryDate = new Date(expiresAt);
+    if (Number.isNaN(expiryDate.getTime())) return false;
+    return expiryDate.getTime() < Date.now();
+  }, [expiresAt]);
+
+  // Non-internal users cannot view expired proposals
+  const isExpiredForViewer = isExpired && !isInternalViewer;
 
   const getField = (key: string, fallback = ""): string => {
     if (!proposal) {
@@ -1041,6 +1053,28 @@ export default function ProposalClient({ slug, proposal, introduction, error, an
   }, [introduction, proposal]);
 
   const bodyContent = (() => {
+    if (isExpiredForViewer) {
+      return (
+        <div className="mx-auto w-full max-w-3xl px-6 py-16 text-center">
+          <img className="mx-auto mb-6 h-16 w-auto" src="/images/uctel_logo.png" alt="UCtel Logo" />
+          <h1 className="text-3xl font-semibold text-slate-800">Proposal Expired</h1>
+          <p className="mt-2 text-sm text-slate-600">Reference: {slug}</p>
+          <div className="mt-6 rounded-lg border border-orange-200 bg-orange-50 p-8">
+            <p className="text-lg font-medium text-orange-700">This proposal is no longer available.</p>
+            <p className="mt-2 text-sm text-slate-600">
+              Please contact your UCtel account manager for an updated proposal.
+            </p>
+            <a
+              href="mailto:sales@uctel.co.uk"
+              className="mt-4 inline-block rounded-lg bg-[#1c8b9d] px-6 py-2 text-sm font-medium text-white transition hover:bg-[#167a8a]"
+            >
+              Contact UCtel
+            </a>
+          </div>
+        </div>
+      );
+    }
+
     if (!hasProposal || error) {
       return (
       <div className="mx-auto w-full max-w-3xl px-6 py-16 text-center">
@@ -1107,6 +1141,11 @@ export default function ProposalClient({ slug, proposal, introduction, error, an
 
     return (
       <>
+        {isExpired && isInternalViewer ? (
+          <div className="proposal-viewer-banner" style={{ backgroundColor: '#fef0e6', color: '#d8613b', borderBottom: '2px solid #f3c4aa' }}>
+            <span><strong>Expired:</strong> This proposal has expired and is only visible to UCtel staff.</span>
+          </div>
+        ) : null}
         {!isInternalViewer && viewerEmail ? (
           <div className="proposal-viewer-banner">
             <span>Viewing as <strong>{viewerEmail}</strong></span>

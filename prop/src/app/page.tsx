@@ -99,6 +99,19 @@ const formatExpiry = (iso: string | null | undefined): string => {
   });
 };
 
+const isExpired = (iso: string | null | undefined): boolean => {
+  if (!iso) {
+    return false;
+  }
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return false;
+  }
+  return date.getTime() < Date.now();
+};
+
+type ViewFilter = "active" | "expired" | "archived";
+
 const normalizeLengthUnit = (value: unknown): LengthUnit => {
   if (typeof value !== "string") {
     return "meters";
@@ -235,6 +248,7 @@ export default function Home() {
 
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewFilter, setViewFilter] = useState<ViewFilter>("active");
 
   const [siteOrigin, setSiteOrigin] = useState<string>("");
 
@@ -729,15 +743,51 @@ export default function Home() {
     setExpiryDraft(next.expiresAt ? next.expiresAt.slice(0, 10) : "");
   }, [detailSlug, proposals, detailDirty]);
 
+  const filteredProposals = useMemo(() => {
+    return proposals.filter((proposal) => {
+      const proposalIsExpired = isExpired(proposal.expiresAt);
+      const proposalIsArchived = Boolean(proposal.isArchived);
+
+      switch (viewFilter) {
+        case "active":
+          return !proposalIsArchived && !proposalIsExpired;
+        case "expired":
+          return !proposalIsArchived && proposalIsExpired;
+        case "archived":
+          return proposalIsArchived;
+        default:
+          return true;
+      }
+    });
+  }, [proposals, viewFilter]);
+
+  const filterCounts = useMemo(() => {
+    let active = 0;
+    let expired = 0;
+    let archived = 0;
+    for (const proposal of proposals) {
+      const proposalIsExpired = isExpired(proposal.expiresAt);
+      const proposalIsArchived = Boolean(proposal.isArchived);
+      if (proposalIsArchived) {
+        archived += 1;
+      } else if (proposalIsExpired) {
+        expired += 1;
+      } else {
+        active += 1;
+      }
+    }
+    return { active, expired, archived };
+  }, [proposals]);
+
   const visibleSelectionCount = selected.size;
-  const allVisibleSelected = proposals.length > 0 && proposals.every((item) => selected.has(item.slug));
+  const allVisibleSelected = filteredProposals.length > 0 && filteredProposals.every((item) => selected.has(item.slug));
 
   const handleToggleAll = () => {
     if (allVisibleSelected) {
       setSelected(new Set());
       return;
     }
-    setSelected(new Set(proposals.map((item) => item.slug)));
+    setSelected(new Set(filteredProposals.map((item) => item.slug)));
   };
 
   const handleToggleOne = (slug: string) => {
@@ -1390,275 +1440,6 @@ export default function Home() {
       </div>
 
       <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-6">
-        <section className="flex flex-col gap-4 rounded-xl uctel-surface p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-1 items-center gap-3">
-              <input
-                type="search"
-                placeholder="Search by customer, quote number, or keyword"
-                value={searchInput}
-                onChange={(event) => setSearchInput(event.target.value)}
-                className="w-full rounded-lg border border-[#cad7df] px-3 py-2 text-sm text-[var(--foreground)] shadow-sm focus:border-[var(--uctel-teal)] focus:outline-none focus:ring-2 focus:ring-[rgba(28,139,157,0.25)]"
-              />
-              <button
-                type="button"
-                onClick={() => loadProposals(authToken!, searchInput)}
-                className="hidden rounded-lg border border-[#9bbccc] px-3 py-2 text-sm font-medium text-[var(--uctel-navy)] transition hover:bg-[#f0f7f9] lg:inline-flex"
-              >
-                Refresh
-              </button>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => handleBulkAction("archive", authToken!, Array.from(selected), loadProposals, debouncedSearch)}
-                disabled={!visibleSelectionCount || bulkLoading}
-                className="uctel-outlined rounded-lg px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Archive
-              </button>
-              <button
-                type="button"
-                onClick={() => handleBulkAction("unarchive", authToken!, Array.from(selected), loadProposals, debouncedSearch)}
-                disabled={!visibleSelectionCount || bulkLoading}
-                className="uctel-outlined rounded-lg px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Unarchive
-              </button>
-              <button
-                type="button"
-                onClick={() => handleBulkAction("set-expiry", authToken!, Array.from(selected), loadProposals, debouncedSearch)}
-                disabled={!visibleSelectionCount || bulkLoading}
-                className="uctel-outlined rounded-lg px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Set expiry
-              </button>
-              <button
-                type="button"
-                onClick={() => handleBulkAction("clear-expiry", authToken!, Array.from(selected), loadProposals, debouncedSearch)}
-                disabled={!visibleSelectionCount || bulkLoading}
-                className="uctel-outlined rounded-lg px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Clear expiry
-              </button>
-              <button
-                type="button"
-                onClick={() => handleBulkAction("delete", authToken!, Array.from(selected), loadProposals, debouncedSearch)}
-                disabled={!visibleSelectionCount || bulkLoading}
-                className="rounded-lg border border-[#f3c4aa] px-3 py-2 text-sm font-medium text-[#d8613b] transition hover:bg-[#fef0e6] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-
-          <div className="overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-white shadow-sm">
-            <table className="min-w-full divide-y divide-[var(--border-subtle)] text-sm">
-              <thead className="uctel-table-header text-left">
-                <tr>
-                  <th className="w-12 px-3 py-2">
-                    <input
-                      type="checkbox"
-                      checked={allVisibleSelected}
-                      aria-label="Select all proposals"
-                      onChange={handleToggleAll}
-                    />
-                  </th>
-                  <th className="px-3 py-2 font-semibold">Customer</th>
-                  <th className="px-3 py-2 font-semibold">Description</th>
-                  <th className="px-3 py-2 font-semibold">Solution</th>
-                  <th className="px-3 py-2 font-semibold">Networks</th>
-                  <th className="px-3 py-2 font-semibold">Total</th>
-                  <th className="px-3 py-2 font-semibold">Owner</th>
-                  <th className="px-3 py-2 font-semibold">Expiry</th>
-                  <th className="px-3 py-2 font-semibold">Updated</th>
-                  <th className="px-3 py-2 font-semibold text-center">Opens</th>
-                  <th className="px-3 py-2 font-semibold text-center">Downloads</th>
-                  <th className="px-3 py-2 font-semibold text-center">Link</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border-subtle)]">
-                {proposals.map((proposal) => {
-                  const isSelected = selected.has(proposal.slug);
-                  const isArchived = Boolean(proposal.isArchived);
-                  const isActive = detailSlug === proposal.slug;
-                  return (
-                    <Fragment key={proposal.slug}>
-                      <tr
-                        className={`uctel-table-row cursor-pointer bg-white ${isArchived ? "opacity-70" : ""}`}
-                        data-selected={isSelected ? "true" : "false"}
-                        data-active={isActive ? "true" : "false"}
-                        onClick={() => {
-                          setDetailSlug((current) => (current === proposal.slug ? current : proposal.slug));
-                          setDetailDirty(false);
-                        }}
-                      >
-                        <td className="px-3 py-2">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={(event) => {
-                              event.stopPropagation();
-                              handleToggleOne(proposal.slug);
-                            }}
-                          />
-                        </td>
-                      <td className="px-3 py-3">
-                        <div className="flex flex-col">
-                          <span className="font-medium text-[var(--foreground)]">{proposal.metadata?.customerName ?? "—"}</span>
-                          <a
-                            href={`/${proposal.slug}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs font-medium text-[var(--uctel-teal)] hover:underline"
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            {proposal.slug}
-                          </a>
-                          {isArchived && <span className="mt-1 inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium uppercase uctel-badge-accent">Archived</span>}
-                        </div>
-                      </td>
-                        <td className="px-3 py-3 text-[var(--muted-foreground)]">{proposal.metadata?.description ?? "—"}</td>
-                        <td className="px-3 py-3 text-[var(--muted-foreground)]">{proposal.metadata?.solutionType ?? "—"}</td>
-                      <td className="px-3 py-3 text-[var(--muted-foreground)]">{typeof proposal.metadata?.numberOfNetworks === "number" ? proposal.metadata.numberOfNetworks : "—"}</td>
-                      <td className="px-3 py-3 text-[var(--muted-foreground)]">{formatCurrency(proposal.metadata?.totalPrice ?? null)}</td>
-                      <td className="px-3 py-3 text-[var(--muted-foreground)]">
-                        {(() => {
-                          const createdBy = proposal.createdBy;
-                          if (!createdBy) {
-                            return "—";
-                          }
-                          const preferred = (createdBy.firstName && createdBy.firstName.trim())
-                            || (createdBy.displayName && createdBy.displayName.trim())
-                            || (createdBy.email && createdBy.email.trim());
-                          return preferred || "—";
-                        })()}
-                      </td>
-                        <td className="px-3 py-3 text-[var(--muted-foreground)]">{formatExpiry(proposal.expiresAt)}</td>
-                        <td className="px-3 py-3 text-[var(--muted-foreground)]">{formatDateTime(proposal.updatedAt)}</td>
-                        <td
-                        className="px-3 py-3 text-center text-[var(--muted-foreground)]"
-                        onMouseEnter={(event) => {
-                          event.stopPropagation();
-                          void handleHoverEvents(proposal.slug, "open");
-                        }}
-                        onMouseLeave={(event) => {
-                          event.stopPropagation();
-                          setHoverTarget((current) =>
-                            current && current.slug === proposal.slug && current.type === "open" ? null : current,
-                          );
-                          setHoverEvents(null);
-                          setHoverEventsError(null);
-                        }}
-                      >
-                        {proposal.viewCount ?? 0}
-                      </td>
-                        <td
-                        className="px-3 py-3 text-center text-[var(--muted-foreground)]"
-                        onMouseEnter={(event) => {
-                          event.stopPropagation();
-                          void handleHoverEvents(proposal.slug, "download");
-                        }}
-                        onMouseLeave={(event) => {
-                          event.stopPropagation();
-                          setHoverTarget((current) =>
-                            current && current.slug === proposal.slug && current.type === "download" ? null : current,
-                          );
-                          setHoverEvents(null);
-                          setHoverEventsError(null);
-                        }}
-                      >
-                        {proposal.downloadCount ?? 0}
-                      </td>
-                        <td className="px-3 py-3 text-center">
-                          <button
-                            type="button"
-                            className="inline-flex items-center justify-center rounded-full border border-[#cad7df] bg-white p-2 text-[var(--muted-foreground)] transition hover:bg-[#f3fbfd]"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void copyProposalLink(proposal.slug);
-                            }}
-                            aria-label="Copy proposal link"
-                          >
-                            <svg
-                              aria-hidden="true"
-                              viewBox="0 0 24 24"
-                              className="h-4 w-4"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth={1.5}
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M9 7.5V6a2.25 2.25 0 0 1 2.25-2.25h5.25A2.25 2.25 0 0 1 18.75 6v9A2.25 2.25 0 0 1 16.5 17.25H15" />
-                              <path d="M6.75 7.5h5.25A2.25 2.25 0 0 1 14.25 9.75v7.5A2.25 2.25 0 0 1 12 19.5H6.75A2.25 2.25 0 0 1 4.5 17.25V9.75A2.25 2.25 0 0 1 6.75 7.5z" />
-                            </svg>
-                            <span className="sr-only">Copy proposal link</span>
-                          </button>
-                        </td>
-                      </tr>
-
-                      {hoverTarget && hoverTarget.slug === proposal.slug && (
-                        <tr className="bg-[var(--table-header-bg)]/40">
-                          <td colSpan={11} className="px-3 py-2">
-                            <div className="rounded-lg border border-[var(--border-subtle)] bg-white p-3 text-xs text-[var(--muted-foreground)] shadow-sm">
-                              <div className="mb-1 flex items-center justify-between gap-2">
-                                <span className="font-semibold text-[var(--uctel-navy)]">
-                                  {hoverTarget.type === "open" ? "Recent opens" : "Recent downloads"}
-                                </span>
-                                {hoverEventsLoading && (
-                                  <span className="text-[10px] uppercase tracking-wide">Loading…</span>
-                                )}
-                              </div>
-                              {hoverEventsError && (
-                                <div className="text-[#d8613b]">{hoverEventsError}</div>
-                              )}
-                              {!hoverEventsError && !hoverEventsLoading && (!hoverEvents || hoverEvents.length === 0) && (
-                                <div>No recent activity recorded.</div>
-                              )}
-                              {!hoverEventsError && hoverEvents && hoverEvents.length > 0 && (
-                                <ul className="space-y-1">
-                                  {hoverEvents.slice(0, 10).map((event) => (
-                                    <li key={event.id} className="flex items-baseline justify-between gap-4">
-                                      <div className="flex flex-col">
-                                        <span className="font-medium text-[var(--foreground)]">
-                                          {event.email ?? "Unknown email"}
-                                        </span>
-                                      </div>
-                                      <span className="whitespace-nowrap text-[11px] text-[var(--muted-foreground)]">
-                                        {formatEventDateTime(event.createdAt)}
-                                      </span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-
-            {!listLoading && !proposals.length && (
-              <div className="p-6 text-center text-sm text-[var(--muted-foreground)]">No proposals found. Adjust your filters and try again.</div>
-            )}
-            {listLoading && (
-              <div className="p-6 text-center text-sm text-[var(--muted-foreground)]">Loading proposals…</div>
-            )}
-            {listError && (
-              <div className="p-6 text-center text-sm text-[#d8613b]">{listError}</div>
-            )}
-          </div>
-
-          <div className="flex items-center justify-between text-sm text-[var(--muted-foreground)]">
-            <span>{proposals.length} proposals</span>
-            <span>{visibleSelectionCount} selected</span>
-          </div>
-        </section>
-
         <section className="rounded-xl uctel-surface p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -1998,6 +1779,327 @@ export default function Home() {
           ) : (
             <p className="text-sm text-[var(--muted-foreground)]">Select a proposal to manage provisional antenna placement.</p>
           )}
+        </section>
+
+        <section className="flex flex-col gap-4 rounded-xl uctel-surface p-5">
+          <div className="flex flex-wrap items-center gap-1 border-b border-[#e4edf1] pb-3">
+            <button
+              type="button"
+              onClick={() => setViewFilter("active")}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+                viewFilter === "active"
+                  ? "bg-[var(--uctel-teal)] text-white"
+                  : "text-[var(--muted-foreground)] hover:bg-[#f0f7f9]"
+              }`}
+            >
+              Active ({filterCounts.active})
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewFilter("expired")}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+                viewFilter === "expired"
+                  ? "bg-[#d8613b] text-white"
+                  : "text-[var(--muted-foreground)] hover:bg-[#f0f7f9]"
+              }`}
+            >
+              Expired ({filterCounts.expired})
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewFilter("archived")}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+                viewFilter === "archived"
+                  ? "bg-[var(--uctel-navy)] text-white"
+                  : "text-[var(--muted-foreground)] hover:bg-[#f0f7f9]"
+              }`}
+            >
+              Archived ({filterCounts.archived})
+            </button>
+          </div>
+
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-1 items-center gap-3">
+              <input
+                type="search"
+                placeholder="Search by customer, quote number, or keyword"
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                className="w-full rounded-lg border border-[#cad7df] px-3 py-2 text-sm text-[var(--foreground)] shadow-sm focus:border-[var(--uctel-teal)] focus:outline-none focus:ring-2 focus:ring-[rgba(28,139,157,0.25)]"
+              />
+              <button
+                type="button"
+                onClick={() => loadProposals(authToken!, searchInput)}
+                className="hidden rounded-lg border border-[#9bbccc] px-3 py-2 text-sm font-medium text-[var(--uctel-navy)] transition hover:bg-[#f0f7f9] lg:inline-flex"
+              >
+                Refresh
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {viewFilter === "expired" && (
+                <button
+                  type="button"
+                  onClick={() => handleBulkAction("set-expiry", authToken!, Array.from(selected), loadProposals, debouncedSearch)}
+                  disabled={!visibleSelectionCount || bulkLoading}
+                  className="rounded-lg border border-[#1c8b9d] bg-[#1c8b9d] px-3 py-2 text-sm font-medium text-white transition hover:bg-[#167a8a] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Reactivate
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => handleBulkAction("archive", authToken!, Array.from(selected), loadProposals, debouncedSearch)}
+                disabled={!visibleSelectionCount || bulkLoading}
+                className="uctel-outlined rounded-lg px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Archive
+              </button>
+              <button
+                type="button"
+                onClick={() => handleBulkAction("unarchive", authToken!, Array.from(selected), loadProposals, debouncedSearch)}
+                disabled={!visibleSelectionCount || bulkLoading}
+                className="uctel-outlined rounded-lg px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Unarchive
+              </button>
+              <button
+                type="button"
+                onClick={() => handleBulkAction("set-expiry", authToken!, Array.from(selected), loadProposals, debouncedSearch)}
+                disabled={!visibleSelectionCount || bulkLoading}
+                className="uctel-outlined rounded-lg px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Set expiry
+              </button>
+              <button
+                type="button"
+                onClick={() => handleBulkAction("clear-expiry", authToken!, Array.from(selected), loadProposals, debouncedSearch)}
+                disabled={!visibleSelectionCount || bulkLoading}
+                className="uctel-outlined rounded-lg px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Clear expiry
+              </button>
+              <button
+                type="button"
+                onClick={() => handleBulkAction("delete", authToken!, Array.from(selected), loadProposals, debouncedSearch)}
+                disabled={!visibleSelectionCount || bulkLoading}
+                className="rounded-lg border border-[#f3c4aa] px-3 py-2 text-sm font-medium text-[#d8613b] transition hover:bg-[#fef0e6] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-white shadow-sm">
+            <table className="min-w-full divide-y divide-[var(--border-subtle)] text-sm">
+              <thead className="uctel-table-header text-left">
+                <tr>
+                  <th className="w-12 px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      aria-label="Select all proposals"
+                      onChange={handleToggleAll}
+                    />
+                  </th>
+                  <th className="px-3 py-2 font-semibold">Customer</th>
+                  <th className="px-3 py-2 font-semibold">Description</th>
+                  <th className="px-3 py-2 font-semibold">Solution</th>
+                  <th className="px-3 py-2 font-semibold">Networks</th>
+                  <th className="px-3 py-2 font-semibold">Total</th>
+                  <th className="px-3 py-2 font-semibold">Owner</th>
+                  <th className="px-3 py-2 font-semibold">Expiry</th>
+                  <th className="px-3 py-2 font-semibold">Updated</th>
+                  <th className="px-3 py-2 font-semibold text-center">Opens</th>
+                  <th className="px-3 py-2 font-semibold text-center">Downloads</th>
+                  <th className="px-3 py-2 font-semibold text-center">Link</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border-subtle)]">
+                {filteredProposals.map((proposal) => {
+                  const isSelected = selected.has(proposal.slug);
+                  const isArchived = Boolean(proposal.isArchived);
+                  const proposalIsExpired = isExpired(proposal.expiresAt);
+                  const isActive = detailSlug === proposal.slug;
+                  return (
+                    <Fragment key={proposal.slug}>
+                      <tr
+                        className={`uctel-table-row cursor-pointer bg-white ${isArchived ? "opacity-70" : ""} ${proposalIsExpired ? "opacity-70" : ""}`}
+                        data-selected={isSelected ? "true" : "false"}
+                        data-active={isActive ? "true" : "false"}
+                        onClick={() => {
+                          setDetailSlug((current) => (current === proposal.slug ? current : proposal.slug));
+                          setDetailDirty(false);
+                        }}
+                      >
+                        <td className="px-3 py-2">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(event) => {
+                              event.stopPropagation();
+                              handleToggleOne(proposal.slug);
+                            }}
+                          />
+                        </td>
+                      <td className="px-3 py-3">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-[var(--foreground)]">{proposal.metadata?.customerName ?? "—"}</span>
+                          <a
+                            href={`/${proposal.slug}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs font-medium text-[var(--uctel-teal)] hover:underline"
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            {proposal.slug}
+                          </a>
+                          {proposalIsExpired && <span className="mt-1 inline-flex items-center rounded-md bg-[#fef0e6] px-2 py-0.5 text-[11px] font-medium uppercase text-[#d8613b]">Expired</span>}
+                          {isArchived && <span className="mt-1 inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium uppercase uctel-badge-accent">Archived</span>}
+                        </div>
+                      </td>
+                        <td className="px-3 py-3 text-[var(--muted-foreground)]">{proposal.metadata?.description ?? "—"}</td>
+                        <td className="px-3 py-3 text-[var(--muted-foreground)]">{proposal.metadata?.solutionType ?? "—"}</td>
+                      <td className="px-3 py-3 text-[var(--muted-foreground)]">{typeof proposal.metadata?.numberOfNetworks === "number" ? proposal.metadata.numberOfNetworks : "—"}</td>
+                      <td className="px-3 py-3 text-[var(--muted-foreground)]">{formatCurrency(proposal.metadata?.totalPrice ?? null)}</td>
+                      <td className="px-3 py-3 text-[var(--muted-foreground)]">
+                        {(() => {
+                          const createdBy = proposal.createdBy;
+                          if (!createdBy) {
+                            return "—";
+                          }
+                          const preferred = (createdBy.firstName && createdBy.firstName.trim())
+                            || (createdBy.displayName && createdBy.displayName.trim())
+                            || (createdBy.email && createdBy.email.trim());
+                          return preferred || "—";
+                        })()}
+                      </td>
+                        <td className={`px-3 py-3 ${proposalIsExpired ? "text-[#d8613b] font-medium" : "text-[var(--muted-foreground)]"}`}>{formatExpiry(proposal.expiresAt)}</td>
+                        <td className="px-3 py-3 text-[var(--muted-foreground)]">{formatDateTime(proposal.updatedAt)}</td>
+                        <td
+                        className="px-3 py-3 text-center text-[var(--muted-foreground)]"
+                        onMouseEnter={(event) => {
+                          event.stopPropagation();
+                          void handleHoverEvents(proposal.slug, "open");
+                        }}
+                        onMouseLeave={(event) => {
+                          event.stopPropagation();
+                          setHoverTarget((current) =>
+                            current && current.slug === proposal.slug && current.type === "open" ? null : current,
+                          );
+                          setHoverEvents(null);
+                          setHoverEventsError(null);
+                        }}
+                      >
+                        {proposal.viewCount ?? 0}
+                      </td>
+                        <td
+                        className="px-3 py-3 text-center text-[var(--muted-foreground)]"
+                        onMouseEnter={(event) => {
+                          event.stopPropagation();
+                          void handleHoverEvents(proposal.slug, "download");
+                        }}
+                        onMouseLeave={(event) => {
+                          event.stopPropagation();
+                          setHoverTarget((current) =>
+                            current && current.slug === proposal.slug && current.type === "download" ? null : current,
+                          );
+                          setHoverEvents(null);
+                          setHoverEventsError(null);
+                        }}
+                      >
+                        {proposal.downloadCount ?? 0}
+                      </td>
+                        <td className="px-3 py-3 text-center">
+                          <button
+                            type="button"
+                            className="inline-flex items-center justify-center rounded-full border border-[#cad7df] bg-white p-2 text-[var(--muted-foreground)] transition hover:bg-[#f3fbfd]"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void copyProposalLink(proposal.slug);
+                            }}
+                            aria-label="Copy proposal link"
+                          >
+                            <svg
+                              aria-hidden="true"
+                              viewBox="0 0 24 24"
+                              className="h-4 w-4"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth={1.5}
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M9 7.5V6a2.25 2.25 0 0 1 2.25-2.25h5.25A2.25 2.25 0 0 1 18.75 6v9A2.25 2.25 0 0 1 16.5 17.25H15" />
+                              <path d="M6.75 7.5h5.25A2.25 2.25 0 0 1 14.25 9.75v7.5A2.25 2.25 0 0 1 12 19.5H6.75A2.25 2.25 0 0 1 4.5 17.25V9.75A2.25 2.25 0 0 1 6.75 7.5z" />
+                            </svg>
+                            <span className="sr-only">Copy proposal link</span>
+                          </button>
+                        </td>
+                      </tr>
+
+                      {hoverTarget && hoverTarget.slug === proposal.slug && (
+                        <tr className="bg-[var(--table-header-bg)]/40">
+                          <td colSpan={11} className="px-3 py-2">
+                            <div className="rounded-lg border border-[var(--border-subtle)] bg-white p-3 text-xs text-[var(--muted-foreground)] shadow-sm">
+                              <div className="mb-1 flex items-center justify-between gap-2">
+                                <span className="font-semibold text-[var(--uctel-navy)]">
+                                  {hoverTarget.type === "open" ? "Recent opens" : "Recent downloads"}
+                                </span>
+                                {hoverEventsLoading && (
+                                  <span className="text-[10px] uppercase tracking-wide">Loading…</span>
+                                )}
+                              </div>
+                              {hoverEventsError && (
+                                <div className="text-[#d8613b]">{hoverEventsError}</div>
+                              )}
+                              {!hoverEventsError && !hoverEventsLoading && (!hoverEvents || hoverEvents.length === 0) && (
+                                <div>No recent activity recorded.</div>
+                              )}
+                              {!hoverEventsError && hoverEvents && hoverEvents.length > 0 && (
+                                <ul className="space-y-1">
+                                  {hoverEvents.slice(0, 10).map((event) => (
+                                    <li key={event.id} className="flex items-baseline justify-between gap-4">
+                                      <div className="flex flex-col">
+                                        <span className="font-medium text-[var(--foreground)]">
+                                          {event.email ?? "Unknown email"}
+                                        </span>
+                                      </div>
+                                      <span className="whitespace-nowrap text-[11px] text-[var(--muted-foreground)]">
+                                        {formatEventDateTime(event.createdAt)}
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            {!listLoading && !filteredProposals.length && (
+              <div className="p-6 text-center text-sm text-[var(--muted-foreground)]">
+                {proposals.length === 0
+                  ? "No proposals found. Adjust your filters and try again."
+                  : `No ${viewFilter} proposals.`}
+              </div>
+            )}
+            {listLoading && (
+              <div className="p-6 text-center text-sm text-[var(--muted-foreground)]">Loading proposals…</div>
+            )}
+            {listError && (
+              <div className="p-6 text-center text-sm text-[#d8613b]">{listError}</div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between text-sm text-[var(--muted-foreground)]">
+            <span>{filteredProposals.length} {viewFilter} proposals</span>
+            <span>{visibleSelectionCount} selected</span>
+          </div>
         </section>
       </main>
     </div>
