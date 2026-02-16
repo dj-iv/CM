@@ -162,7 +162,7 @@ export default async function ProposalPage(props: ProposalPageProps) {
     process.env.NEXT_PUBLIC_PORTAL_SESSION_COOKIE || process.env.PORTAL_SESSION_COOKIE || "uctel_portal_session";
   const fallbackSession = encodedSession ? null : cookieStore.get(fallbackSessionCookieName)?.value;
   const sessionPayload = decodeSessionValue(encodedSession ?? fallbackSession);
-  const isInternalViewer = Boolean(sessionPayload?.uid);
+  const isInternalViewer = Boolean(sessionPayload?.email?.endsWith('@uctel.co.uk'));
 
   return (
     <ProposalClient

@@ -2519,11 +2519,15 @@ function getTemplateData() {
 
     // --- CORRECTED LOGIC FOR PROPOSAL ---
 
-    // 1. Get the cost and label for the selected support package.
-    const selectedSupportCost = priceData['support_package']?.cost || 0;
-    const selectedSupportName = selectedSupportCost > 0 ? (priceData['support_package']?.label || "Annual Support Package") : "Please see the support options below";
+    // 1. Check if a support tier is actually selected (not 'none')
+    const activeButton = document.querySelector('.support-presets-main button.active-preset');
+    const hasSupportTierSelected = activeButton && activeButton.id !== 'support-preset-none';
+    
+    // 2. Get the cost and label for the selected support package.
+    const selectedSupportCost = hasSupportTierSelected ? (priceData['support_package']?.cost || 0) : 0;
+    const selectedSupportName = hasSupportTierSelected ? (priceData['support_package']?.label || "Annual Support Package") : "Please see the support options below";
 
-    // 2. "Professional Services" is the total of all other services.
+    // 3. "Professional Services" is the total of all other services.
     const servicesTotal = parseFloat(subTotalsForProposal.services?.sell || 0);
     const supportCost = parseFloat(selectedSupportCost || 0);
     const professionalServicesCost = (isNaN(servicesTotal) ? 0 : servicesTotal) - (isNaN(supportCost) ? 0 : supportCost);
@@ -2556,9 +2560,9 @@ function getTemplateData() {
         TotalPrice3: `£${professionalServicesCost.toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
         
         Description4: selectedSupportName,
-        Qty4: selectedSupportCost > 0 ? "1" : "",
-        UnitPrice4: selectedSupportCost > 0 ? `£${selectedSupportCost.toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "",
-        TotalPrice4: selectedSupportCost > 0 ? `£${selectedSupportCost.toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "",
+        Qty4: hasSupportTierSelected ? "1" : "",
+        UnitPrice4: hasSupportTierSelected ? `£${selectedSupportCost.toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "",
+        TotalPrice4: hasSupportTierSelected ? `£${selectedSupportCost.toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "",
 
         TotalPrice: `£${((subTotalsForProposal.hardware?.sell || 0) + (subTotalsForProposal.consumables?.sell || 0) + (subTotalsForProposal.services?.sell || 0)).toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
 
