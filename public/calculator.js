@@ -1503,7 +1503,8 @@ function updateDOM() {
     const excludeHardware = document.getElementById('no-hardware-checkbox').checked;
     const referralPercent = parseFloat(document.getElementById('referral-fee-percent').value) || 0;
     const referralDecimal = referralPercent / 100;
-    const uplift = (referralDecimal > 0 && referralDecimal < 1) ? 1 / (1 - referralDecimal) : 1;
+    const absDecimal = Math.abs(referralDecimal);
+    const uplift = (absDecimal > 0 && absDecimal < 1) ? 1 / (1 - referralDecimal) : 1;
     
     const systemTypeSelect = document.getElementById('system-type');
     const solutionName = systemTypeSelect.options[systemTypeSelect.selectedIndex].text;
@@ -1575,10 +1576,10 @@ function updateDOM() {
                 
                 // Calculate final total sell using effective unit sell
                 const finalTotalSell = effectiveUnitSell * qty;
-                // Margin is calculated WITHOUT the referral uplift
-                const baseUnitSellNoUplift = isSupport ? finalCost : (finalCost * (1 + margin));
-                const effectiveNoUplift = itemResult.unitSellOverride !== null ? itemResult.unitSellOverride : baseUnitSellNoUplift;
-                const trueLineMargin = (effectiveNoUplift * qty) - (finalCost * qty);
+                // Referral (positive %): margin calculated WITHOUT uplift so it stays unchanged
+                // Discount (negative %): margin calculated WITH discount so it decreases
+                const marginBasis = referralPercent < 0 ? effectiveUnitSell : (itemResult.unitSellOverride !== null ? itemResult.unitSellOverride : (isSupport ? finalCost : (finalCost * (1 + margin))));
+                const trueLineMargin = (marginBasis * qty) - (finalCost * qty);
                 const finalUnitSell = effectiveUnitSell;
                 
                 // Add to sub-totals, ensuring they are numbers
@@ -2144,7 +2145,9 @@ function setupScreenshotButton() {
         if (toggleBtn) toggleBtn.textContent = 'Show All Items';
         
         updateAltPricingIndicator();
-        runFullCalculation();
+        // Clear saved share-state so page reload also starts fresh
+        try { sessionStorage.removeItem(SHARE_STATE_STORAGE_KEY); } catch (e) {}
+        calculateCoverageRequirements();
     });
     
     document.getElementById('toggle-zero-qty-btn').addEventListener('click', (e) => { showZeroQuantityItems = !showZeroQuantityItems; e.target.textContent = showZeroQuantityItems ? 'Hide Zero Qty Items' : 'Show All Items'; runFullCalculation(); });
