@@ -1533,7 +1533,7 @@ function updateDOM() {
     QUATRA_100M_DAS: ['QUATRA_100M_NU', 'QUATRA_100M_CU', 'QUATRA_100M_PU'],
     };
 
-    let subTotals = { hardware: { cost: 0, sell: 0, margin: 0 }, consumables: { cost: 0, sell: 0, margin: 0 }, services: { cost: 0, sell: 0, margin: 0 } };
+    let subTotals = { hardware: { cost: 0, sell: 0, margin: 0, baseSell: 0 }, consumables: { cost: 0, sell: 0, margin: 0, baseSell: 0 }, services: { cost: 0, sell: 0, margin: 0, baseSell: 0 } };
 
     for (const groupName in itemGroups) {
         let groupHTML = '';
@@ -1576,9 +1576,13 @@ function updateDOM() {
                 
                 // Calculate final total sell using effective unit sell
                 const finalTotalSell = effectiveUnitSell * qty;
+                // Base sell without uplift/discount for referral/discount amount calculation
+                const baseUnitSellClean = isSupport ? finalCost : (finalCost * (1 + margin));
+                const effectiveClean = itemResult.unitSellOverride !== null ? itemResult.unitSellOverride : baseUnitSellClean;
+                const baseTotalSell = effectiveClean * qty;
                 // Referral (positive %): margin calculated WITHOUT uplift so it stays unchanged
                 // Discount (negative %): margin calculated WITH discount so it decreases
-                const marginBasis = referralPercent < 0 ? effectiveUnitSell : (itemResult.unitSellOverride !== null ? itemResult.unitSellOverride : (isSupport ? finalCost : (finalCost * (1 + margin))));
+                const marginBasis = referralPercent < 0 ? effectiveUnitSell : effectiveClean;
                 const trueLineMargin = (marginBasis * qty) - (finalCost * qty);
                 const finalUnitSell = effectiveUnitSell;
                 
@@ -1586,6 +1590,7 @@ function updateDOM() {
                 subTotals[groupName].sell += isNaN(finalTotalSell) ? 0 : finalTotalSell;
                 subTotals[groupName].cost += isNaN(finalCost * qty) ? 0 : (finalCost * qty);
                 subTotals[groupName].margin += isNaN(trueLineMargin) ? 0 : trueLineMargin;
+                subTotals[groupName].baseSell += isNaN(baseTotalSell) ? 0 : baseTotalSell;
 
                 const qtyDisplay = isSupport ? '1' : `<span class="value-display"></span><input type="number" step="any" class="value-input hidden" />`;
                 const qtyClass = isSupport ? '' : 'item-qty';
@@ -1649,7 +1654,7 @@ function updateDOM() {
     
     // Adjust subtotal for excluded hardware
     if (excludeHardware) {
-        subTotals.hardware = { cost: 0, sell: 0, margin: 0 };
+        subTotals.hardware = { cost: 0, sell: 0, margin: 0, baseSell: 0 };
     }
 
     calculateAndDisplayGrandTotals(subTotals);
@@ -1660,7 +1665,8 @@ function updateDOM() {
         const totalSell = (subTotals.hardware?.sell || 0) + (subTotals.consumables?.sell || 0) + (subTotals.services?.sell || 0);
         const totalCost = (subTotals.hardware?.cost || 0) + (subTotals.consumables?.cost || 0) + (subTotals.services?.cost || 0);
         const totalMargin = (subTotals.hardware?.margin || 0) + (subTotals.consumables?.margin || 0) + (subTotals.services?.margin || 0);
-        const totalReferralFee = totalSell - totalCost - totalMargin;
+        const totalBaseSell = (subTotals.hardware?.baseSell || 0) + (subTotals.consumables?.baseSell || 0) + (subTotals.services?.baseSell || 0);
+        const totalReferralFee = totalSell - totalBaseSell;
         document.getElementById('total-cost').textContent = `£${totalCost.toFixed(2)}`;
         document.getElementById('total-sell').textContent = `£${totalSell.toFixed(2)}`;
         document.getElementById('total-margin-value').textContent = `£${totalMargin.toFixed(2)}`;
