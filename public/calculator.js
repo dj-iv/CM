@@ -1566,7 +1566,7 @@ function updateDOM() {
                 const qty = parseFloat(quantity) || 0;
                 const upliftVal = parseFloat(uplift) || 1;
                 
-                // Calculate the base unit sell price (before any override)
+                // Calculate the base unit sell price with referral uplift
                 const baseUnitSell = isSupport ? finalCost : (finalCost * (1 + margin) * upliftVal);
                 
                 // Store calculated unit sell and check for override
@@ -1575,7 +1575,10 @@ function updateDOM() {
                 
                 // Calculate final total sell using effective unit sell
                 const finalTotalSell = effectiveUnitSell * qty;
-                const trueLineMargin = finalTotalSell - (finalCost * qty);
+                // Margin is calculated WITHOUT the referral uplift
+                const baseUnitSellNoUplift = isSupport ? finalCost : (finalCost * (1 + margin));
+                const effectiveNoUplift = itemResult.unitSellOverride !== null ? itemResult.unitSellOverride : baseUnitSellNoUplift;
+                const trueLineMargin = (effectiveNoUplift * qty) - (finalCost * qty);
                 const finalUnitSell = effectiveUnitSell;
                 
                 // Add to sub-totals, ensuring they are numbers
