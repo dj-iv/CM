@@ -1285,7 +1285,7 @@ function runFullCalculation() {
         // --- THIS BLOCK IS UPDATED TO CONTROL VISIBILITY ---
         const includeSurvey = document.getElementById('include-survey-checkbox').checked;
         if (!currentResults['survey_price_item']) {
-            currentResults['survey_price_item'] = { calculated: 0, override: null, decimals: 2 };
+            currentResults['survey_price_item'] = { calculated: 0, override: null, decimals: 2, unit: '', unitSellOverride: null, calculatedUnitSell: 0 };
         }
         const activePricingData = getActivePriceData();
         if (activePricingData['survey_price_item']) {
