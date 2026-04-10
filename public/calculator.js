@@ -1042,7 +1042,7 @@ async function loadPrices() {
         if (settingsDoc.exists) {
             const settings = settingsDoc.data();
             useAltPricing = settings.useAltPricing || false;
-            useOldPricing = settings.useOldPricing || false;
+            useOldPricing = false;
             console.log("Settings loaded from Firestore. Use Alt Pricing:", useAltPricing, "Use Old Pricing:", useOldPricing);
         } else {
             useAltPricing = false;
