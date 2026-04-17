@@ -235,6 +235,20 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const defaultAltPriceData = normalizeConsumableLabels(JSON.parse(JSON.stringify(defaultPriceData)));
+    
+    // Create default Old Price Data with same cost but margin reduced by 10% (absolute)
+    const createDefaultOldPriceData = () => {
+        const oldData = normalizeConsumableLabels(JSON.parse(JSON.stringify(defaultPriceData)));
+        Object.keys(oldData).forEach(key => {
+            if (oldData[key] && typeof oldData[key].margin === 'number') {
+                // Reduce margin by 0.1 (10% absolute), but don't go below 0
+                oldData[key].margin = Math.max(0, oldData[key].margin - 0.1);
+            }
+        });
+        return oldData;
+    };
+    const defaultOldPriceData = createDefaultOldPriceData();
+    
     const applyAlternativeOverrides = (target) => {
         Object.entries(alternativePriceOverrides).forEach(([key, override]) => {
             const defaultItem = defaultPriceData[key];
@@ -257,7 +271,7 @@ document.addEventListener('DOMContentLoaded', () => {
         normalizeConsumableLabels(target);
     };
     applyAlternativeOverrides(defaultAltPriceData);
-    const defaultSupportData = {
+    const supportData = {
         'remote_monitoring': { label: 'Remote Monitoring', description: 'Alerts and events captured on the management portal', dpm: 0.005, tiers: ['silver', 'gold'], type: 'per_system' },
         'reactive_support': { label: 'Reactive Support', description: 'Customer identifies issue and reports to UCtel', dpm: 0.005, tiers: ['bronze', 'silver', 'gold'], type: 'per_system' },
         'proactive_alerting': { label: 'Proactive Alerting', description: 'Events and alerts received from management portal proactively investigated', dpm: 0.005, tiers: ['silver', 'gold'], type: 'per_system' },
@@ -269,10 +283,9 @@ document.addEventListener('DOMContentLoaded', () => {
         'maintenance_parts': { label: 'Maintenance (Parts only)', description: 'Break/Fix maintenance - parts to site', dpm: 0.0025, tiers: ['bronze', 'silver'], type: 'fixed_annual' },
         'maintenance_engineer': { label: 'Maintenance (with engineer)', description: 'Break / fix maintenance with engineer to site', dpm: 0.1, tiers: ['gold'], type: 'fixed_annual' }
     };
-    let supportData = JSON.parse(JSON.stringify(defaultSupportData));
     const systemCalculators = {
         'G41': params => { const { B_SA, C_Net, D_DA, E_Max } = params; let r = getBaseCalculations(params, 'G41'); const num_systems = (B_SA === 0 || E_Max === 0) ? 0 : Math.ceil(B_SA / E_Max); r.G41 = num_systems * C_Net; const G_DonorPorts = C_Net * num_systems; const SA_per_set = (num_systems === 0) ? 0 : Math.ceil(B_SA / num_systems); const is_4x4 = (C_Net === 4 && SA_per_set >= 3), is_2x2 = (C_Net === 2 && SA_per_set >= 2); let s4=0,s3=0,s2=0; if (is_4x4 || is_2x2) { const num_outputs=is_4x4?4:2,antennas_per_output=Math.ceil(SA_per_set/num_outputs),splitters=getSplitterCascade(antennas_per_output); s4=splitters.d4*num_outputs;s3=splitters.d3*num_outputs;s2=splitters.d2*num_outputs;} else { const d4=(SA_per_set<=1)?0:((SA_per_set===6)?0:((SA_per_set%4===1)?Math.max(0,Math.floor(SA_per_set/4)-1):Math.floor(SA_per_set/4))),d3=(SA_per_set<=1)?0:Math.floor((SA_per_set-4*d4)/3),d2=(SA_per_set<=1)?0:Math.ceil((SA_per_set-4*d4-3*d3)/2),nd=d4+d3+d2; s4=d4+((C_Net===4)?1:0)+((nd===4)?1:0);s3=d3+((C_Net===3)?1:0)+((nd===3)?1:0);s2=d2+((C_Net===2)?1:0)+((nd===2)?1:0);} let d4_way=0,d3_way=0,d2_way=0; if(G_DonorPorts>D_DA&&D_DA>0){ const p_ceil=Math.ceil(G_DonorPorts/D_DA),p_floor=Math.floor(G_DonorPorts/D_DA),n_ceil=(G_DonorPorts%D_DA===0)?0:(G_DonorPorts%D_DA),n_floor=D_DA-n_ceil; const s_ceil=getSplitterCascade(p_ceil),s_floor=getSplitterCascade(p_floor); d4_way=n_ceil*s_ceil.d4+n_floor*s_floor.d4;d3_way=n_ceil*s_ceil.d3+n_floor*s_floor.d3;d2_way=n_ceil*s_ceil.d2+n_floor*s_floor.d2;} r.hybrids_4x4=is_4x4?num_systems:0;r.hybrids_2x2=is_2x2?num_systems:0; r.splitters_4way=(s4*num_systems)+d4_way;r.splitters_3way=(s3*num_systems)+d3_way;r.splitters_2way=(s2*num_systems)+d2_way; r.pigtails=r.G41+G_DonorPorts; r.connectors=(B_SA+D_DA)+(r.splitters_4way*5+r.splitters_3way*4+r.splitters_2way*3)+(r.hybrids_4x4*8+r.hybrids_2x2*4); r.install_internal=Math.ceil((B_SA/3)+(D_DA/3)+(r.G41/4)+1); return r; },
-        'G43': params => { const { B_SA, C_Net, D_DA, E_Max } = params; let r = getBaseCalculations(params, 'G43'); const is_4_nets=(C_Net===4),outputs_per_set=is_4_nets?6:3,max_antennas_per_set=outputs_per_set*E_Max; const num_sets=(B_SA>0&&max_antennas_per_set>0)?Math.ceil(B_SA/max_antennas_per_set):0; r.G43=is_4_nets?(num_sets*2):num_sets;r.hybrids_2x2=is_4_nets?(num_sets*3):0;r.hybrids_4x4=0; const G_DonorPorts=is_4_nets?(num_sets*6):(num_sets*3); let s4_t=0,s3_t=0,s2_t=0; if(B_SA>0&&E_Max>0){const total_outputs=num_sets*outputs_per_set,antennas_per_output=total_outputs>0?Math.ceil(B_SA/total_outputs):0; const splitters=getSplitterCascade(antennas_per_output); s4_t=splitters.d4*total_outputs;s3_t=splitters.d3*total_outputs;s2_t=splitters.d2*total_outputs;} let d4_t=0,d3_t=0,d2_t=0; if(G_DonorPorts>D_DA&&D_DA>0){const p_ceil=Math.ceil(G_DonorPorts/D_DA),p_floor=Math.floor(G_DonorPorts/D_DA),n_ceil=(G_DonorPorts%D_DA===0)?0:(G_DonorPorts%D_DA),n_floor=D_DA-n_ceil; const s_ceil=getSplitterCascade(p_ceil),s_floor=getSplitterCascade(p_floor); d4_t=n_ceil*s_ceil.d4+n_floor*s_floor.d4;d3_t=n_ceil*s_ceil.d3+n_floor*s_floor.d3;d2_t=n_ceil*s_ceil.d2+n_floor*s_floor.d2;} r.splitters_4way=s4_t+d4_t;r.splitters_3way=s3_t+d3_t;r.splitters_2way=s2_t+d2_t; r.pigtails=is_4_nets?(num_sets*6):0; r.connectors=(B_SA+D_DA)+(r.splitters_4way*5+r.splitters_3way*4+r.splitters_2way*3)+(r.hybrids_4x4*8+r.hybrids_2x2*4); r.install_internal=Math.ceil((B_SA/3)+(D_DA/3)+(r.G43/4)+1); return r; },
+        'G43': params => { const { B_SA, C_Net, D_DA, E_Max } = params; let r = getBaseCalculations(params, 'G43'); const is_4_nets=(C_Net===4); const max_antennas_per_set=36; const num_sets=(B_SA>0)?Math.ceil(B_SA/max_antennas_per_set):0; r.G43=is_4_nets?(num_sets*2):num_sets;r.hybrids_2x2=is_4_nets?(num_sets*3):0;r.hybrids_4x4=0; const outputs_per_set=is_4_nets?6:3; const G_DonorPorts=num_sets*outputs_per_set; let s4_t=0,s3_t=0,s2_t=0; if(B_SA>0){const total_outputs=num_sets*outputs_per_set,antennas_per_output=total_outputs>0?Math.ceil(B_SA/total_outputs):0; const splitters=getSplitterCascade(antennas_per_output); s4_t=splitters.d4*total_outputs;s3_t=splitters.d3*total_outputs;s2_t=splitters.d2*total_outputs;} let d4_t=0,d3_t=0,d2_t=0; if(G_DonorPorts>D_DA&&D_DA>0){const p_ceil=Math.ceil(G_DonorPorts/D_DA),p_floor=Math.floor(G_DonorPorts/D_DA),n_ceil=(G_DonorPorts%D_DA===0)?0:(G_DonorPorts%D_DA),n_floor=D_DA-n_ceil; const s_ceil=getSplitterCascade(p_ceil),s_floor=getSplitterCascade(p_floor); d4_t=n_ceil*s_ceil.d4+n_floor*s_floor.d4;d3_t=n_ceil*s_ceil.d3+n_floor*s_floor.d3;d2_t=n_ceil*s_ceil.d2+n_floor*s_floor.d2;} r.splitters_4way=s4_t+d4_t;r.splitters_3way=s3_t+d3_t;r.splitters_2way=s2_t+d2_t; r.pigtails=is_4_nets?(num_sets*6):0; r.connectors=(B_SA+D_DA)+(r.splitters_4way*5+r.splitters_3way*4+r.splitters_2way*3)+(r.hybrids_4x4*8+r.hybrids_2x2*4); r.install_internal=Math.ceil((B_SA/3)+(D_DA/3)+(r.G43/4)+1); return r; },
     'QUATRA': params => { const { B_SA, C_Net, D_DA } = params; let r=getBaseCalculations(params, 'QUATRA'); r.QUATRA_CU=B_SA; const num_full=Math.floor(r.QUATRA_CU/12),rem_cus=r.QUATRA_CU%12; r.QUATRA_NU=num_full+(rem_cus>0?1:0);r.QUATRA_HUB=num_full+(rem_cus>6?1:0); const G_DonorPorts=4*r.QUATRA_NU;let d4=0,d3=0,d2=0; if(G_DonorPorts>D_DA&&D_DA>0){const p_c=Math.ceil(G_DonorPorts/D_DA),p_f=Math.floor(G_DonorPorts/D_DA),n_c=(G_DonorPorts%D_DA===0)?0:(G_DonorPorts%D_DA),n_f=D_DA-n_c; const s_c=getSplitterCascade(p_c),s_f=getSplitterCascade(p_f); d4=n_c*s_c.d4+n_f*s_f.d4;d3=n_c*s_c.d3+n_f*s_f.d3;d2=n_c*s_c.d2+n_f*s_f.d2;} r.splitters_4way=d4;r.splitters_3way=d3;r.splitters_2way=d2; r.adapters_n=r.QUATRA_CU+r.QUATRA_NU*C_Net;r.connectors_rg45=r.QUATRA_CU*4; r.cable_fibre=0;r.adapters_sfp=0;r.cable_cat=r.QUATRA_CU*200; r.connectors=(D_DA*2)+(r.QUATRA_CU*2)+(r.splitters_4way*5+r.splitters_3way*4+r.splitters_2way*3)+G_DonorPorts; r.install_internal=Math.ceil((r.QUATRA_CU/2)+(D_DA/2)+(r.QUATRA_NU/7)+1); r.extender_cat6=0;r.extender_fibre_cu=0;r.extender_fibre_nu=0; return r;},
     'QUATRA_DAS': params => { const { B_SA, C_Net, D_DA, E_Max } = params; let r=getBaseCalculations(params, 'QUATRA_DAS'); r.QUATRA_CU=(B_SA===0||E_Max===0)?0:Math.ceil(B_SA/E_Max); const SA_per_set=(r.QUATRA_CU===0)?0:Math.ceil(B_SA/r.QUATRA_CU); const s_per_cu=getSplitterCascade(SA_per_set); const s_4W=s_per_cu.d4*r.QUATRA_CU,s_3W=s_per_cu.d3*r.QUATRA_CU,s_2W=s_per_cu.d2*r.QUATRA_CU; const num_full=Math.floor(r.QUATRA_CU/12),rem_cus=r.QUATRA_CU%12; r.QUATRA_NU=num_full+(rem_cus>0?1:0);r.QUATRA_HUB=num_full+(rem_cus>6?1:0); const G_DonorPorts=4*r.QUATRA_NU;let d4=0,d3=0,d2=0; if(G_DonorPorts>D_DA&&D_DA>0){const p_c=Math.ceil(G_DonorPorts/D_DA),p_f=Math.floor(G_DonorPorts/D_DA),n_c=(G_DonorPorts%D_DA===0)?0:(G_DonorPorts%D_DA),n_f=D_DA-n_c; const s_c=getSplitterCascade(p_c),s_f=getSplitterCascade(p_f); d4=n_c*s_c.d4+n_f*s_f.d4;d3=n_c*s_c.d3+n_f*s_f.d3;d2=n_c*s_c.d2+n_f*s_f.d2;} r.splitters_4way=s_4W+d4;r.splitters_3way=s_3W+d3;r.splitters_2way=s_2W+d2; r.adapters_n=r.QUATRA_CU+r.QUATRA_NU*C_Net;r.connectors_rg45=r.QUATRA_CU*4; r.cable_fibre=0;r.adapters_sfp=0;r.cable_cat=r.QUATRA_CU*200; r.connectors=(B_SA+(D_DA*2)+(r.QUATRA_CU*2))+(r.splitters_4way*5+r.splitters_3way*4+r.splitters_2way*3)+G_DonorPorts; r.install_internal=Math.ceil((B_SA/3)+(r.QUATRA_CU/2)+(D_DA/2)+(r.QUATRA_NU/7)+1); r.extender_cat6=0;r.extender_fibre_cu=0;r.extender_fibre_nu=0; return r;},
     'QUATRA_EVO': params => { const { B_SA, C_Net, D_DA } = params; let r=getBaseCalculations(params, 'QUATRA_EVO'); r.QUATRA_EVO_CU=B_SA; const num_full=Math.floor(r.QUATRA_EVO_CU/12),rem_cus=r.QUATRA_EVO_CU%12; r.QUATRA_EVO_NU=num_full+(rem_cus>0?1:0);r.QUATRA_EVO_HUB=num_full+(rem_cus>6?1:0); const G_DonorPorts=2*r.QUATRA_EVO_NU;let d4=0,d3=0,d2=0; if(G_DonorPorts>D_DA&&D_DA>0){const p_c=Math.ceil(G_DonorPorts/D_DA),p_f=Math.floor(G_DonorPorts/D_DA),n_c=(G_DonorPorts%D_DA===0)?0:(G_DonorPorts%D_DA),n_f=D_DA-n_c; const s_c=getSplitterCascade(p_c),s_f=getSplitterCascade(p_f); d4=n_c*s_c.d4+n_f*s_f.d4;d3=n_c*s_c.d3+n_f*s_f.d3;d2=n_c*s_c.d2+n_f*s_f.d2;} r.splitters_4way=d4;r.splitters_3way=d3;r.splitters_2way=d2; r.adapters_n=r.QUATRA_EVO_CU+r.QUATRA_EVO_NU*C_Net;r.connectors_rg45=r.QUATRA_EVO_CU*4; r.cable_fibre=0;r.adapters_sfp=0;r.cable_cat=r.QUATRA_EVO_CU*200; r.connectors=(D_DA*2)+(r.QUATRA_EVO_CU*2)+(r.splitters_4way*5+r.splitters_3way*4+r.splitters_2way*3)+G_DonorPorts; r.install_internal=Math.ceil((r.QUATRA_EVO_CU/2)+(D_DA/2)+(r.QUATRA_EVO_NU/7)+1); r.extender_cat6=0;r.extender_fibre_cu=0;r.extender_fibre_nu=0; return r;},
@@ -476,16 +489,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Create default Old Price Data with same cost but margin reduced by 10% (absolute)
-    const createDefaultOldPriceData = () => {
-        const oldData = normalizeConsumableLabels(JSON.parse(JSON.stringify(defaultPriceData)));
-        for (const key in oldData) {
-            oldData[key].margin = Math.max(0, oldData[key].margin - 0.1);
-        }
-        return oldData;
-    };
-    const defaultOldPriceData = createDefaultOldPriceData();
-
     let priceData = {};
     let altPriceData = {};
     let oldPriceData = {};
@@ -497,6 +500,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let showZeroQuantityItems = false;
     let subTotalsForProposal = {};
     let supportPriceOverrides = { bronze: null, silver: null, gold: null };
+    let unitSellOverrides = {};
     let isDataInitialized = false;
     let saveStatusMessageTimeout = null;
 
@@ -527,12 +531,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const indicator = document.getElementById('alt-pricing-indicator');
         const altPricingToggle = document.getElementById('alt-pricing-toggle');
         const oldPricingToggle = document.getElementById('old-pricing-toggle');
+        
         if (altPricingToggle && altPricingToggle.checked !== useAltPricing) {
             altPricingToggle.checked = useAltPricing;
         }
         if (oldPricingToggle && oldPricingToggle.checked !== useOldPricing) {
             oldPricingToggle.checked = useOldPricing;
         }
+        
         if (!indicator) return;
         if ((useAltPricing || useOldPricing) && isDataInitialized) {
             indicator.classList.remove('hidden');
@@ -621,7 +627,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const newAltPriceData = {};
                 const newOldPriceData = {};
                 const newCoverageData = JSON.parse(JSON.stringify(coverageData));
-                const newSupportData = JSON.parse(JSON.stringify(supportData));
                 let allValid = true;
 
                 for (const key in newPriceData) {
@@ -676,37 +681,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 });
 
-                // Collect support data from checkboxes and dpm inputs
-                const maintenancePercent = parseFloat(document.getElementById('maintenance-percent').value) || 5;
-                for (const key in newSupportData) {
-                    const dpmInput = document.querySelector(`.dpm-input[data-key="${key}"]`);
-                    if (dpmInput) {
-                        const dpmValue = parseFloat(dpmInput.value);
-                        if (!isNaN(dpmValue)) {
-                            newSupportData[key].dpm = dpmValue;
-                        }
-                    }
-                    // Collect which tiers are checked for this service
-                    const tiers = [];
-                    ['bronze', 'silver', 'gold'].forEach(tier => {
-                        const checkbox = document.querySelector(`.support-checkbox[data-key="${key}"][data-tier="${tier}"]`);
-                        if (checkbox && checkbox.checked) {
-                            tiers.push(tier);
-                        }
-                    });
-                    newSupportData[key].tiers = tiers;
-                }
-
                 const altPricingCheckbox = document.getElementById('alt-pricing-toggle');
                 const oldPricingCheckbox = document.getElementById('old-pricing-toggle');
                 const newUseAltPricing = altPricingCheckbox ? altPricingCheckbox.checked : false;
                 const newUseOldPricing = oldPricingCheckbox ? oldPricingCheckbox.checked : false;
 
-                // Add maintenance percent to support data for saving
-                newSupportData.maintenancePercent = maintenancePercent;
-
                 if (allValid) {
-                    await savePrices(newPriceData, newAltPriceData, newOldPriceData, newSupportData, newUseAltPricing, newUseOldPricing);
+                    await savePrices(newPriceData, newAltPriceData, newOldPriceData, newUseAltPricing, newUseOldPricing);
                     await saveCoverageData(newCoverageData);
                     registerInitialSnapshot();
                     updateSaveButtonState();
@@ -751,9 +732,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const item = priceData[key];
             const altItem = altPriceData[key] || { cost: item.cost, margin: item.margin };
             const oldItem = oldPriceData[key] || { cost: item.cost, margin: Math.max(0, item.margin - 0.1) };
-            const sellPrice = item.cost * (1 + item.margin);
-            const altSellPrice = altItem.cost * (1 + altItem.margin);
-            const oldSellPrice = oldItem.cost * (1 + oldItem.margin);
+            const sellPrice = Math.round(item.cost * (1 + item.margin) * 100) / 100;
+            const altSellPrice = Math.round(altItem.cost * (1 + altItem.margin) * 100) / 100;
+            const oldSellPrice = Math.round(oldItem.cost * (1 + oldItem.margin) * 100) / 100;
             html += `<div class="setting-item">
                 <label for="cost-${key}">${item.label}</label>
                 <input type="number" step="0.01" id="cost-${key}" value="${item.cost.toFixed(2)}">
@@ -897,7 +878,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (altCostInput && altMarginInput && altSellDisplay) {
             const altCost = parseFloat(altCostInput.value) || 0;
             const altMargin = parseFloat(altMarginInput.value) / 100 || 0;
-            const altSellPrice = altCost * (1 + altMargin);
+            const altSellPrice = Math.round(altCost * (1 + altMargin) * 100) / 100;
             altSellDisplay.textContent = `£${altSellPrice.toFixed(2)}`;
         }
     };
@@ -911,7 +892,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (oldCostInput && oldMarginInput && oldSellDisplay) {
             const oldCost = parseFloat(oldCostInput.value) || 0;
             const oldMargin = parseFloat(oldMarginInput.value) / 100 || 0;
-            const oldSellPrice = oldCost * (1 + oldMargin);
+            const oldSellPrice = Math.round(oldCost * (1 + oldMargin) * 100) / 100;
             oldSellDisplay.textContent = `£${oldSellPrice.toFixed(2)}`;
         }
     };
@@ -919,33 +900,24 @@ document.addEventListener('DOMContentLoaded', () => {
     function populateSupportTable() {
         const table = document.getElementById('support-table');
         if (!table) return;
-        console.log('populateSupportTable called, supportData:', JSON.stringify(supportData, null, 2));
         let html = `<thead><tr><th>Included Services</th><th>Description</th><th>Bronze</th><th>Silver</th><th>Gold</th><th>dpm/sys</th><th>dpy/sys</th></tr></thead><tbody>`;
         for (const key in supportData) {
-            if (key === 'maintenancePercent') continue; // Skip non-service keys
             const item = supportData[key];
             const dpy = item.dpm * 12;
-            const bronzeChecked = item.tiers.includes('bronze') ? 'checked' : '';
-            const silverChecked = item.tiers.includes('silver') ? 'checked' : '';
-            const goldChecked = item.tiers.includes('gold') ? 'checked' : '';
-            console.log(`${key}: tiers=${JSON.stringify(item.tiers)}, bronze=${bronzeChecked}, silver=${silverChecked}, gold=${goldChecked}`);
             html += `<tr><td>${item.label}</td><td>${item.description}</td>
-                <td><input type="checkbox" class="support-checkbox" data-key="${key}" data-tier="bronze" ${bronzeChecked}></td>
-                <td><input type="checkbox" class="support-checkbox" data-key="${key}" data-tier="silver" ${silverChecked}></td>
-                <td><input type="checkbox" class="support-checkbox" data-key="${key}" data-tier="gold" ${goldChecked}></td>
+                <td><input type="checkbox" class="support-checkbox" data-key="${key}" data-tier="bronze"></td>
+                <td><input type="checkbox" class="support-checkbox" data-key="${key}" data-tier="silver"></td>
+                <td><input type="checkbox" class="support-checkbox" data-key="${key}" data-tier="gold"></td>
                 <td><input type="number" class="dpm-input" data-key="${key}" value="${item.dpm.toFixed(4)}" step="0.0001"></td>
                 <td><span id="dpy-${key}">${dpy.toFixed(4)}</span></td></tr>`;
         }
         html += `</tbody><tfoot>
-            <tr class="summary-row"><td colspan="2" style="text-align:right;">Services per system (×<span id="hardware-units-count">0</span> units)</td><td id="bronze-sys-summary">£0.00</td><td id="silver-sys-summary">£0.00</td><td id="gold-sys-summary">£0.00</td><td colspan="2"></td></tr>
-            <tr class="summary-row"><td colspan="2" style="text-align:right;">Fixed annual services</td><td id="bronze-year-summary">£0.00</td><td id="silver-year-summary">£0.00</td><td id="gold-year-summary">£0.00</td><td colspan="2"></td></tr>
-            <tr class="summary-row"><td colspan="2" style="text-align:right;">Maintenance (<span id="maint-percent-display">5</span>% of hardware)</td><td id="bronze-maint-summary">£0.00</td><td id="silver-maint-summary">£0.00</td><td id="gold-maint-summary">£0.00</td><td colspan="2"></td></tr>
-            <tr class="summary-row" style="font-weight:bold;background:#f0f0f0;"><td colspan="2" style="text-align:right;">Total annual support cost</td><td id="bronze-total-summary">£0.00</td><td id="silver-total-summary">£0.00</td><td id="gold-total-summary">£0.00</td><td colspan="2"></td></tr>
+            <tr class="summary-row"><td colspan="2" style="text-align:right;">Summary per system per year (£)</td><td id="bronze-sys-summary">£0.00</td><td id="silver-sys-summary">£0.00</td><td id="gold-sys-summary">£0.00</td><td colspan="2"></td></tr>
+            <tr class="summary-row"><td colspan="2" style="text-align:right;">Summary per year (£)</td><td id="bronze-year-summary">£0.00</td><td id="silver-year-summary">£0.00</td><td id="gold-year-summary">£0.00</td><td colspan="2"></td></tr>
         </tfoot>`;
         table.innerHTML = html;
         document.querySelectorAll('.support-checkbox').forEach(box => box.addEventListener('change', () => {
             document.querySelectorAll('.support-presets-main button').forEach(b => b.classList.remove('active-preset'));
-            updateSupportTableSummaries();
             runFullCalculation();
         }));
         document.querySelectorAll('.dpm-input').forEach(el => {
@@ -954,18 +926,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const dpySpan = document.getElementById(`dpy-${key}`);
                 const dpmValue = parseFloat(e.target.value) || 0;
                 if (dpySpan) dpySpan.textContent = (dpmValue * 12).toFixed(4);
-                updateSupportTableSummaries();
             });
             el.addEventListener('change', runFullCalculation);
         });
-        // Add listener for maintenance percent input
-        const maintInput = document.getElementById('maintenance-percent');
-        if (maintInput) {
-            maintInput.addEventListener('input', updateSupportTableSummaries);
-            maintInput.addEventListener('change', runFullCalculation);
-        }
-        // Calculate initial summaries
-        updateSupportTableSummaries();
     }
 
   // calculator.js
@@ -975,7 +938,6 @@ async function loadPrices() {
     const pricesDocRef = firebase.firestore().collection('settings').doc('prices');
     const altPricesDocRef = firebase.firestore().collection('settings').doc('altPrices');
     const oldPricesDocRef = firebase.firestore().collection('settings').doc('oldPrices');
-    const supportDocRef = firebase.firestore().collection('settings').doc('support');
     const settingsDocRef = firebase.firestore().collection('settings').doc('general');
     
     try {
@@ -1016,27 +978,6 @@ async function loadPrices() {
             oldPriceData = normalizeConsumableLabels(JSON.parse(JSON.stringify(defaultOldPriceData)));
         }
 
-        // Load support data
-        const supportDoc = await supportDocRef.get();
-        if (supportDoc.exists) {
-            console.log("Support data loaded from Firestore.");
-            const firestoreSupport = supportDoc.data() || {};
-            // Load maintenance percentage if it exists
-            if (firestoreSupport.maintenancePercent !== undefined) {
-                document.getElementById('maintenance-percent').value = firestoreSupport.maintenancePercent;
-            }
-            // Merge with defaults to ensure all keys exist
-            supportData = JSON.parse(JSON.stringify(defaultSupportData));
-            for (const key in firestoreSupport) {
-                if (key !== 'maintenancePercent' && supportData[key]) {
-                    supportData[key] = { ...supportData[key], ...firestoreSupport[key] };
-                }
-            }
-        } else {
-            console.log("No support document in Firestore, using default data.");
-            supportData = JSON.parse(JSON.stringify(defaultSupportData));
-        }
-
         // Load settings (including useAltPricing and useOldPricing flags)
         const settingsDoc = await settingsDocRef.get();
         if (settingsDoc.exists) {
@@ -1057,11 +998,10 @@ async function loadPrices() {
         throw e;
     }
 }
-   async function savePrices(newPriceData, newAltPriceData, newOldPriceData, newSupportData, newUseAltPricing, newUseOldPricing) {
+   async function savePrices(newPriceData, newAltPriceData, newOldPriceData, newUseAltPricing, newUseOldPricing) {
     const pricesDocRef = firebase.firestore().collection('settings').doc('prices');
     const altPricesDocRef = firebase.firestore().collection('settings').doc('altPrices');
     const oldPricesDocRef = firebase.firestore().collection('settings').doc('oldPrices');
-    const supportDocRef = firebase.firestore().collection('settings').doc('support');
     const settingsDocRef = firebase.firestore().collection('settings').doc('general');
     
     try {
@@ -1073,7 +1013,6 @@ async function loadPrices() {
             pricesDocRef.set(newPriceData),
             altPricesDocRef.set(newAltPriceData),
             oldPricesDocRef.set(newOldPriceData),
-            supportDocRef.set(newSupportData),
             settingsDocRef.set({ useAltPricing: newUseAltPricing, useOldPricing: newUseOldPricing }, { merge: true })
         ]);
         
@@ -1081,7 +1020,6 @@ async function loadPrices() {
     priceData = normalizeConsumableLabels(newPriceData);
     altPriceData = normalizeConsumableLabels(newAltPriceData);
     oldPriceData = normalizeConsumableLabels(newOldPriceData);
-    supportData = JSON.parse(JSON.stringify(newSupportData));
     useAltPricing = newUseAltPricing;
     useOldPricing = newUseOldPricing;
     lastPersistedUseAltPricing = newUseAltPricing;
@@ -1089,10 +1027,10 @@ async function loadPrices() {
     updateAltPricingIndicator();
         
         runFullCalculation();
-        alert('Settings saved successfully to the database!');
+        alert('Pricing settings saved successfully to the database!');
     } catch (e) {
-        console.error("Could not save data to Firestore.", e);
-        alert('Error: Could not save data to the database.');
+        console.error("Could not save pricing data to Firestore.", e);
+        alert('Error: Could not save pricing data to the database.');
     }
 }
 
@@ -1136,17 +1074,15 @@ async function saveCoverageData(newCoverageData) {
     // Helper function to get the active pricing data
     function getActivePriceData() {
         if (useOldPricing) return oldPriceData;
-        return useAltPricing ? altPriceData : priceData;
+        if (useAltPricing) return altPriceData;
+        return priceData;
     }
 
     function getSplitterCascade(k) { if (k <= 1) return { d4: 0, d3: 0, d2: 0 }; const d4_dist = (k === 6) ? 0 : ((k % 4 === 1) ? Math.max(0, Math.floor(k / 4) - 1) : Math.floor(k / 4)); const d3_dist = Math.floor((k - 4 * d4_dist) / 3); const d2_dist = Math.ceil((k - 4 * d4_dist - 3 * d3_dist) / 2); const num_dist = d4_dist + d3_dist + d2_dist; return { d4: d4_dist + ((num_dist === 4) ? 1 : 0), d3: d3_dist + ((num_dist === 3) ? 1 : 0), d2: d2_dist + ((num_dist === 2) ? 1 : 0) }; }
     function getBaseCalculations(params, systemType) { const { B_SA, D_DA } = params; let service_coax = (B_SA * 30); if (systemType === 'QUATRA' || systemType === 'QUATRA_EVO' || systemType === 'QUATRA_100M') { service_coax = 0; } const coax_total = service_coax + (D_DA * 50); return { donor_lpda: 0, donor_wideband: D_DA, antenna_bracket: D_DA, coax_half: 0, coax_lmr400: coax_total, cherry_picker: 0, install_external: 0, travel_expenses: 0, }; }
-    function activateEditMode(cell, key) { const item = currentResults[key]; if (!item) return; const displaySpan = cell.querySelector('.value-display'), inputField = cell.querySelector('.value-input'); displaySpan.classList.add('hidden'); inputField.classList.remove('hidden'); const currentValue = item.override !== null ? item.override : item.calculated; inputField.value = currentValue; inputField.focus(); inputField.select(); }
-    function deactivateEditMode(cell, key, save) { const displaySpan = cell.querySelector('.value-display'), inputField = cell.querySelector('.value-input'); if (save) { const newValue = parseFloat(inputField.value); if (!isNaN(newValue)) { if (!currentResults[key]) currentResults[key] = { calculated: 0, override: null, decimals: 0, unit: '', unitSellOverride: null, calculatedUnitSell: 0 }; currentResults[key].override = newValue; runFullCalculation(); } } else { inputField.classList.add('hidden'); displaySpan.classList.remove('hidden'); } }
-    function updateCellDisplay(cell, key) { const item = currentResults[key]; if (!item) { const displaySpan = cell.querySelector('.value-display'); if (displaySpan) displaySpan.textContent = '0'; return; } const displaySpan = cell.querySelector('.value-display'), isOverridden = item.override !== null, value = isOverridden ? item.override : item.calculated; displaySpan.textContent = `${value.toFixed(item.decimals || 0)}`; displaySpan.classList.toggle('overridden', isOverridden); }
-    function activateUnitSellEditMode(cell, key) { const item = currentResults[key]; if (!item) return; const displaySpan = cell.querySelector('.value-display'), inputField = cell.querySelector('.value-input'); displaySpan.classList.add('hidden'); inputField.classList.remove('hidden'); const currentValue = item.unitSellOverride !== null ? item.unitSellOverride : (item.calculatedUnitSell || 0); inputField.value = currentValue.toFixed(2); inputField.focus(); inputField.select(); }
-    function deactivateUnitSellEditMode(cell, key, save) { const displaySpan = cell.querySelector('.value-display'), inputField = cell.querySelector('.value-input'); if (save) { const newValue = parseFloat(inputField.value); if (!isNaN(newValue)) { if (!currentResults[key]) currentResults[key] = { calculated: 0, override: null, decimals: 0, unit: '', unitSellOverride: null, calculatedUnitSell: 0 }; currentResults[key].unitSellOverride = newValue; runFullCalculation(); } } else { inputField.classList.add('hidden'); displaySpan.classList.remove('hidden'); } }
-    function updateUnitSellCellDisplay(cell, key) { const item = currentResults[key]; if (!item) { cell.querySelector('.value-display').textContent = '£0.00'; return; } const displaySpan = cell.querySelector('.value-display'), isOverridden = item.unitSellOverride !== null && item.unitSellOverride !== undefined, value = isOverridden ? item.unitSellOverride : (item.calculatedUnitSell || 0); displaySpan.textContent = `£${value.toFixed(2)}`; displaySpan.classList.toggle('overridden', isOverridden); }
+    function activateEditMode(cell, key) { const displaySpan = cell.querySelector('.value-display'), inputField = cell.querySelector('.value-input'); displaySpan.classList.add('hidden'); inputField.classList.remove('hidden'); const currentValue = currentResults[key].override !== null ? currentResults[key].override : currentResults[key].calculated; inputField.value = currentValue; inputField.focus(); inputField.select(); }
+    function deactivateEditMode(cell, key, save) { const displaySpan = cell.querySelector('.value-display'), inputField = cell.querySelector('.value-input'); if (save) { const newValue = parseFloat(inputField.value); if (!isNaN(newValue)) { currentResults[key].override = newValue; runFullCalculation(); } } else { inputField.classList.add('hidden'); displaySpan.classList.remove('hidden'); } }
+    function updateCellDisplay(cell, key) { const item = currentResults[key], displaySpan = cell.querySelector('.value-display'), isOverridden = item.override !== null, value = isOverridden ? item.override : item.calculated; displaySpan.textContent = `${value.toFixed(item.decimals || 0)}`; displaySpan.classList.toggle('overridden', isOverridden); }
     
    function calculateCoverageRequirements() {
     console.log('calculateCoverageRequirements called');
@@ -1285,7 +1221,7 @@ function runFullCalculation() {
         // --- THIS BLOCK IS UPDATED TO CONTROL VISIBILITY ---
         const includeSurvey = document.getElementById('include-survey-checkbox').checked;
         if (!currentResults['survey_price_item']) {
-            currentResults['survey_price_item'] = { calculated: 0, override: null, decimals: 2, unit: '', unitSellOverride: null, calculatedUnitSell: 0 };
+            currentResults['survey_price_item'] = { calculated: 0, override: null, decimals: 2 };
         }
         const activePricingData = getActivePriceData();
         if (activePricingData['survey_price_item']) {
@@ -1349,10 +1285,10 @@ function runFullCalculation() {
             if (currentResults[key]) {
                 currentResults[key].calculated = calculatedValues[key];
             } else {
-                currentResults[key] = { calculated: calculatedValues[key], override: null, decimals: 0, unit: { coax_half: ' (m)', coax_lmr400: ' (m)', cable_cat: ' (m)', install_internal: ' (Days)', install_external: ' (Days)' }[key] || '', unitSellOverride: null, calculatedUnitSell: 0 };
+                currentResults[key] = { calculated: calculatedValues[key], override: null, decimals: 0, unit: { coax_half: ' (m)', coax_lmr400: ' (m)', cable_cat: ' (m)', install_internal: ' (Days)', install_external: ' (Days)' }[key] || '' };
             }
         }
-    if(!currentResults['service_antennas']) { currentResults['service_antennas'] = { calculated: 0, override: null, decimals: 0, unit: '', unitSellOverride: null, calculatedUnitSell: 0 }; }
+    if(!currentResults['service_antennas']) { currentResults['service_antennas'] = { calculated: 0, override: null, decimals: 0, unit: '' }; }
     currentResults['service_antennas'].calculated = preserveDisplayedServiceAntennas ? baseServiceAntennaInput : params.B_SA;
         if (quatraConfig) {
             const cuEntry = currentResults[quatraConfig.cuKey];
@@ -1437,7 +1373,7 @@ function runFullCalculation() {
         if(currentResults['travel_expenses']) { currentResults['travel_expenses'].calculated = internal_days; } else { currentResults['travel_expenses'] = { calculated: internal_days, override: null, decimals: 0, unit: ' (Days)'}; }
         
         // Initialize consumables_misc - always present even with 0 value
-        if(!currentResults['consumables_misc']) { currentResults['consumables_misc'] = { calculated: 0, override: null, decimals: 0, unit: '', unitSellOverride: null, calculatedUnitSell: 0 }; }
+        if(!currentResults['consumables_misc']) { currentResults['consumables_misc'] = { calculated: 0, override: null, decimals: 0, unit: '' }; }
         
         let totalHardwareSellPrice = 0, totalHardwareUnits = 0;
     const hardwareKeys = ['G41', 'G43', 'QUATRA_NU', 'QUATRA_CU', 'QUATRA_HUB', 'QUATRA_EVO_NU', 'QUATRA_EVO_CU', 'QUATRA_EVO_HUB', 'QUATRA_100M_NU', 'QUATRA_100M_CU', 'QUATRA_100M_PU', 'extender_cat6', 'extender_fibre_cu', 'extender_fibre_nu'];
@@ -1447,7 +1383,7 @@ function runFullCalculation() {
                 if (quantity > 0) {
                     totalHardwareUnits += quantity;
                     const priceInfo = priceData[key];
-                    totalHardwareSellPrice += quantity * priceInfo.cost * (1 + priceInfo.margin);
+                    totalHardwareSellPrice += quantity * Math.round(priceInfo.cost * (1 + priceInfo.margin) * 100) / 100;
                 }
             }
         }
@@ -1463,7 +1399,7 @@ function runFullCalculation() {
         }
         
         if(!currentResults['support_package']) { 
-            currentResults['support_package'] = { calculated: 0, override: null, decimals: 2, unit: '', unitSellOverride: null, calculatedUnitSell: 0 }; 
+            currentResults['support_package'] = { calculated: 0, override: null, decimals: 2, unit: ''}; 
         }
         
         currentResults['support_package'].calculated = supportCost;
@@ -1476,7 +1412,7 @@ function runFullCalculation() {
                 const tierName = tier.charAt(0).toUpperCase() + tier.slice(1);
                 activePricing['support_package'].label = `Annual ${tierName} Support Package`;
             } else {
-                activePricing['support_package'].label = "Annual Support Package";
+                 activePricing['support_package'].label = `Annual Custom Support Package`;
             }
         } else {
             activePricing['support_package'].label = "Annual Support Package";
@@ -1484,7 +1420,6 @@ function runFullCalculation() {
 
         updateDOM();
         updateAllSupportTierPrices();
-        updateSupportTableSummaries();
     } catch (error) {
         console.error("A critical error occurred during calculation:", error);
         const resultsBody = document.getElementById('results-tbody');
@@ -1503,12 +1438,16 @@ function updateDOM() {
     const excludeHardware = document.getElementById('no-hardware-checkbox').checked;
     const referralPercent = parseFloat(document.getElementById('referral-fee-percent').value) || 0;
     const referralDecimal = referralPercent / 100;
-    const absDecimal = Math.abs(referralDecimal);
-    const uplift = (absDecimal > 0 && absDecimal < 1) ? 1 / (1 - referralDecimal) : 1;
+    // Positive = referral fee (prices go up), Negative = discount (prices go down)
+    const uplift = (referralDecimal !== 0 && Math.abs(referralDecimal) < 1) ? 1 / (1 - referralDecimal) : 1;
     
     const systemTypeSelect = document.getElementById('system-type');
     const solutionName = systemTypeSelect.options[systemTypeSelect.selectedIndex].text;
     document.getElementById('solution-type-display').textContent = solutionName;
+    const activeSupportPresetButton = document.querySelector('.support-presets-main button.active-preset');
+    const activeSupportTier = activeSupportPresetButton && activeSupportPresetButton.id !== 'support-preset-none'
+        ? activeSupportPresetButton.id.replace('support-preset-', '')
+        : null;
 
     document.getElementById('max-antennas-group').style.display = ['QUATRA', 'QUATRA_EVO'].includes(systemType) ? 'none' : 'flex';
     document.getElementById('high-ceiling-checkbox-group').style.display = ['QUATRA', 'QUATRA_EVO'].includes(systemType) ? 'block' : 'none';
@@ -1533,14 +1472,14 @@ function updateDOM() {
     QUATRA_100M_DAS: ['QUATRA_100M_NU', 'QUATRA_100M_CU', 'QUATRA_100M_PU'],
     };
 
-    let subTotals = { hardware: { cost: 0, sell: 0, margin: 0, baseSell: 0 }, consumables: { cost: 0, sell: 0, margin: 0, baseSell: 0 }, services: { cost: 0, sell: 0, margin: 0, baseSell: 0 } };
+    let subTotals = { hardware: { cost: 0, sell: 0, margin: 0 }, consumables: { cost: 0, sell: 0, margin: 0 }, services: { cost: 0, sell: 0, margin: 0 } };
 
     for (const groupName in itemGroups) {
         let groupHTML = '';
         let itemsInGroupDisplayed = 0;
 
         itemGroups[groupName].forEach(key => {
-            if (!currentResults[key]) currentResults[key] = { calculated: 0, override: null, decimals: 0, unit: '', unitSellOverride: null, calculatedUnitSell: 0 };
+            if (!currentResults[key]) currentResults[key] = { calculated: 0, override: null, decimals: 0, unit: '' };
             const itemResult = currentResults[key];
             const activePricing = getActivePriceData();
             const priceInfo = activePricing[key] || { cost: 0, margin: 0, label: 'N/A' };
@@ -1548,15 +1487,12 @@ function updateDOM() {
             const isSupport = key === 'support_package';
             const isConsumablesMisc = key === 'consumables_misc';
             const quantity = isSupport ? 1 : (itemResult.override !== null ? itemResult.override : itemResult.calculated);
+            const supportHasManualPrice = isSupport && activeSupportTier !== null && supportPriceOverrides[activeSupportTier] !== null;
+            const supportHasPackageOverride = isSupport && itemResult.override !== null;
             
             let isRelevant = true;
             if (groupName === 'hardware' || groupName === 'consumables') { isRelevant = false; if (componentRelevance.all.includes(key)) isRelevant = true; if (componentRelevance[systemType]?.includes(key)) isRelevant = true; if (systemType.includes('G4') && componentRelevance.go.includes(key)) isRelevant = true; if (systemType.includes('QUATRA') && componentRelevance.quatra.includes(key)) isRelevant = true; }
-            // Only show support package if a tier (Bronze, Silver, Gold) is selected
-            if (isSupport) {
-                const activeBtn = document.querySelector('.support-presets-main button.active-preset');
-                const hasTierSelected = activeBtn && activeBtn.id !== 'support-preset-none';
-                if (!hasTierSelected) isRelevant = false;
-            }
+            if (isSupport && priceInfo.cost === 0 && itemResult.override === null) isRelevant = false;
 
             // consumables_misc should always be shown even with 0 value
             if (isRelevant && (quantity > 0 || showZeroQuantityItems || isConsumablesMisc)) {
@@ -1567,51 +1503,58 @@ function updateDOM() {
                 const qty = parseFloat(quantity) || 0;
                 const upliftVal = parseFloat(uplift) || 1;
                 
-                // Calculate the base unit sell price with referral uplift
-                const baseUnitSell = isSupport ? finalCost : (finalCost * (1 + margin) * upliftVal);
+                // Round unit sell price to avoid floating-point precision issues (e.g., £650.01 instead of £650)
+                // Calculate unit price first, then derive total to ensure Unit × Qty = Total exactly
+                const unitSellRounded = Math.round(finalCost * (1 + margin) * 100) / 100;
+                const finalUnitSell = isSupport
+                    ? (supportHasPackageOverride ? itemResult.override : (supportHasManualPrice ? finalCost : applyReferralAdjustment(finalCost, upliftVal)))
+                    : Math.round(unitSellRounded * upliftVal * 100) / 100;
+                const finalTotalSell = Math.round(finalUnitSell * qty * 100) / 100;
                 
-                // Store calculated unit sell and check for override
-                itemResult.calculatedUnitSell = baseUnitSell;
-                const effectiveUnitSell = itemResult.unitSellOverride !== null ? itemResult.unitSellOverride : baseUnitSell;
-                
-                // Calculate final total sell using effective unit sell
-                const finalTotalSell = effectiveUnitSell * qty;
-                // Base sell without uplift/discount for referral/discount amount calculation
-                const baseUnitSellClean = isSupport ? finalCost : (finalCost * (1 + margin));
-                const effectiveClean = itemResult.unitSellOverride !== null ? itemResult.unitSellOverride : baseUnitSellClean;
-                const baseTotalSell = effectiveClean * qty;
-                // Referral (positive %): margin calculated WITHOUT uplift so it stays unchanged
-                // Discount (negative %): margin calculated WITH discount so it decreases
-                const marginBasis = referralPercent < 0 ? effectiveUnitSell : effectiveClean;
-                const trueLineMargin = (marginBasis * qty) - (finalCost * qty);
-                const finalUnitSell = effectiveUnitSell;
+                // Margin calculation:
+                // - For referral fees (positive %): margin stays the same (referral comes from our margin)
+                // - For discounts (negative %): margin is reduced (we get less money)
+                const baseMargin = (unitSellRounded * qty) - (finalCost * qty);
+                const trueLineMargin = referralDecimal < 0 ? (finalTotalSell - (finalCost * qty)) : baseMargin;
                 
                 // Add to sub-totals, ensuring they are numbers
                 subTotals[groupName].sell += isNaN(finalTotalSell) ? 0 : finalTotalSell;
                 subTotals[groupName].cost += isNaN(finalCost * qty) ? 0 : (finalCost * qty);
                 subTotals[groupName].margin += isNaN(trueLineMargin) ? 0 : trueLineMargin;
-                subTotals[groupName].baseSell += isNaN(baseTotalSell) ? 0 : baseTotalSell;
 
                 const qtyDisplay = isSupport ? '1' : `<span class="value-display"></span><input type="number" step="any" class="value-input hidden" />`;
                 const qtyClass = isSupport ? '' : 'item-qty';
                 
-                // Unit Sell is editable for non-support items
-                const unitSellDisplay = isSupport ? `£${finalUnitSell.toFixed(2)}` : `<span class="value-display"></span><input type="number" step="0.01" class="value-input hidden" />`;
-                const unitSellClass = isSupport ? '' : 'item-unit-sell';
+                // Check for unit sell override
+                const hasUnitSellOverride = unitSellOverrides[key] !== undefined && unitSellOverrides[key] !== null;
+                const displayUnitSell = hasUnitSellOverride ? unitSellOverrides[key] : finalUnitSell;
+                const displayTotalSell = Math.round(displayUnitSell * qty * 100) / 100;
+                // For display margin with overrides, always use the actual sell - cost difference
+                const displayMargin = displayTotalSell - (finalCost * qty);
                 
-                let totalSellDisplay = `£${finalTotalSell.toFixed(2)}`;
+                // Update sub-totals with actual displayed values
+                if (hasUnitSellOverride) {
+                    subTotals[groupName].sell = subTotals[groupName].sell - finalTotalSell + displayTotalSell;
+                    subTotals[groupName].margin = subTotals[groupName].margin - trueLineMargin + displayMargin;
+                }
+                
+                let totalSellDisplay = `£${displayTotalSell.toFixed(2)}`;
                 let totalSellClass = '';
                 if (isSupport) {
                     totalSellClass = 'price-override item-qty'; // Re-use item-qty class for event handling
                     totalSellDisplay = `<span class="value-display"></span><input type="number" step="any" class="value-input hidden" />`;
                 }
+                
+                // Make unit sell editable (not for support items)
+                const unitSellDisplay = isSupport ? `£${displayUnitSell.toFixed(2)}` : `<span class="value-display ${hasUnitSellOverride ? 'overridden' : ''}">£${displayUnitSell.toFixed(2)}</span><input type="number" step="0.01" class="value-input hidden" />`;
+                const unitSellClass = isSupport ? '' : 'item-unit-sell';
 
                 groupHTML += `<tr>
                     <td class="col-item item-name">${priceInfo.label}${itemResult.unit || ''}</td>
                     <td class="col-qty ${qtyClass}" data-key="${key}">${qtyDisplay}</td>
-                    <td class="col-sell ${unitSellClass}" data-key="${key}">${unitSellDisplay}</td>
+                    <td class="col-sell ${unitSellClass}" data-key="${key}" data-calculated="${finalUnitSell.toFixed(2)}">${unitSellDisplay}</td>
                     <td class="col-total ${totalSellClass}" data-key="${key}">${totalSellDisplay}</td>
-                    <td class="col-margin">£${trueLineMargin.toFixed(2)}</td>
+                    <td class="col-margin">£${displayMargin.toFixed(2)}</td>
                 </tr>`;
             }
         });
@@ -1638,23 +1581,46 @@ function updateDOM() {
             else if (e.key === 'Escape') deactivateEditMode(cell, key, false);
         });
     });
-
+    
+    // Unit sell editing
     document.querySelectorAll('.item-unit-sell').forEach(cell => {
         const key = cell.dataset.key;
-        updateUnitSellCellDisplay(cell, key);
-        cell.addEventListener('click', () => activateUnitSellEditMode(cell, key));
+        const calculatedValue = parseFloat(cell.dataset.calculated) || 0;
+        cell.addEventListener('click', () => {
+            const displaySpan = cell.querySelector('.value-display');
+            const inputField = cell.querySelector('.value-input');
+            displaySpan.classList.add('hidden');
+            inputField.classList.remove('hidden');
+            const currentValue = unitSellOverrides[key] !== undefined && unitSellOverrides[key] !== null ? unitSellOverrides[key] : calculatedValue;
+            inputField.value = currentValue.toFixed(2);
+            inputField.focus();
+            inputField.select();
+        });
         const inputField = cell.querySelector('.value-input');
         inputField.addEventListener('click', (e) => e.stopPropagation());
-        inputField.addEventListener('blur', () => deactivateUnitSellEditMode(cell, key, true));
+        inputField.addEventListener('blur', () => {
+            const newValue = parseFloat(inputField.value);
+            if (!isNaN(newValue)) {
+                unitSellOverrides[key] = Math.round(newValue * 100) / 100;
+                runFullCalculation();
+            } else {
+                inputField.classList.add('hidden');
+                cell.querySelector('.value-display').classList.remove('hidden');
+            }
+        });
         inputField.addEventListener('keydown', e => {
-            if (e.key === 'Enter') deactivateUnitSellEditMode(cell, key, true);
-            else if (e.key === 'Escape') deactivateUnitSellEditMode(cell, key, false);
+            if (e.key === 'Enter') {
+                inputField.blur();
+            } else if (e.key === 'Escape') {
+                inputField.classList.add('hidden');
+                cell.querySelector('.value-display').classList.remove('hidden');
+            }
         });
     });
     
     // Adjust subtotal for excluded hardware
     if (excludeHardware) {
-        subTotals.hardware = { cost: 0, sell: 0, margin: 0, baseSell: 0 };
+        subTotals.hardware = { cost: 0, sell: 0, margin: 0 };
     }
 
     calculateAndDisplayGrandTotals(subTotals);
@@ -1665,8 +1631,7 @@ function updateDOM() {
         const totalSell = (subTotals.hardware?.sell || 0) + (subTotals.consumables?.sell || 0) + (subTotals.services?.sell || 0);
         const totalCost = (subTotals.hardware?.cost || 0) + (subTotals.consumables?.cost || 0) + (subTotals.services?.cost || 0);
         const totalMargin = (subTotals.hardware?.margin || 0) + (subTotals.consumables?.margin || 0) + (subTotals.services?.margin || 0);
-        const totalBaseSell = (subTotals.hardware?.baseSell || 0) + (subTotals.consumables?.baseSell || 0) + (subTotals.services?.baseSell || 0);
-        const totalReferralFee = totalSell - totalBaseSell;
+        const totalReferralFee = totalSell - totalCost - totalMargin;
         document.getElementById('total-cost').textContent = `£${totalCost.toFixed(2)}`;
         document.getElementById('total-sell').textContent = `£${totalSell.toFixed(2)}`;
         document.getElementById('total-margin-value').textContent = `£${totalMargin.toFixed(2)}`;
@@ -1697,41 +1662,18 @@ function updateDOM() {
     }
     
     // --- SUPPORT & MODAL FUNCTIONS ---
-    function setSupportPreset(tier, isInitialLoad = false) {
+    function setSupportPreset(tier) {
         document.querySelectorAll('.support-presets-main button').forEach(b => b.classList.remove('active-preset'));
         const presetBtn = document.getElementById(`support-preset-${tier}`);
         if(presetBtn) presetBtn.classList.add('active-preset');
-        // Store the active preset for calculations - don't modify config checkboxes
-        window.activeSupportPreset = tier;
-        // Only change maintenance value if user explicitly selects a preset, not on initial load
-        if (!isInitialLoad) {
-            document.getElementById('maintenance-percent').value = (tier === 'none') ? 0 : 5;
-        }
+        document.querySelectorAll('.support-checkbox').forEach(box => { const key = box.dataset.key; const boxTier = box.dataset.tier; box.checked = supportData[key].tiers.includes(tier) && boxTier === tier; });
+        document.getElementById('maintenance-percent').value = (tier === 'none') ? 0 : 5;
         runFullCalculation();
     }
-    function updateSupportTableSummaries() {
+    function updateSupportTableSummaries(totalHardwareUnits) {
         const activePricing = getActivePriceData();
         if (!activePricing.install_internal) return; 
-        const dailyInstallRate = activePricing.install_internal.cost * (1 + activePricing.install_internal.margin);
-        
-        // Calculate hardware units and sell price
-        let totalHardwareUnits = 0, totalHardwareSellPrice = 0;
-        const hardwareKeys = ['G41', 'G43', 'QUATRA_NU', 'QUATRA_CU', 'QUATRA_HUB', 'QUATRA_EVO_NU', 'QUATRA_EVO_CU', 'QUATRA_EVO_HUB', 'QUATRA_100M_NU', 'QUATRA_100M_CU', 'QUATRA_100M_PU', 'extender_cat6', 'extender_fibre_cu', 'extender_fibre_nu'];
-        for (const key of hardwareKeys) {
-            if (currentResults[key]) {
-                const quantity = currentResults[key].override ?? currentResults[key].calculated;
-                if (quantity > 0) {
-                    totalHardwareUnits += quantity;
-                    const priceInfo = activePricing[key];
-                    if (priceInfo) totalHardwareSellPrice += quantity * priceInfo.cost * (1 + priceInfo.margin);
-                }
-            }
-        }
-        
-        // Update hardware units display
-        const unitsSpan = document.getElementById('hardware-units-count');
-        if (unitsSpan) unitsSpan.textContent = totalHardwareUnits;
-        
+        const dailyInstallRate = Math.round(activePricing.install_internal.cost * (1 + activePricing.install_internal.margin) * 100) / 100;
         const tierPerSystemDPY = { bronze: 0, silver: 0, gold: 0 };
         const tierFixedAnnualDPY = { bronze: 0, silver: 0, gold: 0 };
         for (const tier of ['bronze', 'silver', 'gold']) {
@@ -1744,28 +1686,12 @@ function updateDOM() {
                 }
             });
         }
-        
-        const maintenancePercent = parseFloat(document.getElementById('maintenance-percent').value) || 0;
-        const maintenanceCost = totalHardwareSellPrice * (maintenancePercent / 100);
-        
-        // Update maintenance percent display in table
-        const maintPercentDisplay = document.getElementById('maint-percent-display');
-        if (maintPercentDisplay) maintPercentDisplay.textContent = maintenancePercent;
-        
         for (const tier of ['bronze', 'silver', 'gold']) {
             const sysSummaryCell = document.getElementById(`${tier}-sys-summary`);
             const yearSummaryCell = document.getElementById(`${tier}-year-summary`);
-            const maintSummaryCell = document.getElementById(`${tier}-maint-summary`);
-            const totalSummaryCell = document.getElementById(`${tier}-total-summary`);
-            
-            const perSystemCost = tierPerSystemDPY[tier] * dailyInstallRate * totalHardwareUnits;
+            if(sysSummaryCell) sysSummaryCell.textContent = `£${(tierPerSystemDPY[tier] * dailyInstallRate).toFixed(2)}`;
             const fixedServicesCost = tierFixedAnnualDPY[tier] * dailyInstallRate;
-            const totalCost = perSystemCost + fixedServicesCost + maintenanceCost;
-            
-            if(sysSummaryCell) sysSummaryCell.textContent = `£${perSystemCost.toFixed(2)}`;
             if(yearSummaryCell) yearSummaryCell.textContent = `£${fixedServicesCost.toFixed(2)}`;
-            if(maintSummaryCell) maintSummaryCell.textContent = `£${maintenanceCost.toFixed(2)}`;
-            if(totalSummaryCell) totalSummaryCell.textContent = `£${totalCost.toFixed(2)}`;
         }
     }
    function getSpecificSupportCost(tier, totalHardwareUnits, totalHardwareSellPrice) {
@@ -1773,36 +1699,34 @@ function updateDOM() {
         return parseFloat(supportPriceOverrides[tier]) || 0;
     }
     let totalPerSystemDPY = 0, totalFixedAnnualDPY = 0;
-    const maintenancePercent = (tier === 'none') ? 0 : (parseFloat(document.getElementById('maintenance-percent').value) || 0);
-    
-    // Read current dpm values from input fields if they exist, otherwise use supportData
+    const maintenancePercent = (tier === 'none') ? 0 : 5;
     for (const key in supportData) {
-        if (key === 'maintenancePercent') continue; // Skip non-service keys
         if (supportData[key].tiers.includes(tier)) {
-            const dpmInput = document.querySelector(`.dpm-input[data-key="${key}"]`);
-            const dpmValue = dpmInput ? (parseFloat(dpmInput.value) || 0) : (parseFloat(supportData[key].dpm) || 0);
-            const dpyValue = dpmValue * 12;
+            const dpyValue = (parseFloat(supportData[key].dpm) || 0) * 12;
             if (supportData[key].type === 'per_system') totalPerSystemDPY += dpyValue;
             else totalFixedAnnualDPY += dpyValue;
         }
     }
     const activePricing = getActivePriceData();
-    const dailyInstallRate = (parseFloat(activePricing.install_internal?.cost) * (1 + parseFloat(activePricing.install_internal?.margin))) || 0;
+    const dailyInstallRate = Math.round((parseFloat(activePricing.install_internal?.cost) * (1 + parseFloat(activePricing.install_internal?.margin))) * 100) / 100 || 0;
     const perSystemCost = (parseFloat(totalPerSystemDPY) || 0) * (parseFloat(dailyInstallRate) || 0) * (parseFloat(totalHardwareUnits) || 0);
     const fixedAnnualCost = (parseFloat(totalFixedAnnualDPY) || 0) * (parseFloat(dailyInstallRate) || 0);
     const maintenanceCost = (parseFloat(totalHardwareSellPrice) || 0) * (parseFloat(maintenancePercent) || 0) / 100;
-    let result = (parseFloat(perSystemCost) || 0) + (parseFloat(fixedAnnualCost) || 0) + (parseFloat(maintenanceCost) || 0);
-    
-    // Special case: Single G43 Silver support gets 1.5x multiplier
-    if (tier === 'silver') {
-        const g43Qty = currentResults['G43'] ? (currentResults['G43'].override ?? currentResults['G43'].calculated) : 0;
-        const systemType = document.getElementById('system-type')?.value;
-        if (systemType === 'G43' && g43Qty === 1) {
-            result = result * 1.5;
-        }
-    }
-    
+    const result = (parseFloat(perSystemCost) || 0) + (parseFloat(fixedAnnualCost) || 0) + (parseFloat(maintenanceCost) || 0);
     return isNaN(result) ? 0 : result;
+}
+   function getReferralUplift() {
+    const referralPercent = parseFloat(document.getElementById('referral-fee-percent').value) || 0;
+    const referralDecimal = referralPercent / 100;
+    return (referralDecimal !== 0 && Math.abs(referralDecimal) < 1) ? 1 / (1 - referralDecimal) : 1;
+}
+   function applyReferralAdjustment(amount, uplift = getReferralUplift()) {
+    const numericAmount = parseFloat(amount) || 0;
+    return Math.round(numericAmount * uplift * 100) / 100;
+}
+   function getDisplayedSupportCost(tier, totalHardwareUnits, totalHardwareSellPrice) {
+    const baseCost = getSpecificSupportCost(tier, totalHardwareUnits, totalHardwareSellPrice);
+    return supportPriceOverrides[tier] !== null ? baseCost : applyReferralAdjustment(baseCost);
 }
    function updateAllSupportTierPrices() {
     let totalHardwareSellPrice = 0, totalHardwareUnits = 0;
@@ -1814,14 +1738,13 @@ function updateDOM() {
                 totalHardwareUnits += quantity;
                 const activePricing = getActivePriceData();
                 const priceInfo = activePricing[key];
-                totalHardwareSellPrice += quantity * priceInfo.cost * (1 + priceInfo.margin);
+                totalHardwareSellPrice += quantity * Math.round(priceInfo.cost * (1 + priceInfo.margin) * 100) / 100;
             }
         }
     }
 
     ['bronze', 'silver', 'gold'].forEach(tier => {
-        const calculatedCost = getSpecificSupportCost(tier, totalHardwareUnits, totalHardwareSellPrice);
-        const displayPrice = supportPriceOverrides[tier] !== null ? supportPriceOverrides[tier] : calculatedCost;
+        const displayPrice = getDisplayedSupportCost(tier, totalHardwareUnits, totalHardwareSellPrice);
         
         const container = document.querySelector(`.editable-price[data-tier="${tier}"]`);
         if(container) {
@@ -1846,7 +1769,7 @@ function updateDOM() {
                 else totalFixedAnnualDPY += dpyValue;
             }
         });
-        const dailyInstallRate = (priceData.install_internal?.cost * (1 + priceData.install_internal?.margin)) || 0;
+        const dailyInstallRate = Math.round((priceData.install_internal?.cost * (1 + priceData.install_internal?.margin)) * 100) / 100 || 0;
         const perSystemCost = totalPerSystemDPY * dailyInstallRate * totalHardwareUnits;
         const fixedAnnualCost = totalFixedAnnualDPY * dailyInstallRate;
         const maintenanceCost = totalHardwareSellPrice * (maintenancePercent / 100);
@@ -2091,82 +2014,80 @@ function setupScreenshotButton() {
         calculateCoverageRequirements();
     });
 
-   document.querySelectorAll('#number-of-networks, #max-antennas, #no-hardware-checkbox, #referral-fee-percent, #maintenance-percent, #customer-name, #survey-price, #quote-number, #proposal-description, #total-service-antennas, #include-survey-checkbox').forEach(input => {
+   document.querySelectorAll('#number-of-networks, #max-antennas, #no-hardware-checkbox, #referral-fee-percent, #maintenance-percent, #customer-name, #survey-price, #quote-number, #total-service-antennas, #include-survey-checkbox').forEach(input => {
         input.addEventListener('input', runFullCalculation);
         input.addEventListener('change', runFullCalculation);
     });
 
-    document.getElementById('reset-overrides').addEventListener('click', () => { for (const key in currentResults) { if (currentResults[key].hasOwnProperty('override')) currentResults[key].override = null; if (currentResults[key].hasOwnProperty('unitSellOverride')) currentResults[key].unitSellOverride = null; } setSupportPreset('none'); runFullCalculation(); });
-    
+    document.getElementById('reset-overrides').addEventListener('click', () => { for (const key in currentResults) { if (currentResults[key].hasOwnProperty('override')) currentResults[key].override = null; } unitSellOverrides = {}; setSupportPreset('none'); runFullCalculation(); });
+    document.getElementById('toggle-zero-qty-btn').addEventListener('click', (e) => { showZeroQuantityItems = !showZeroQuantityItems; e.target.textContent = showZeroQuantityItems ? 'Hide Zero Qty Items' : 'Show All Items'; runFullCalculation(); });
+
+    // Reset All button - resets all inputs to their default values
     document.getElementById('reset-all-btn').addEventListener('click', () => {
-        // Reset all overrides
-        for (const key in currentResults) {
-            if (currentResults[key].hasOwnProperty('override')) currentResults[key].override = null;
-            if (currentResults[key].hasOwnProperty('unitSellOverride')) currentResults[key].unitSellOverride = null;
-        }
+        if (!confirm('Reset all inputs to defaults? This will clear all your current settings.')) return;
         
-        // Reset form inputs to defaults
+        // Reset antenna calculator inputs
         document.getElementById('floor-area').value = '1000';
         document.getElementById('number-of-floors').value = '1';
-        document.getElementById('unit-sqm').checked = true;
-        document.getElementById('band-high').checked = true;
-        document.getElementById('percent-open').value = '30';
-        document.getElementById('percent-cubical').value = '30';
-        document.getElementById('percent-hollow').value = '30';
-        document.getElementById('percent-solid').value = '10';
+        document.querySelector('input[name="unit-switch"][value="sqm"]').checked = true;
+        document.querySelector('input[name="band-switch"][value="high_band"]').checked = true;
+        document.getElementById('percent-open').value = '25';
+        document.getElementById('percent-cubical').value = '25';
+        document.getElementById('percent-hollow').value = '25';
+        document.getElementById('percent-solid').value = '25';
         document.getElementById('high-ceiling-warehouse').checked = false;
+        
+        // Reset system configuration
         document.getElementById('system-type').value = 'G41';
         document.getElementById('number-of-networks').value = '4';
         document.getElementById('max-antennas').value = '12';
         document.getElementById('no-hardware-checkbox').checked = false;
+        document.getElementById('total-service-antennas').value = '12';
+        
+        // Reset financial inputs
         document.getElementById('referral-fee-percent').value = '0';
-        document.getElementById('maintenance-percent').value = '5';
+        document.getElementById('maintenance-percent').value = '0';
+        
+        // Reset customer info
         document.getElementById('customer-name').value = '';
-        document.getElementById('survey-price').value = '';
+        document.getElementById('survey-price').value = '0';
         document.getElementById('quote-number').value = '';
-        // Note: total-service-antennas is calculated automatically by runFullCalculation()
+        document.getElementById('include-survey-checkbox').checked = false;
         
-        const includeSurvey = document.getElementById('include-survey-checkbox');
-        if (includeSurvey) includeSurvey.checked = false;
+        // Reset all overrides
+        for (const key in currentResults) {
+            if (currentResults[key].hasOwnProperty('override')) {
+                currentResults[key].override = null;
+            }
+        }
         
-        const altPricingToggle = document.getElementById('alt-pricing-toggle');
-        if (altPricingToggle) altPricingToggle.checked = false;
-        useAltPricing = false;
+        // Reset unit sell overrides
+        unitSellOverrides = {};
         
-        const oldPricingToggle = document.getElementById('old-pricing-toggle');
-        if (oldPricingToggle) oldPricingToggle.checked = false;
-        useOldPricing = false;
-        
-        const proposalDescription = document.getElementById('proposal-description');
-        if (proposalDescription) proposalDescription.value = '';
-        
-        // Reset support package
-        supportPriceOverrides = { bronze: null, silver: null, gold: null };
+        // Reset support preset
         setSupportPreset('none');
-        updateAllSupportTierPrices();
         
-        // Reset zero qty toggle
+        // Reset support price overrides
+        supportPriceOverrides = { bronze: null, silver: null, gold: null };
+        
+        // Reset view settings
         showZeroQuantityItems = false;
-        const toggleBtn = document.getElementById('toggle-zero-qty-btn');
-        if (toggleBtn) toggleBtn.textContent = 'Show All Items';
+        document.getElementById('toggle-zero-qty-btn').textContent = 'Show All Items';
         
-        updateAltPricingIndicator();
-        // Clear saved share-state so page reload also starts fresh
-        try { sessionStorage.removeItem(SHARE_STATE_STORAGE_KEY); } catch (e) {}
-        calculateCoverageRequirements();
+        // Recalculate
+        runFullCalculation();
     });
-    
-    document.getElementById('toggle-zero-qty-btn').addEventListener('click', (e) => { showZeroQuantityItems = !showZeroQuantityItems; e.target.textContent = showZeroQuantityItems ? 'Hide Zero Qty Items' : 'Show All Items'; runFullCalculation(); });
 
     const altPricingToggle = document.getElementById('alt-pricing-toggle');
+    const oldPricingToggle = document.getElementById('old-pricing-toggle');
+    
     if (altPricingToggle) {
         altPricingToggle.addEventListener('change', (event) => {
             useAltPricing = event.target.checked;
-            // Make Alt and Old mutually exclusive
+            // Make mutually exclusive with Old Pricing
             if (useAltPricing && useOldPricing) {
                 useOldPricing = false;
-                const oldToggle = document.getElementById('old-pricing-toggle');
-                if (oldToggle) oldToggle.checked = false;
+                if (oldPricingToggle) oldPricingToggle.checked = false;
             }
             updateAltPricingIndicator();
             runFullCalculation();
@@ -2175,16 +2096,14 @@ function setupScreenshotButton() {
             }
         });
     }
-
-    const oldPricingToggle = document.getElementById('old-pricing-toggle');
+    
     if (oldPricingToggle) {
         oldPricingToggle.addEventListener('change', (event) => {
             useOldPricing = event.target.checked;
-            // Make Alt and Old mutually exclusive
+            // Make mutually exclusive with Alt Pricing
             if (useOldPricing && useAltPricing) {
                 useAltPricing = false;
-                const altToggle = document.getElementById('alt-pricing-toggle');
-                if (altToggle) altToggle.checked = false;
+                if (altPricingToggle) altPricingToggle.checked = false;
             }
             updateAltPricingIndicator();
             runFullCalculation();
@@ -2275,7 +2194,7 @@ function setupScreenshotButton() {
 
     // --- Final Calculation Logic ---
     if (!stateLoaded) {
-        setSupportPreset('none', true);
+        setSupportPreset('none');
     }
 
     calculateCoverageRequirements(); 
@@ -2396,7 +2315,7 @@ function setupHighCeilingControls() {
     try {
         let totalHardwareSellPrice = 0, totalHardwareUnits = 0;
         const hardwareKeys = ['G41', 'G43', 'QUATRA_NU', 'QUATRA_CU', 'QUATRA_HUB', 'QUATRA_EVO_NU', 'QUATRA_EVO_CU', 'QUATRA_EVO_HUB', 'extender_cat6', 'extender_fibre_cu', 'extender_fibre_nu'];
-        for (const key of hardwareKeys) { if (currentResults[key]) { const quantity = currentResults[key].override ?? currentResults[key].calculated; if (quantity > 0) { totalHardwareUnits += quantity; const priceInfo = priceData[key]; totalHardwareSellPrice += quantity * priceInfo.cost * (1 + priceInfo.margin); } } }
+        for (const key of hardwareKeys) { if (currentResults[key]) { const quantity = currentResults[key].override ?? currentResults[key].calculated; if (quantity > 0) { totalHardwareUnits += quantity; const priceInfo = priceData[key]; totalHardwareSellPrice += quantity * Math.round(priceInfo.cost * (1 + priceInfo.margin) * 100) / 100; } } }
         
         let selectedSupportTier = 'none';
         let selectedSupportName = "Please see the support options below";
@@ -2524,22 +2443,28 @@ function getTemplateData() {
             const quantity = currentResults[key].override ?? currentResults[key].calculated;
             if (quantity > 0) {
                 totalHardwareUnits += quantity;
-                totalHardwareSellPrice += quantity * priceData[key].cost * (1 + priceData[key].margin);
+                totalHardwareSellPrice += quantity * Math.round(priceData[key].cost * (1 + priceData[key].margin) * 100) / 100;
             }
         }
     });
 
     // --- CORRECTED LOGIC FOR PROPOSAL ---
 
-    // 1. Check if a support tier is actually selected (not 'none')
-    const activeButton = document.querySelector('.support-presets-main button.active-preset');
-    const hasSupportTierSelected = activeButton && activeButton.id !== 'support-preset-none';
-    
-    // 2. Get the cost and label for the selected support package.
-    const selectedSupportCost = hasSupportTierSelected ? (priceData['support_package']?.cost || 0) : 0;
-    const selectedSupportName = hasSupportTierSelected ? (priceData['support_package']?.label || "Annual Support Package") : "Please see the support options below";
+    // 1. Get the cost and label for the selected support package.
+    const rawSelectedSupportCost = priceData['support_package']?.cost || 0;
+    const activeSupportPresetButton = document.querySelector('.support-presets-main button.active-preset');
+    const activeSupportTier = activeSupportPresetButton && activeSupportPresetButton.id !== 'support-preset-none'
+        ? activeSupportPresetButton.id.replace('support-preset-', '')
+        : null;
+    const supportPackageOverride = currentResults['support_package']?.override;
+    const selectedSupportCost = supportPackageOverride !== null && supportPackageOverride !== undefined
+        ? supportPackageOverride
+        : ((activeSupportTier && supportPriceOverrides[activeSupportTier] !== null)
+            ? rawSelectedSupportCost
+            : applyReferralAdjustment(rawSelectedSupportCost));
+    const selectedSupportName = selectedSupportCost > 0 ? (priceData['support_package']?.label || "Annual Support Package") : "Please see the support options below";
 
-    // 3. "Professional Services" is the total of all other services.
+    // 2. "Professional Services" is the total of all other services.
     const servicesTotal = parseFloat(subTotalsForProposal.services?.sell || 0);
     const supportCost = parseFloat(selectedSupportCost || 0);
     const professionalServicesCost = (isNaN(servicesTotal) ? 0 : servicesTotal) - (isNaN(supportCost) ? 0 : supportCost);
@@ -2551,7 +2476,6 @@ function getTemplateData() {
     // Return final data object matching placeholders
     return {
         Account: document.getElementById('customer-name').value,
-        Description: document.getElementById('proposal-description').value,
         Solution: solutionName,
         NumberOfNetworks: document.getElementById('number-of-networks').value,
         SurveyPrice: `£${(parseFloat(document.getElementById('survey-price').value) || 0).toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
@@ -2572,26 +2496,26 @@ function getTemplateData() {
         TotalPrice3: `£${professionalServicesCost.toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
         
         Description4: selectedSupportName,
-        Qty4: hasSupportTierSelected ? "1" : "",
-        UnitPrice4: hasSupportTierSelected ? `£${selectedSupportCost.toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "",
-        TotalPrice4: hasSupportTierSelected ? `£${selectedSupportCost.toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "",
+        Qty4: selectedSupportCost > 0 ? "1" : "",
+        UnitPrice4: selectedSupportCost > 0 ? `£${selectedSupportCost.toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "",
+        TotalPrice4: selectedSupportCost > 0 ? `£${selectedSupportCost.toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "",
 
         TotalPrice: `£${((subTotalsForProposal.hardware?.sell || 0) + (subTotalsForProposal.consumables?.sell || 0) + (subTotalsForProposal.services?.sell || 0)).toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
 
         Support1: "Bronze",
         SupportQty1: "1",
-        SupportUnitPrice1: `£${getSpecificSupportCost('bronze', totalHardwareUnits, totalHardwareSellPrice).toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
-        SupportTotalPrice1: `£${getSpecificSupportCost('bronze', totalHardwareUnits, totalHardwareSellPrice).toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
+        SupportUnitPrice1: `£${getDisplayedSupportCost('bronze', totalHardwareUnits, totalHardwareSellPrice).toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
+        SupportTotalPrice1: `£${getDisplayedSupportCost('bronze', totalHardwareUnits, totalHardwareSellPrice).toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
         
         Support2: "Silver",
         SupportQty2: "1",
-        SupportUnitPrice2: `£${getSpecificSupportCost('silver', totalHardwareUnits, totalHardwareSellPrice).toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
-        SupportTotalPrice2: `£${getSpecificSupportCost('silver', totalHardwareUnits, totalHardwareSellPrice).toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
+        SupportUnitPrice2: `£${getDisplayedSupportCost('silver', totalHardwareUnits, totalHardwareSellPrice).toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
+        SupportTotalPrice2: `£${getDisplayedSupportCost('silver', totalHardwareUnits, totalHardwareSellPrice).toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
         
         Support3: "Gold",
         SupportQty3: "1",
-        SupportUnitPrice3: `£${getSpecificSupportCost('gold', totalHardwareUnits, totalHardwareSellPrice).toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
-        SupportTotalPrice3: `£${getSpecificSupportCost('gold', totalHardwareUnits, totalHardwareSellPrice).toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
+        SupportUnitPrice3: `£${getDisplayedSupportCost('gold', totalHardwareUnits, totalHardwareSellPrice).toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
+        SupportTotalPrice3: `£${getDisplayedSupportCost('gold', totalHardwareUnits, totalHardwareSellPrice).toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
     };
 }
 async function generatePdf() {
@@ -2695,7 +2619,6 @@ async function generatePdf() {
                 'customer-name': document.getElementById('customer-name').value,
                 'survey-price': document.getElementById('survey-price').value,
                 'quote-number': document.getElementById('quote-number').value,
-                'proposal-description': document.getElementById('proposal-description').value,
                 'floor-area': document.getElementById('floor-area').value,
                 'number-of-floors': document.getElementById('number-of-floors').value,
                 'unit-switch': document.querySelector('input[name="unit-switch"]:checked').value,
@@ -2715,7 +2638,6 @@ async function generatePdf() {
                 'total-service-antennas': document.getElementById('total-service-antennas').value,
             },
             overrides: {},
-            unitSellOverrides: {},
             support: {
                 activePreset: activePresetButton ? activePresetButton.id.replace('support-preset-', '') : null,
                 priceOverrides: filteredSupportOverrides,
@@ -2733,9 +2655,6 @@ async function generatePdf() {
             if (Object.prototype.hasOwnProperty.call(currentResults, key)) {
                 if (currentResults[key].override !== null) {
                     state.overrides[key] = currentResults[key].override;
-                }
-                if (currentResults[key].unitSellOverride !== null) {
-                    state.unitSellOverrides[key] = currentResults[key].unitSellOverride;
                 }
             }
         }
@@ -3215,18 +3134,9 @@ async function generateInteractiveLink() {
             isApplyingShareState = true;
             for (const key in state.overrides) {
                 if (!currentResults[key]) {
-                    currentResults[key] = { calculated: 0, override: null, decimals: 0, unit: '', unitSellOverride: null, calculatedUnitSell: 0 };
+                    currentResults[key] = { calculated: 0, override: null, decimals: 0, unit: '' };
                 }
                 currentResults[key].override = state.overrides[key];
-            }
-        }
-
-        if (state.unitSellOverrides) {
-            for (const key in state.unitSellOverrides) {
-                if (!currentResults[key]) {
-                    currentResults[key] = { calculated: 0, override: null, decimals: 0, unit: '', unitSellOverride: null, calculatedUnitSell: 0 };
-                }
-                currentResults[key].unitSellOverride = state.unitSellOverrides[key];
             }
         }
 
@@ -3290,7 +3200,7 @@ function applyPendingShareOverrides() {
         if (!Object.prototype.hasOwnProperty.call(pendingShareOverrides, key)) continue;
         const overrideValue = pendingShareOverrides[key];
         if (!currentResults[key]) {
-            currentResults[key] = { calculated: 0, override: null, decimals: 0, unit: '', unitSellOverride: null, calculatedUnitSell: 0 };
+            currentResults[key] = { calculated: 0, override: null, decimals: 0, unit: '' };
         }
         currentResults[key].override = overrideValue;
         appliedAny = true;
@@ -3322,7 +3232,7 @@ window.updateSellPriceDisplay = (key) => {
     const sellDisplay = document.getElementById(`sell-${key}`);
     const cost = parseFloat(costInput.value) || 0;
     const margin = parseFloat(marginInput.value) || 0;
-    const sellPrice = cost * (1 + margin / 100);
+    const sellPrice = Math.round(cost * (1 + margin / 100) * 100) / 100;
     sellDisplay.textContent = `£${sellPrice.toFixed(2)}`;
 };
 // Trigger deployment - August 7, 2025
