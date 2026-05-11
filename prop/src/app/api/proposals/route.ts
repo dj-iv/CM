@@ -454,10 +454,25 @@ export const GET = async (request: NextRequest) => {
     const proposalData = data.proposal && typeof data.proposal === "object" && !Array.isArray(data.proposal)
       ? (data.proposal as Record<string, unknown>)
       : null;
+    const decodedState = typeof data.encodedState === "string"
+      ? decodeState(data.encodedState)
+      : null;
+    const fallbackMetadata = buildMetadata(proposalData ?? {}, decodedState);
+    const storedMetadata = data.metadata && typeof data.metadata === "object" && !Array.isArray(data.metadata)
+      ? (data.metadata as Record<string, unknown>)
+      : null;
     const createdBy = sanitizeUserInfo(data.createdBy);
     return {
       slug: doc.id,
-      metadata: data.metadata ?? null,
+      metadata: storedMetadata
+        ? {
+          ...fallbackMetadata,
+          ...storedMetadata,
+          description: typeof storedMetadata.description === "string"
+            ? (storedMetadata.description.trim() || null)
+            : fallbackMetadata.description,
+        }
+        : fallbackMetadata,
       createdAt: createdAt ? createdAt.toISOString() : null,
       updatedAt: updatedAt ? updatedAt.toISOString() : null,
       pdf: data.pdf ?? null,

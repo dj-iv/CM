@@ -186,6 +186,13 @@ export const GET = async (request: NextRequest, ctx: { params: Promise<{ slug: s
   const proposalData = data.proposal && typeof data.proposal === "object" && !Array.isArray(data.proposal)
     ? (data.proposal as Record<string, unknown>)
     : null;
+  const decodedState = typeof data.encodedState === "string"
+    ? decodeState(data.encodedState)
+    : null;
+  const fallbackMetadata = buildMetadata(proposalData ?? {}, decodedState);
+  const storedMetadata = data.metadata && typeof data.metadata === "object" && !Array.isArray(data.metadata)
+    ? (data.metadata as Record<string, unknown>)
+    : null;
   const introduction = typeof data.introduction === "string"
     ? data.introduction
     : buildDefaultIntroduction(proposalData);
@@ -195,7 +202,15 @@ export const GET = async (request: NextRequest, ctx: { params: Promise<{ slug: s
     slug: snapshot.id,
     encodedState: data.encodedState ?? null,
     proposal: data.proposal ?? null,
-    metadata: data.metadata ?? null,
+    metadata: storedMetadata
+      ? {
+        ...fallbackMetadata,
+        ...storedMetadata,
+        description: typeof storedMetadata.description === "string"
+          ? (storedMetadata.description.trim() || null)
+          : fallbackMetadata.description,
+      }
+      : fallbackMetadata,
     pdf: data.pdf ?? null,
     createdAt: createdAt ? createdAt.toISOString() : null,
     updatedAt: updatedAt ? updatedAt.toISOString() : null,
@@ -293,6 +308,7 @@ export const PUT = async (request: NextRequest, ctx: { params: Promise<{ slug: s
     updates.metadata = {
       customerName: metadata.customerName,
       customerNameLower: metadata.customerNameLower,
+      description: metadata.description,
       solutionType: metadata.solutionType,
       numberOfNetworks: metadata.numberOfNetworks,
       quoteNumber: metadata.quoteNumber,
