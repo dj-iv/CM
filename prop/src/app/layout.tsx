@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "UCtel - Proposal Management",
+  title: "UCtel - Proposal",
   description: "UCtel proposal management portal",
 };
 
