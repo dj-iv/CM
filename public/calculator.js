@@ -2476,6 +2476,7 @@ function getTemplateData() {
     // Return final data object matching placeholders
     return {
         Account: document.getElementById('customer-name').value,
+            Description: document.getElementById('proposal-description').value.trim(),
         Solution: solutionName,
         NumberOfNetworks: document.getElementById('number-of-networks').value,
         SurveyPrice: `£${(parseFloat(document.getElementById('survey-price').value) || 0).toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
@@ -2619,6 +2620,7 @@ async function generatePdf() {
                 'customer-name': document.getElementById('customer-name').value,
                 'survey-price': document.getElementById('survey-price').value,
                 'quote-number': document.getElementById('quote-number').value,
+                    'proposal-description': document.getElementById('proposal-description').value,
                 'floor-area': document.getElementById('floor-area').value,
                 'number-of-floors': document.getElementById('number-of-floors').value,
                 'unit-switch': document.querySelector('input[name="unit-switch"]:checked').value,
